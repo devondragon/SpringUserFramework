@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+
+<html xmlns:th="http://www.thymeleaf.org">
+
+<body>
+	<div th:fragment="footer">
+		<footer id="page-footer" class="opacity-0">
+			<div class="content">
+				<hr />
+
+				<div class="footer_links_1">
+					<form sec:authorize="isAuthenticated()"
+						th:action="${@environment.getProperty('user.security.logoutActionURI')}" id="logout"
+						method="POST" enctype="utf8">
+					</form>
+					<p>
+						<a href="/">Home</a>
+						<span sec:authorize="!isAuthenticated()"> - <a
+								th:href="${@environment.getProperty('user.security.registrationURI')}"
+								th:utext="#{action.register}">Register</a></span>
+						<span sec:authorize="!isAuthenticated()"> - <a
+								th:href="${@environment.getProperty('user.security.loginPageURI')}"
+								th:utext="#{action.login}">Log in</a></span>
+						<span sec:authorize="isAuthenticated()"> - <a
+								th:href="${@environment.getProperty('user.security.updateUserURI')}"
+								th:utext="#{action.updateUser}">Update
+								User</a></span>
+						<span sec:authorize="isAuthenticated()"> - <a href="#"
+								onclick="document.getElementById('logout').submit();" th:utext="#{action.logout}">Log
+								out</a></span>
+					</p>
+				</div>
+
+				<div class="created_by">
+					<p th:utext="#{message.createdBy}"></p>
+
+					<p><span th:utext="#{message.copyright}"></span>
+						<span th:text="${@environment.getProperty('user.copyrightFirstYear')}" />-<span th:text="${#dates.year(#dates.createNow())}" /></p>
+				</div>
+
+			</div>
+		</footer>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+		<script th:src="@{/js/user.js}"></script>
+	</div>
+
+</body>
+
+</html>

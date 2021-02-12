@@ -1,0 +1,98 @@
+<!DOCTYPE HTML>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" layout:decorate="~{layout}">
+
+<head>
+	<title th:utext="#{page.title.registrationResendVerification}">Send New Verification Email</title>
+</head>
+
+<body>
+
+	<div layout:fragment="content">
+		<section id="main_content">
+			<div class="content">
+				<div class="container">
+					<div>
+						<h1 th:utext="#{label.form.resendRegistrationToken}">form</h1>
+						<br />
+						<p>
+							<span th:if="${expired}" th:utext="#{message.regTokenExpired}"></span>
+							<span th:unless="${expired}" th:utext="#{message.regTokenInvalid}"></span>
+						</p>
+						<div id="globalError" class="alert alert-danger col-sm-4" style="display:none"><span></span>
+						</div>
+						<div id="alreadyEnabledMessage" class="alert-danger col-sm-4" style="display:none">
+							<p
+								th:utext="#{message.regAlreadyEnabled(${@environment.getProperty('user.security.loginPageURI')}, ${@environment.getProperty('user.security.forgotPasswordURI')})}">
+							</p>
+							<br />
+						</div>
+
+						<form th:action="@{/user/resendRegistrationToken}" method="POST" enctype="utf8">
+
+							<div class="form-group row">
+								<label for="email" class="col-sm-3" th:utext="#{label.user.email}">email</label>
+								<span class="col-sm-5"><input id="email" type="email" class="form-control" name="email"
+										value="" required="required" /></span>
+								<span id="emailError" class="alert alert-danger col-sm-4" style="display:none"></span>
+
+							</div>
+							<br />
+							<button type="submit" class="btn btn-primary"
+								th:utext="#{label.form.submit}">submit</button>
+						</form>
+						<br />
+						<a th:href="@{/login}" th:utext="#{label.form.loginLink}">login</a>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<script th:inline="javascript">
+			$(document).ready(function () {
+				$('form').submit(function (event) {
+					register(event);
+				});
+			});
+
+			function register(event) {
+				event.preventDefault();
+				$(".alert").html("").hide();
+				$(".error-list").html("");
+
+				var token = $('input[name="_csrf"]').attr('value')
+				$.ajaxSetup({
+					beforeSend: function (xhr) {
+						xhr.setRequestHeader('Csrf-Token', token);
+					}
+				});
+				var formData = $('form').serialize();
+				$.post("/user/resendRegistrationToken", formData, function (data) {
+					if (data.success) {
+						window.location.href = data.redirectUrl;
+					} else {
+						console.log("200 response but success = false!");
+						console.log(data);
+						$('#globalError').html("Error!").show();
+					}
+
+
+				})
+					.fail(function ($xhr) {
+						var data = $xhr.responseJSON;
+						console.log(JSON.stringify(data.messages));
+						if (data.code == 1) {
+							$('#alreadyEnabledMessage').show("fast");
+						} else if (data.code == 2) {
+							$('#globalError').html("An Error Occured!").show();
+						} else {
+							$('#globalError').html("An Error Occured!").show();
+						}
+
+					});
+			}
+		</script>
+
+	</div>
+</body>
+
+</html>

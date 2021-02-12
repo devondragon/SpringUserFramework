@@ -1,0 +1,24 @@
+<!DOCTYPE HTML>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" layout:decorate="~{layout}">
+
+<head>
+	<title th:utext="#{page.title.home}">Home Page</title>
+</head>
+
+<body>
+
+	<div layout:fragment="content">
+		<section id="main_content">
+			<div class="content">
+				<div th:if="${message != null}" class="alert alert-info" th:utext="${message}">message</div>
+
+				<div sec:authorize="isAuthenticated()">
+					<span th:utext="#{message.welcome}" /> <span sec:authentication="principal.user.firstName" />!
+				</div>
+			</div>
+		</section>
+
+	</div>
+</body>
+
+</html>

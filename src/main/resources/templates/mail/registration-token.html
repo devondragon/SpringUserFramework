@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+	<title th:remove="all">Template for HTML email with inline image</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+
+<body>
+	<div>
+		<span th:text="${user.firstName}"></span>, <br />
+		<p th:utext="#{email.registrationConfirmation.introPara}"></p>
+		<br />
+		<p th:text="#{message.regSuccessLink}"></p>
+		<br />
+		<p>
+			<a th:href="${confirmationUrl}"><span th:text="${confirmationUrl}"></span></a>
+		</p>
+		<p th:utext="#{email.registrationConfirmation.linkExpPara(${appUrl})}"></p>
+		<br /><br />
+	</div>
+	<p th:utext="#{email.signature}"></p>
+</body>
+
+</html>

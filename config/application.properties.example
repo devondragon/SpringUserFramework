@@ -1,0 +1,7 @@
+spring.mail.host=email-smtp.us-west-2.amazonaws.com
+spring.mail.username=your_aws_smtp_username
+spring.mail.password=your_aws_smtp_password
+
+management.metrics.export.newrelic.apiKey=new_relic_api_key
+management.metrics.export.newrelic.accountId=new_relic_account_number
+

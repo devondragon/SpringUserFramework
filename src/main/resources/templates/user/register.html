@@ -1,0 +1,138 @@
+<!DOCTYPE HTML>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" layout:decorate="~{layout}">
+
+<head>
+	<title th:utext="#{page.title.registration}">Register</title>
+</head>
+
+<body>
+
+	<div layout:fragment="content">
+		<script th:src="@{/js/pwstrength.js}"></script>
+		<section id="main_content">
+			<div class="content">
+				<div class="container">
+					<div id="existingAccountError" style="display:none">
+						<h2><span th:utext="#{message.regErrorAlreadyExists}"></span></h2>
+						<p
+							th:utext="#{message.regErrorAlreadyExists2(${@environment.getProperty('user.security.loginPageURI')}, ${@environment.getProperty('user.security.forgotPasswordURI')})}">
+						</p>
+					</div>
+					<div>
+						<h1 th:utext="#{label.form.registrationTitle}">form</h1>
+						<br />
+						<form th:action="@{/user/registration}" method="POST" enctype="utf8">
+							<div class="form-group row">
+								<label for="firstName" class="col-sm-3" th:utext="#{label.user.firstName}">first</label>
+								<span class="col-sm-5"><input id="firstName" class="form-control" name="firstName"
+										value="" required="required" /></span>
+								<span id="firstNameError" class="alert alert-danger col-sm-4"
+									style="display:none"></span>
+
+							</div>
+							<div class="form-group row">
+								<label for="lastName" class="col-sm-3" th:utext="#{label.user.lastName}">last</label>
+								<span class="col-sm-5"><input id="lastName" class="form-control" name="lastName"
+										value="" required="required" /></span>
+								<span id="lastNameError" class="alert alert-danger col-sm-4"
+									style="display:none"></span>
+
+							</div>
+							<div class="form-group row">
+								<label for="email" class="col-sm-3" th:utext="#{label.user.email}">email</label>
+								<span class="col-sm-5"><input id="email" type="email" class="form-control" name="email"
+										value="" required="required" /></span>
+								<span id="emailError" class="alert alert-danger col-sm-4" style="display:none"></span>
+
+							</div>
+							<div class="form-group row">
+								<label for="password" class="col-sm-3"
+									th:utext="#{label.user.password}">password</label>
+								<span class="col-sm-5"><input id="password" class="form-control" name="password"
+										value="" type="password" required="required"
+										autocomplete="new-password" /></span>
+								<span id="passwordError" class="alert alert-danger col-sm-4"
+									style="display:none"></span>
+							</div>
+							<div class="form-group row">
+								<label for="matchPassword" class="col-sm-3"
+									th:utext="#{label.user.confirmPass}">confirm</label>
+								<span class="col-sm-5"><input id="matchPassword" class="form-control"
+										name="matchingPassword" value="" type="password" required="required"
+										autocomplete="new-password" /></span>
+								<span id="globalError" class="alert alert-danger col-sm-4" style="display:none"></span>
+							</div>
+							<br />
+							<button type="submit" class="btn btn-primary"
+								th:utext="#{label.form.submit}">submit</button>
+						</form>
+						<br />
+						<a th:href="${@environment.getProperty('user.security.loginPageURI')}"
+							th:utext="#{label.form.loginLink}">login</a>
+					</div>
+				</div>
+			</div>
+		</section>
+		<script th:inline="javascript">
+			var serverContext = "/";
+
+
+			$(document).ready(function () {
+				$('form').submit(function (event) {
+					register(event);
+				});
+
+				$(":password").keyup(function () {
+					if ($("#password").val() != $("#matchPassword").val()) {
+						$("#globalError").show().html(/*[[#{PasswordMatches.user}]]*/);
+					} else {
+						$("#globalError").html("").hide();
+					}
+				});
+			});
+
+			function register(event) {
+				event.preventDefault();
+				$(".alert").html("").hide();
+				$(".error-list").html("");
+				if ($("#password").val() != $("#matchPassword").val()) {
+					$("#globalError").show().html(/*[[#{PasswordMatches.user}]]*/);
+					return;
+				}
+				var token = $('input[name="_csrf"]').attr('value')
+				$.ajaxSetup({
+					beforeSend: function (xhr) {
+						xhr.setRequestHeader('Csrf-Token', token);
+					}
+				});
+				var formData = $('form').serialize();
+				$.post("/user/registration", formData, function (data) {
+					if (data.success) {
+						window.location.href = data.redirectUrl;
+					} else {
+						console.log("200 response but success = false!");
+						console.log(data);
+						$('#globalError').html("Error!").show();
+					}
+
+
+				})
+					.fail(function ($xhr) {
+						var data = $xhr.responseJSON;
+						console.log(JSON.stringify(data.messages));
+						if (data.code == 2) {
+							$('#existingAccountError').show();
+						} else {
+							$('#globalError').html("Error!").show();
+						}
+
+					});
+			}
+
+
+		</script>
+
+	</div>
+</body>
+
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE HTML>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" layout:decorate="~{layout}">
+
+<head>
+	<title th:utext="#{page.title.updateUser}">Update Profile</title>
+</head>
+
+<body>
+
+	<div layout:fragment="content">
+		<section id="main_content">
+			<div class="content">
+				<div class="container">
+					<div>
+						<h1 th:utext="#{label.form.updateUser}">form</h1>
+						<br />
+						<div id="globalMessage" style="display: hidden;">
+
+						</div>
+						<form th:action="@{/user/updateUser}" method="POST" enctype="utf8">
+							<div class="form-group row">
+								<label for="firstName" class="col-sm-3" th:utext="#{label.user.firstName}">first</label>
+								<span class="col-sm-5"><input id="firstName" class="form-control" name="firstName"
+										value="" th:value="${user.firstName}" required="required" /></span>
+								<span id="firstNameError" class="alert alert-danger col-sm-4"
+									style="display:none"></span>
+
+							</div>
+							<div class="form-group row">
+								<label for="lastName" class="col-sm-3" th:utext="#{label.user.lastName}">last</label>
+								<span class="col-sm-5"><input id="lastName" class="form-control" name="lastName"
+										value="" th:value="${user.lastName}" required="required" /></span>
+								<span id="lastNameError" class="alert alert-danger col-sm-4"
+									style="display:none"></span>
+
+							</div>
+							<br />
+							<button type="submit" class="btn btn-primary"
+								th:utext="#{label.form.submit}">submit</button>
+						</form>
+					</div>
+				</div>
+				<br /><br />
+				<div>
+					<a href="/user/update-password.html" th:utext="#{action.updatePassword}">Change Password</a>
+				</div>
+			</div>
+		</section>
+		<script th:inline="javascript">
+			$(document).ready(function () {
+				$('form').submit(function (event) {
+					register(event);
+				});
+			});
+
+			function register(event) {
+				event.preventDefault();
+				$(".alert").html("").hide();
+				$(".error-list").html("");
+
+				var token = $('input[name="_csrf"]').attr('value')
+				$.ajaxSetup({
+					beforeSend: function (xhr) {
+						xhr.setRequestHeader('Csrf-Token', token);
+					}
+				});
+				var formData = $('form').serialize();
+				$.post("/user/updateUser", formData, function (data) {
+					if (data.success) {
+						$('#globalMessage').html(data.messages.join(' ')).show();
+					} else {
+						console.log("200 response but success = false!");
+						console.log(data);
+						$('#globalMessage').html(data.messages.join(' ')).show();
+					}
+				})
+					.fail(function ($xhr) {
+						var data = $xhr.responseJSON;
+						console.log(JSON.stringify(data.messages));
+
+						$('#globalMessage').html(data.messages.join(' ')).show();
+					});
+			}
+
+		</script>
+
+	</div>
+</body>
+
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE HTML>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" layout:decorate="~{layout}">
+
+<head>
+	<title th:utext="#{page.title.login}">Login</title>
+</head>
+
+<body>
+
+	<div layout:fragment="content">
+		<section id="main_content">
+			<div class="content">
+				<h1 th:utext="#{label.form.loginTitle}">form</h1>
+				<br />
+				<div>
+					<div th:if="${param.error}">
+						<span th:utext="#{message.badCredentials}"></span>
+					</div>
+					<form th:action="${@environment.getProperty('user.security.loginActionURI')}" method="post">
+						<div>
+							<input type="text" name="username" th:placeholder="#{label.form.loginEmail}" />
+						</div>
+						<div>
+							<input type="password" name="password" th:placeholder="#{label.form.loginPass}" />
+						</div>
+						<input type="submit" th:value="#{label.form.loginButton}" />
+					</form>
+				</div>
+				<div>
+					<a th:href="${@environment.getProperty('user.security.registrationURI')}"
+						th:utext="#{action.register}">Register</a>
+					<br />
+					<a th:href="${@environment.getProperty('user.security.forgotPasswordURI')}"
+						th:utext="#{action.forgotPassword}">Forgot Password</a>
+
+				</div>
+
+			</div>
+		</section>
+		<script th:src="@{/js/login.js}"></script>
+	</div>
+</body>
+
+</html>
