@@ -1,16 +1,16 @@
 # SpringUserFramework
-A Easy to leverage User Management Framework based on Spring Security
+A Easy to leverage User Management Framework based on [Spring Security](https://spring.io/projects/spring-security)
 
 ## Summary
-This is an easy to use starter application or framework for handling basic user management features for your Spring based Web Application.  It provides registration, with optional email verification, login, logout, and forgot password flows.  There are basic example pages for everything, unstyled, to allow for the easiest integration to your application.  
+This is an easy to use starter application or framework for handling basic user management features for your [Spring](https://spring.io/) based Web Application.  It provides registration, with optional email verification, login, logout, and forgot password flows.  There are basic example pages for everything, unstyled, to allow for the easiest integration to your application.  
 
 ## Goals
 - To build an easy to use starting point for any Spring based web application that needs user features.
 - To provide a local database backed user store (although SSO integrations are easy to add using Spring Security).
 - To design based on REST APIs
 - To build on top of Spring Security to provide the best security and make it easy to leverage Spring Security features such as 2FA and SSO integrations.
-- To make it easily configurable using applicaiton.properties when possible
-- To use the messages feature for all user facing text and messaging, so internationalization is straight forward.
+- To make it easily configurable using application.properties when possible
+- To use the messages feature for all user facing text and messaging, so that internationalization is straight forward.
 - To provide an audit event framework to make security audit trails easy to deliver.
 - To use email address as the username by default.
 
@@ -23,8 +23,25 @@ Via simple configuration you can setup Spring Security to either block anonymous
 
 CSRF is enabled by default and the example jQuery AJAX calls pass the CSRF token from the Thymeleaf page context.
 
+An audit event and listener are implmented to allow for recording security events, or any type of event you like, and logging them to a seperate file. You can easily replace the logging listener with your own and store audit events in a database, publish them to a REST API, or anything else.
+
+
+## How To Get Started
+
+### Database
+This framework uses a database as a user store. By buildling on top of Spring JPA it is easy to use which ever datastore you like. The example configuration in application.properties is for a [MariaDB](https://mariadb.com) 10.5 database. You will need to create a user and a database and configure the database name, username, and password.
+
+### Mail Sending (SMTP)
+The framework sends emails for verficiation links, forgot password flow, etc... so you need to configure the outbound SMTP server and authentication information.  
+
+### New Relic
+Out of the box the project includes the New Relic Telemetry module, and as such requires a New Relic account id, and associated API key.  If you don't use New Relic you can remove the dependancy from the build.gradle file and ignore the configuration values.
+
+Beyond that the default configurations should be all you need, although of course you can customize things however you like.  
 
 ## Notes
-Much of this is based on the [Baeldung course on Spring Security]( https://www.baeldung.com/learn-spring-security-course).  If you want to learn more about Spring Security or you'd like to add an SSO integration or add 2FA, that guide is a great place to get started!
+Much of this is based on the [Baeldung course on Spring Security](https://www.baeldung.com/learn-spring-security-course).  If you want to learn more about Spring Security or you'd like to add an SSO integration or add 2FA, that guide is a great place to get started!
+
+You will see examples of different ways to to serve and consume the APIs in the codebase. For example some of the APIs return 200 response for all queries with a success flag and status codes to convey success or failures. Whereas others only use the 200 response on success, and use 409 or 500 for various error scenarios.  Some AJAX client JS will trigger a redirect to a new page, whereas other client JS will display messaging directly on the current page.  I think there are good reasons you may wish to use one or another approach, so I wanted to provide working examples of each.  
 
 There is no warranty or garantee of functionaltiy, quality, performance, or security made by the author.  This code is availble freely but you take all responsibilty and liabilty for your application.
