@@ -1,5 +1,5 @@
 # SpringUserFramework
-A Easy to leverage User Management Framework based on [Spring Security](https://spring.io/projects/spring-security)
+An Easy to leverage Java Spring Boot User Management Framework based on [Spring Security](https://spring.io/projects/spring-security)
 
 ## Summary
 This is an easy to use starter application or framework for handling basic user management features for your [Spring](https://spring.io/) based Web Application.  It provides registration, with optional email verification, login, logout, and forgot password flows.  There are basic example pages for everything, unstyled, to allow for the easiest integration to your application.  
