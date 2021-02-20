@@ -49,6 +49,9 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Value("#{'${user.security.unprotectedURIs}'.split(',')}")
 	private String[] unprotectedURIsArray;
 
+	@Value("#{'${user.security.disableCSRFdURIs}'.split(',')}")
+	private String[] disableCSRFURIsArray;
+
 	@Value("${user.security.loginPageURI}")
 	private String loginPageURI;
 
@@ -122,9 +125,13 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 		unprotectedURIs.add(forgotPasswordURI);
 		unprotectedURIs.add(forgotPasswordPendingURI);
 		unprotectedURIs.add(forgotPasswordChangeURI);
-		unprotectedURIs.toArray(new String[0]);
+		unprotectedURIs.removeAll(Arrays.asList("", null));
 
 		logger.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
+
+		ArrayList<String> disableCSRFURIs = new ArrayList<String>();
+		disableCSRFURIs.addAll(Arrays.asList(disableCSRFURIsArray));
+		disableCSRFURIs.removeAll(Arrays.asList("", null));
 
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			http.authorizeRequests().antMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest()
@@ -132,12 +139,19 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 					.successHandler(loginSuccessService).permitAll().and().logout().logoutUrl(logoutActionURI)
 					.invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService).deleteCookies("JSESSIONID")
 					.permitAll();
+			if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
+				http.csrf().ignoringAntMatchers(disableCSRFURIs.toArray(new String[0]));
+			}
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
 			http.authorizeRequests().antMatchers(protectedURIsArray).authenticated().antMatchers("/**").permitAll()
 					.and().formLogin().loginPage(loginPageURI).loginProcessingUrl(loginActionURI)
 					.successHandler(loginSuccessService).successHandler(loginSuccessService).and().logout()
 					.logoutUrl(logoutActionURI).invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService)
 					.deleteCookies("JSESSIONID").permitAll();
+
+			if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
+				http.csrf().ignoringAntMatchers(disableCSRFURIs.toArray(new String[0]));
+			}
 		} else {
 			logger.error("WebSecurityConfig.configure:"
 					+ "user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
