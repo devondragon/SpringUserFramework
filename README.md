@@ -39,6 +39,12 @@ Out of the box the project includes the New Relic Telemetry module, and as such 
 
 Beyond that the default configurations should be all you need, although of course you can customize things however you like.  
 
+## Docker
+
+After running 'gradle build', you can build a simple docker image with the application using the included Dockerfile.  It's very basic and is not using layering, buildpacks, or other things you may want for real applications.
+
+I have also included a docker-compose file which will launch a stack with the Spring Boot Application, MariaDB Database, and Postfix Mail Server, with basic configurations in place to make everything work.  Sending email from your computer (via the docker Postfix Mail Server) will likely get blocked by GMail, Outlook, etc... due to spam checks.  You can always test by using [10MinuteMail.com](https://10MinuteMail.com) addresses, but for real use you should probably leave off the mail server entirely and configure the Spring Boot application to use a real mail server for outbound transactional emails.  
+
 ## Notes
 Much of this is based on the [Baeldung course on Spring Security](https://www.baeldung.com/learn-spring-security-course).  If you want to learn more about Spring Security or you'd like to add an SSO integration or add 2FA, that guide is a great place to get started!
 
