@@ -61,6 +61,10 @@ services:
       - spring.datasource.password=springuser
       - SPRING_PROFILES_ACTIVE=dev
       - spring.mail.host=mailserver
+      - spring.mail.properties.mail.smtp.port=25
+      - spring.mail.properties.mail.smtp.auth=false
+      - spring.mail.properties.mail.smtp.starttls.enable=false
+      - spring.mail.properties.mail.smtp.starttls.required=false
 
 volumes:
   maildata:
