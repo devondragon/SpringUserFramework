@@ -1,0 +1,28 @@
+version: "3"
+
+services:
+  myapp-db:
+    image: mariadb:10.5
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=springuser
+      - MYSQL_USER=springuser
+      - MYSQL_PASSWORD=springuser
+    ports:
+      - 3306:3306
+
+  myapp-main:
+    image: user-framework
+#    restart: always
+    build:
+      context: .
+    depends_on:
+      - myapp-db
+    ports:
+      - 8080:8080
+    environment:
+      - SPRING.DATASOURCE.URL=jdbc:mysql://myapp-db:3306/springuser?createDatabaseIfNotExist=true
+      - SPRING.DATASOURCE.USERNAME=springuser
+      - SPRING.DATASOURCE.PASSWORD=springuser
+      - SPRING_PROFILES_ACTIVE=dev
+      
