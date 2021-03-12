@@ -1,0 +1,74 @@
+version: "3"
+
+services:
+  myapp-db:
+    image: mariadb:10.5
+    volumes:
+      - userdb:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=springuser
+      - MYSQL_USER=springuser
+      - MYSQL_PASSWORD=springuser
+    ports:
+      - 3306:3306
+
+  mailserver:
+    image: docker.io/mailserver/docker-mailserver:latest
+    hostname: mailserver
+    domainname: local
+    container_name: mailserver
+    env_file: mailserver.env
+    ports:
+      - "25:25"
+      - "143:143"
+      - "587:587"
+      - "993:993"
+    volumes:
+      - maildata:/var/mail
+      - mailstate:/var/mail-state
+      - maillogs:/var/log/mail
+      - ./config/:/tmp/docker-mailserver/${SELINUX_LABEL}
+    environment:
+      - PERMIT_DOCKER=connected-networks
+      - ONE_DIR=1
+      - DMS_DEBUG=1
+      - SPOOF_PROTECTION=0
+      - REPORT_RECIPIENT=1
+      - ENABLE_SPAMASSASSIN=0
+      - ENABLE_CLAMAV=0
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_POSTGREY=0
+      - SMTP_ONLY=1
+#    restart: always
+    cap_add: [ "NET_ADMIN", "SYS_PTRACE" ]
+
+  myapp-main:
+    image: user-framework
+#    restart: always
+    volumes:
+      - appvol:/opt/app
+    build:
+      context: .
+    depends_on:
+      - myapp-db
+      - mailserver
+    ports:
+      - 8080:8080
+    environment:
+      - spring.datasource.url=jdbc:mysql://myapp-db:3306/springuser?createDatabaseIfNotExist=true
+      - spring.datasource.username=springuser
+      - spring.datasource.password=springuser
+      - SPRING_PROFILES_ACTIVE=dev
+      - spring.mail.host=mailserver
+      - spring.mail.properties.mail.smtp.port=25
+      - spring.mail.properties.mail.smtp.auth=false
+      - spring.mail.properties.mail.smtp.starttls.enable=false
+      - spring.mail.properties.mail.smtp.starttls.required=false
+
+volumes:
+  maildata:
+  mailstate:
+  maillogs:
+  userdb:
+  appvol:
