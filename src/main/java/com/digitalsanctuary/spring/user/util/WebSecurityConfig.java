@@ -145,7 +145,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
 			http.authorizeRequests().antMatchers(protectedURIsArray).authenticated().antMatchers("/**").permitAll()
 					.and().formLogin().loginPage(loginPageURI).loginProcessingUrl(loginActionURI)
-					.successHandler(loginSuccessService).successHandler(loginSuccessService).and().logout()
+					.successHandler(loginSuccessService).and().logout()
 					.logoutUrl(logoutActionURI).invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService)
 					.deleteCookies("JSESSIONID").permitAll();
 
