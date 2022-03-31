@@ -31,6 +31,10 @@ An audit event and listener are implmented to allow for recording security event
 ### Database
 This framework uses a database as a user store. By buildling on top of Spring JPA it is easy to use which ever datastore you like. The example configuration in application.properties is for a [MariaDB](https://mariadb.com) 10.5 database. You will need to create a user and a database and configure the database name, username, and password.
 
+You can do this using docker with a command like this:
+
+docker run -p 127.0.0.1:3306:3306 --name springuserframework -e MARIADB_ROOT_PASSWORD=springuserroot -e MARIADB_DATABASE=springuser -e MARIADB_USER=springuser -e MARIADB_PASSWORD=springuser -d mariadb:latest
+
 ### Mail Sending (SMTP)
 The framework sends emails for verficiation links, forgot password flow, etc... so you need to configure the outbound SMTP server and authentication information.  
 
