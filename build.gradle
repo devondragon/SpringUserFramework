@@ -1,13 +1,13 @@
 plugins {
-  id 'org.springframework.boot' version '2.6.6'
+  id 'org.springframework.boot' version '2.7.2'
   id 'io.spring.dependency-management' version '1.0.11.RELEASE'
 	id 'java'
-	id 'eclipse'
 }
 
 group = 'com.digitalsanctuary.spring'
 version = '1.0.0-SNAPSHOT'
-sourceCompatibility = '11'
+sourceCompatibility = '17'
+targetCompatibility = '17'
 
 configurations {
 	dev
@@ -30,10 +30,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-	implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
 	implementation 'org.springframework.boot:spring-boot-starter-web'	
 	implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity5'
-	implementation 'com.newrelic.telemetry:micrometer-registry-new-relic:0.6.0'
+	implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
+	runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
 	implementation 'org.passay:passay:1.6.0'
 	compileOnly 'org.projectlombok:lombok'
 	implementation 'com.google.guava:guava:30.1-jre'
