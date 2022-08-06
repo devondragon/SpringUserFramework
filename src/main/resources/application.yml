@@ -1,0 +1,88 @@
+spring:
+  mail:
+    username:
+    password:
+    properties:
+      mail:
+        smtp:
+          starttls:
+            enable: true
+            required: true
+          auth: true
+          port: 587
+        transport:
+          protocol: smtp
+    host: email-smtp.us-west-2.amazonaws.com
+    
+  thymeleaf:
+    cache: false
+    template-loader-path: classpath:/templates
+    suffix: .html
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDB103Dialect
+        globally_quoted_identifiers: false
+    show-sql: 'false'
+  application:
+    name: User Framework
+  datasource:
+    password: springuser
+    url: jdbc:mysql:#localhost:3306/springuser?createDatabaseIfNotExist=true
+    driverClassName: org.mariadb.jdbc.Driver
+    username: springuser
+  messages:
+    basename: messages/messages
+user:
+  registration:
+    sendVerificationEmail: true
+  audit:
+    logFilePath: /opt/app/logs/user-audit.log
+    flushOnWrite: false
+    logEvents: true
+
+# Centralizing the URIs of common pages to make changing paths easier.  You can leave this section alone if you use the default page locations from this project.  These URLs do NOT have to be included in the unprotectedURIs list above as they will automatically be handled.
+  security:
+    loginActionURI: /user/login
+    forgotPasswordChangeURI: /user/forgot-password-change.html
+    registrationNewVerificationURI: /user/request-new-verification-email.html
+    loginSuccessURI: /index.html?messageKey=message.loginSuccess
+    forgotPasswordURI: /user/forgot-password.html
+    registrationPendingURI: /user/registration-pending-verification.html
+    disableCSRFdURIs: /no-csrf-test
+    registrationURI: /user/register.html
+    registrationSuccessURI: /user/registration-complete.html
+    logoutSuccessURI: /index.html?messageKey=message.logoutSuccess
+    defaultAction: deny
+    loginPageURI: /user/login.html
+    logoutActionURI: /user/logout
+    unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword
+    protectedURIs: /protected.html
+    forgotPasswordPendingURI: /user/forgot-password-pending-verification.html
+    updateUserURI: /user/update-user.html
+  mail:
+    fromAddress: test@test.com
+  purgetokens:
+    cron:
+      expression: 0 0 3 * * ?
+  copyrightFirstYear: 2020
+management:
+  metrics:
+    export:
+      newrelic:
+        accountId:
+        apiKey:
+hibernate:
+  globally_quoted_identifiers: 'false'
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+        http-only: true
+      timeout: 30m
+logging:
+  file:
+    name: /opt/app/logs/user-app.log

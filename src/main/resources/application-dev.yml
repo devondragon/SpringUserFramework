@@ -1,0 +1,32 @@
+debug: true
+
+logging:
+  level:
+    com:
+      digitalsanctuary:
+        spring: DEBUG
+    org:
+      springframework:
+        security: DEBUG
+        web:
+          filter:
+            CommonsRequestLoggingFilter: DEBUG
+          nodeValue: DEBUG
+spring:
+  mvc:
+    log-request-details: true
+  thymeleaf:
+    cache: false
+  devtools:
+    restart:
+      enabled: true
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+user:
+  audit:
+    flushOnWrite: true
+
