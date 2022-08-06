@@ -25,6 +25,8 @@ CSRF is enabled by default and the example jQuery AJAX calls pass the CSRF token
 
 An audit event and listener are implmented to allow for recording security events, or any type of event you like, and logging them to a seperate file. You can easily replace the logging listener with your own and store audit events in a database, publish them to a REST API, or anything else.
 
+There is Role and Privilege setup service, which allows you to easily define Roles, associated Privileges, and Role inheritance hierachy in your application.yml. Check out the application.yml for the basic OOTB configuration, and look at the RolePrivilegeSetupService component.  You can still create and leverage roles and privileges programatically, but this makes it easy to define and see the associations.  
+
 
 ## How To Get Started
 
