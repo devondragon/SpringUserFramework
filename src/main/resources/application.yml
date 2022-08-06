@@ -30,7 +30,7 @@ spring:
     name: User Framework
   datasource:
     password: springuser
-    url: jdbc:mysql:#localhost:3306/springuser?createDatabaseIfNotExist=true
+    url: jdbc:mariadb://localhost:3306/springuser?createDatabaseIfNotExist=true
     driverClassName: org.mariadb.jdbc.Driver
     username: springuser
   messages:
@@ -68,6 +68,26 @@ user:
     cron:
       expression: 0 0 3 * * ?
   copyrightFirstYear: 2020
+  
+  roles-and-privileges:
+    ROLE_ADMIN:
+      - ADMIN_PRIVILEGE
+      - INVITE_USER_PRIVILEGE
+      - READ_USER_PRIVILEGE
+      - ASSIGN_MANAGER_PRIVILEGE
+      - RESET_ANY_USER_PASSWORD_PRIVILEGE
+    ROLE_MANAGER:
+      - ADD_USER_TO_TEAM_PRIVILEGE
+      - REMOVE_USER_FROM_TEAM_PRIVILEGE
+      - RESET_TEAM_PASSWORD_PRIVILEGE
+    ROLE_USER:
+      - LOGIN_PRIVILEGE
+      - UPDATE_OWN_USER_PRIVILEGE
+      - RESET_OWN_PASSWORD_PRIVILEGE
+  role-hierarchy:
+    - ROLE_ADMIN > ROLE_MANAGER
+    - ROLE_MANAGER > ROLE_USER
+
 management:
   metrics:
     export:
