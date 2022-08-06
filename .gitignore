@@ -123,4 +123,6 @@ gradle-app.setting
 !/config/README.md
 !/config/*.example
 
+application-local.yml
+
 

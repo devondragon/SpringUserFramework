@@ -2,13 +2,15 @@ package com.digitalsanctuary.spring.user.util;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.expression.SecurityExpressionHandler;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
@@ -21,13 +23,16 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
+import org.springframework.security.web.FilterInvocation;
+import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
 import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
-
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Configuration
@@ -97,6 +102,9 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Autowired
 	private LogoutSuccessService logoutSuccessService;
 
+	@Autowired
+	private RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
+
 	@Bean
 	@Override
 	public AuthenticationManager authenticationManagerBean() throws Exception {
@@ -134,20 +142,18 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 		disableCSRFURIs.removeAll(Arrays.asList("", null));
 
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
-			http.authorizeRequests().antMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest()
-					.authenticated().and().formLogin().loginPage(loginPageURI).loginProcessingUrl(loginActionURI)
-					.successHandler(loginSuccessService).permitAll().and().logout().logoutUrl(logoutActionURI)
-					.invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService).deleteCookies("JSESSIONID")
+			http.authorizeRequests().antMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated().and().formLogin()
+					.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll().and().logout()
+					.logoutUrl(logoutActionURI).invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService).deleteCookies("JSESSIONID")
 					.permitAll();
 			if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
 				http.csrf().ignoringAntMatchers(disableCSRFURIs.toArray(new String[0]));
 			}
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
-			http.authorizeRequests().antMatchers(protectedURIsArray).authenticated().antMatchers("/**").permitAll()
-					.and().formLogin().loginPage(loginPageURI).loginProcessingUrl(loginActionURI)
-					.successHandler(loginSuccessService).successHandler(loginSuccessService).and().logout()
-					.logoutUrl(logoutActionURI).invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService)
-					.deleteCookies("JSESSIONID").permitAll();
+			http.authorizeRequests().antMatchers(protectedURIsArray).authenticated().antMatchers("/**").permitAll().and().formLogin()
+					.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService)
+					.successHandler(loginSuccessService).and().logout().logoutUrl(logoutActionURI).invalidateHttpSession(true)
+					.logoutSuccessHandler(logoutSuccessService).deleteCookies("JSESSIONID").permitAll();
 
 			if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
 				http.csrf().ignoringAntMatchers(disableCSRFURIs.toArray(new String[0]));
@@ -178,4 +184,25 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	public SessionRegistry sessionRegistry() {
 		return new SessionRegistryImpl();
 	}
+
+	@Bean
+	public RoleHierarchy roleHierarchy() {
+		RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
+		roleHierarchy.setHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
+		log.debug("WebSecurityConfig.roleHierarchy:" + "roleHierarchy: {}", roleHierarchy.toString());
+		return roleHierarchy;
+	}
+
+	@Bean
+	public SecurityExpressionHandler<FilterInvocation> webExpressionHandler() {
+		DefaultWebSecurityExpressionHandler defaultWebSecurityExpressionHandler = new DefaultWebSecurityExpressionHandler();
+		defaultWebSecurityExpressionHandler.setRoleHierarchy(roleHierarchy());
+		return defaultWebSecurityExpressionHandler;
+	}
+
+	@Bean
+	public HttpSessionEventPublisher httpSessionEventPublisher() {
+		return new HttpSessionEventPublisher();
+	}
+
 }

@@ -18,7 +18,6 @@ import lombok.Data;
 @Data
 @Entity
 public class Role {
-
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
@@ -30,9 +29,28 @@ public class Role {
 
 	/** The privileges. */
 	@ManyToMany
-	@JoinTable(name = "roles_privileges", joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"), inverseJoinColumns = @JoinColumn(name = "privilege_id", referencedColumnName = "id"))
+	@JoinTable(name = "roles_privileges", joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"),
+			inverseJoinColumns = @JoinColumn(name = "privilege_id", referencedColumnName = "id"))
 	private Collection<Privilege> privileges;
 
 	/** The name. */
 	private String name;
+
+	private String description;
+
+
+	public Role() {
+		super();
+	}
+
+	public Role(final String name) {
+		super();
+		this.name = name;
+	}
+
+	public Role(final String name, final String description) {
+		super();
+		this.name = name;
+		this.description = description;
+	}
 }
