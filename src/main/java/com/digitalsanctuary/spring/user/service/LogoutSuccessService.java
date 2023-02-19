@@ -1,12 +1,6 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import com.digitalsanctuary.spring.user.event.AuditEvent;
-import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.util.UserUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +10,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
+import com.digitalsanctuary.spring.user.event.AuditEvent;
+import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.util.UserUtils;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * The LogoutSuccessService is called when a user logs out successfully.

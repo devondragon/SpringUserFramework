@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.mail;
 
 import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
 
 /**
- * The MailService provides outbound email sending services on top of the Spring mail framework, and leverages Thymeleaf
- * templates for rich dynamic emails.
+ * The MailService provides outbound email sending services on top of the Spring mail framework, and leverages Thymeleaf templates for rich dynamic
+ * emails.
  */
 @Service
 public class MailService {
@@ -37,10 +36,8 @@ public class MailService {
 	/**
 	 * Instantiates a new mail service.
 	 *
-	 * @param mailSender
-	 *            the mail sender
+	 * @param mailSender the mail sender
 	 */
-	@Autowired
 	public MailService(JavaMailSender mailSender) {
 		this.mailSender = mailSender;
 	}
@@ -48,12 +45,9 @@ public class MailService {
 	/**
 	 * Send a simple plain text email.
 	 *
-	 * @param to
-	 *            the to email address to send the mail to
-	 * @param subject
-	 *            the subject of the email
-	 * @param text
-	 *            the text to include as the email message body
+	 * @param to the to email address to send the mail to
+	 * @param subject the subject of the email
+	 * @param text the text to include as the email message body
 	 */
 	public void sendSimpleMessage(String to, String subject, String text) {
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
@@ -74,14 +68,10 @@ public class MailService {
 	/**
 	 * Send a dynamic Thymeleaf template driven email.
 	 *
-	 * @param to
-	 *            the to email address to send the mail to
-	 * @param subject
-	 *            the subject of the email
-	 * @param variables
-	 *            a map of variables (key->value) to use in building the dynamic content via the template
-	 * @param templatePath
-	 *            the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
+	 * @param to the to email address to send the mail to
+	 * @param subject the subject of the email
+	 * @param variables a map of variables (key->value) to use in building the dynamic content via the template
+	 * @param templatePath the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
 	 */
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {
 		MimeMessagePreparator messagePreparator = mimeMessage -> {

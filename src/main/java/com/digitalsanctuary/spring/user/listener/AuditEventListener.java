@@ -7,10 +7,6 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.MessageFormat;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,12 +15,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-
 import com.digitalsanctuary.spring.user.event.AuditEvent;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
 /**
- * This class processes AuditEvents. This class writes the AuditEvent data to a text file on the server. You could
- * easily change the logic to write to a database, send events to a REST API, or anything else.
+ * This class processes AuditEvents. This class writes the AuditEvent data to a text file on the server. You could easily change the logic to write to
+ * a database, send events to a REST API, or anything else.
  *
  * @see AuditEvent
  */
@@ -44,10 +41,9 @@ public class AuditEventListener {
 	private String logFilePath;
 
 	/**
-	 * The flush on write flag, if enabled, causes the BufferedWriter to be flushed on every log entry. This has a
-	 * performance impact under heavy loads, but ensures events are written to the log file without delay. This is
-	 * beneficial in development environments, or environments where the performance penalty is less important that
-	 * ensuring events are not lost in case of JVM or server crash.
+	 * The flush on write flag, if enabled, causes the BufferedWriter to be flushed on every log entry. This has a performance impact under heavy
+	 * loads, but ensures events are written to the log file without delay. This is beneficial in development environments, or environments where the
+	 * performance penalty is less important that ensuring events are not lost in case of JVM or server crash.
 	 */
 	@Value("${user.audit.flushOnWrite:false}")
 	private boolean flushOnWrite;
@@ -63,13 +59,11 @@ public class AuditEventListener {
 		logger.info("AuditEventListener.setup:" + "Entering...");
 		if (logEvents) {
 			if (!StringUtils.hasText(logFilePath)) {
-				logger.error(
-						"AuditEventListener.setup: user.audit.logEvents is true, but no user.audit.logFilePath has been configured!");
+				logger.error("AuditEventListener.setup: user.audit.logEvents is true, but no user.audit.logFilePath has been configured!");
 			} else {
 				logger.debug("AuditEventListener.setup: Opening log file: {}", logFilePath);
 				try {
-					OpenOption[] fileOptions = { StandardOpenOption.CREATE, StandardOpenOption.APPEND,
-							StandardOpenOption.WRITE };
+					OpenOption[] fileOptions = {StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE};
 					boolean newFile = false;
 					if (Files.notExists(Path.of(logFilePath))) {
 						newFile = true;
@@ -92,9 +86,8 @@ public class AuditEventListener {
 	private void writeHeader() {
 		logger.debug("AuditEventListener.writeHeader:" + "writing header.");
 		if (bufferedWriter != null) {
-			String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", "Date", "Action",
-					"Action Status", "User ID", "Email", "IP Address", "SessionId", "Message", "User Agent",
-					"Extra Data");
+			String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", "Date", "Action", "Action Status", "User ID", "Email",
+					"IP Address", "SessionId", "Message", "User Agent", "Extra Data");
 			try {
 				bufferedWriter.write(output);
 				bufferedWriter.newLine();
@@ -139,11 +132,10 @@ public class AuditEventListener {
 
 	/**
 	 * Handle the AuditEvents.
-	 * 
+	 *
 	 * In this case we are writing the event data out to an audit log on the server, using pipe delimiters.
 	 *
-	 * @param event
-	 *            the event
+	 * @param event the event
 	 */
 	@EventListener
 	public void onApplicationEvent(AuditEvent event) {
@@ -157,9 +149,9 @@ public class AuditEventListener {
 				userId = event.getUser().getId().toString();
 				userEmail = event.getUser().getEmail();
 			}
-			String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", event.getDate(),
-					event.getAction(), event.getActionStatus(), userId, userEmail, event.getIpAddress(),
-					event.getSessionId(), event.getMessage(), event.getUserAgent(), event.getExtraData());
+			String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", event.getDate(), event.getAction(),
+					event.getActionStatus(), userId, userEmail, event.getIpAddress(), event.getSessionId(), event.getMessage(), event.getUserAgent(),
+					event.getExtraData());
 
 			logger.debug("AuditEventListener.onApplicationEvent: output: {}", output);
 			try {

@@ -1,12 +1,13 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.util.Collection;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.ManyToMany;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToMany;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * The Privilege Entity. Part of the basic User ->> Role ->> Privilege structure.
@@ -28,6 +29,7 @@ public class Privilege {
 	private String description;
 
 	/** The roles which have this privilege. */
+	@ToString.Exclude
 	@ManyToMany(mappedBy = "privileges")
 	private Collection<Role> roles;
 

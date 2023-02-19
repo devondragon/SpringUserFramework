@@ -2,9 +2,6 @@ package com.digitalsanctuary.spring.user.controller;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Locale;
-
-import javax.servlet.http.HttpServletRequest;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +13,11 @@ import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
-
 import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.util.UserUtils;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * The UserActionController handles non-API, non-Page requests like token validation links from emails.
@@ -67,21 +64,17 @@ public class UserActionController {
 	/**
 	 * Validate a forgot password token link from an email, and if valid, show the change password page.
 	 *
-	 * @param model
-	 *            the model
-	 * @param token
-	 *            the token
+	 * @param model the model
+	 * @param token the token
 	 * @return the model and view
 	 */
 	@GetMapping("/user/changePassword")
-	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model,
-			@RequestParam("token") final String token) {
+	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model, @RequestParam("token") final String token) {
 		logger.debug("UserAPI.showChangePasswordPage:" + "called with token: {}", token);
 		final String result = userService.validatePasswordResetToken(token);
 		logger.debug("UserAPI.showChangePasswordPage:" + "result: {}", result);
-		AuditEvent changePasswordAuditEvent = new AuditEvent(this, null, request.getSession().getId(),
-				UserUtils.getClientIP(request), request.getHeader("User-Agent"), "showChangePasswordPage", "Success",
-				"Requested. Result:" + result, null);
+		AuditEvent changePasswordAuditEvent = new AuditEvent(this, null, request.getSession().getId(), UserUtils.getClientIP(request),
+				request.getHeader("User-Agent"), "showChangePasswordPage", "Success", "Requested. Result:" + result, null);
 		eventPublisher.publishEvent(changePasswordAuditEvent);
 		if (UserService.TOKEN_VALID.equals(result)) {
 			model.addAttribute("token", token);
@@ -97,15 +90,11 @@ public class UserActionController {
 	/**
 	 * Validate a forgot password token link from an email, and if valid, show the registration success page.
 	 *
-	 * @param request
-	 *            the request
-	 * @param model
-	 *            the model
-	 * @param token
-	 *            the token
+	 * @param request the request
+	 * @param model the model
+	 * @param token the token
 	 * @return the model and view
-	 * @throws UnsupportedEncodingException
-	 *             the unsupported encoding exception
+	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 */
 	@GetMapping("/user/registrationConfirm")
 	public ModelAndView confirmRegistration(final HttpServletRequest request, final ModelMap model,
@@ -120,9 +109,8 @@ public class UserActionController {
 				userService.authWithoutPassword(user);
 				userService.deleteVerificationToken(token);
 
-				AuditEvent registrationAuditEvent = new AuditEvent(this, user, request.getSession().getId(),
-						UserUtils.getClientIP(request), request.getHeader("User-Agent"), "Registration Confirmation",
-						"Success", "Registration Confirmed. User logged in.", null);
+				AuditEvent registrationAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
+						request.getHeader("User-Agent"), "Registration Confirmation", "Success", "Registration Confirmed. User logged in.", null);
 				eventPublisher.publishEvent(registrationAuditEvent);
 			}
 

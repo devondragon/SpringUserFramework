@@ -4,9 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
-
-import javax.servlet.http.HttpServletRequest;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,16 +13,15 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import com.digitalsanctuary.spring.user.persistence.model.Privilege;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.util.UserUtils;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * The DSUserDetailsService extends the Spring Security UserDetailsService to use the DSUserDetails object and to use
- * email as username.
+ * The DSUserDetailsService extends the Spring Security UserDetailsService to use the DSUserDetails object and to use email as username.
  */
 @Service
 @Transactional
@@ -56,11 +52,9 @@ public class DSUserDetailsService implements UserDetailsService {
 	/**
 	 * Load user by email address.
 	 *
-	 * @param email
-	 *            the email address
+	 * @param email the email address
 	 * @return the DS user details
-	 * @throws UsernameNotFoundException
-	 *             the email not found exception
+	 * @throws UsernameNotFoundException the email not found exception
 	 */
 	@Override
 	public DSUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {
@@ -89,8 +83,7 @@ public class DSUserDetailsService implements UserDetailsService {
 	/**
 	 * Gets the authorities.
 	 *
-	 * @param roles
-	 *            the roles
+	 * @param roles the roles
 	 * @return the authorities
 	 */
 	private Collection<? extends GrantedAuthority> getAuthorities(final Collection<Role> roles) {
@@ -100,8 +93,7 @@ public class DSUserDetailsService implements UserDetailsService {
 	/**
 	 * Gets the privileges.
 	 *
-	 * @param roles
-	 *            the roles
+	 * @param roles the roles
 	 * @return the privileges
 	 */
 	private List<String> getPrivileges(final Collection<Role> roles) {
@@ -120,8 +112,7 @@ public class DSUserDetailsService implements UserDetailsService {
 	/**
 	 * Gets the granted authorities.
 	 *
-	 * @param privileges
-	 *            the privileges
+	 * @param privileges the privileges
 	 * @return the granted authorities
 	 */
 	private List<GrantedAuthority> getGrantedAuthorities(final List<String> privileges) {

@@ -1,17 +1,15 @@
 package com.digitalsanctuary.spring.user.controller;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.GetMapping;
-
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * The UserPageController for the user management pages.
@@ -24,8 +22,7 @@ public class UserPageController {
 	/**
 	 * Login Page.
 	 *
-	 * @param userDetails
-	 *            the user details
+	 * @param userDetails the user details
 	 * @return the string
 	 */
 	@GetMapping("/user/login.html")
@@ -105,8 +102,7 @@ public class UserPageController {
 	}
 
 	@GetMapping("/user/update-user.html")
-	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request,
-			final ModelMap model) {
+	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request, final ModelMap model) {
 		if (userDetails != null) {
 			User user = userDetails.getUser();
 			UserDto userDto = new UserDto();
