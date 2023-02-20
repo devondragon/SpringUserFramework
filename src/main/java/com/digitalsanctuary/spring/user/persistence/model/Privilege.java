@@ -16,7 +16,6 @@ import lombok.ToString;
 @Entity
 public class Privilege {
 
-
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)

@@ -1,26 +1,24 @@
 package com.digitalsanctuary.spring.user.mail;
 
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.javamail.MimeMessagePreparator;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The MailService provides outbound email sending services on top of the Spring mail framework, and leverages Thymeleaf templates for rich dynamic
  * emails.
  */
+@Slf4j
 @Service
 public class MailService {
-
-	/** The logger. */
-	Logger logger = LoggerFactory.getLogger(MailService.class);
 
 	/** The mail sender. */
 	private JavaMailSender mailSender;
@@ -49,6 +47,7 @@ public class MailService {
 	 * @param subject the subject of the email
 	 * @param text the text to include as the email message body
 	 */
+	@Async
 	public void sendSimpleMessage(String to, String subject, String text) {
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
 			MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
@@ -61,7 +60,7 @@ public class MailService {
 		try {
 			mailSender.send(messagePreparator);
 		} catch (MailException e) {
-			logger.error("MailService.sendSimpleMessage:" + "Error!", e);
+			log.error("MailService.sendSimpleMessage: Error!", e);
 		}
 	}
 
@@ -73,6 +72,7 @@ public class MailService {
 	 * @param variables a map of variables (key->value) to use in building the dynamic content via the template
 	 * @param templatePath the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
 	 */
+	@Async
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
 			MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
@@ -87,7 +87,7 @@ public class MailService {
 		try {
 			mailSender.send(messagePreparator);
 		} catch (MailException e) {
-			logger.error("MailService.sendTemplateMessage:" + "Error!", e);
+			log.error("MailService.sendTemplateMessage: Error!", e);
 		}
 	}
 }

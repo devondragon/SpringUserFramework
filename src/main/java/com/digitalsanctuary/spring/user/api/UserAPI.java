@@ -136,7 +136,7 @@ public class UserAPI {
 				// Else send new token email
 				logger.debug("UserAPI.resendRegistrationToken:" + "sending a new verification token email.");
 				String appUrl = UserUtils.getAppUrl(request);
-				userService.sendRegistrationVerificationEmail(user, appUrl);
+				userService.userEmailService.sendRegistrationVerificationEmail(user, appUrl);
 				// Return happy path response
 				AuditEvent resendRegTokenAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
 						request.getHeader("User-Agent"), "Resend Reg Token", "Success", "Success", null);
@@ -192,7 +192,7 @@ public class UserAPI {
 
 		if (user != null) {
 			String appUrl = UserUtils.getAppUrl(request);
-			userService.sendForgotPasswordVerificaitonEmail(user, appUrl);
+			userService.userEmailService.sendForgotPasswordVerificationEmail(user, appUrl);
 
 			AuditEvent resetPasswordAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
 					request.getHeader("User-Agent"), "Reset Password", "Success", "Success", null);
