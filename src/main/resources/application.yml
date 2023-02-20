@@ -13,7 +13,7 @@ spring:
         transport:
           protocol: smtp
     host: email-smtp.us-west-2.amazonaws.com
-    
+
   thymeleaf:
     cache: false
     template-loader-path: classpath:/templates
@@ -68,7 +68,7 @@ user:
     cron:
       expression: 0 0 3 * * ?
   copyrightFirstYear: 2020
-  
+
   roles-and-privileges:
     ROLE_ADMIN:
       - ADMIN_PRIVILEGE
@@ -89,11 +89,11 @@ user:
     - ROLE_MANAGER > ROLE_USER
 
 management:
-  metrics:
-    export:
-      newrelic:
-        accountId:
-        apiKey:
+  newrelic:
+    metrics:
+      export:
+        api-key:
+        account-id:
 hibernate:
   globally_quoted_identifiers: 'false'
 server:

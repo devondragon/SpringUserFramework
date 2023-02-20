@@ -1,6 +1,6 @@
 package com.digitalsanctuary.spring.user.util;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 public abstract class UserUtils {
 	public static String getClientIP(HttpServletRequest request) {

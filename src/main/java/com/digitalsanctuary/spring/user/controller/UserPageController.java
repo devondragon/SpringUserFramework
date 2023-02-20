@@ -1,36 +1,30 @@
 package com.digitalsanctuary.spring.user.controller;
 
-import javax.servlet.http.HttpServletRequest;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.GetMapping;
-
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The UserPageController for the user management pages.
  */
+@Slf4j
 @Controller
 public class UserPageController {
-	/** The logger. */
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
-
 	/**
 	 * Login Page.
 	 *
-	 * @param userDetails
-	 *            the user details
+	 * @param userDetails the user details
 	 * @return the string
 	 */
 	@GetMapping("/user/login.html")
 	public String login(@AuthenticationPrincipal DSUserDetails userDetails) {
-		logger.debug("UserPageController.login:" + "userDetails: {}", userDetails);
+		log.debug("UserPageController.login:" + "userDetails: {}", userDetails);
 		return "user/login";
 	}
 
@@ -105,8 +99,7 @@ public class UserPageController {
 	}
 
 	@GetMapping("/user/update-user.html")
-	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request,
-			final ModelMap model) {
+	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request, final ModelMap model) {
 		if (userDetails != null) {
 			User user = userDetails.getUser();
 			UserDto userDto = new UserDto();
@@ -114,7 +107,6 @@ public class UserPageController {
 			userDto.setLastName(user.getLastName());
 			model.addAttribute("user", userDto);
 		}
-
 		return "user/update-user";
 	}
 

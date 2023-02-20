@@ -1,16 +1,17 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
-import java.util.Collection;
-
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
-import javax.persistence.ManyToMany;
-
+import java.util.HashSet;
+import java.util.Set;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * The Role Entity. Part of the basic User ->> Role ->> Privilege structure.
@@ -21,23 +22,24 @@ public class Role {
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	@ToString.Include
 	private Long id;
 
 	/** The users. */
-	@ManyToMany(mappedBy = "roles")
-	private Collection<User> users;
+	@ToString.Exclude
+	@ManyToMany(mappedBy = "roles", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+	private Set<User> users = new HashSet<>();
 
 	/** The privileges. */
-	@ManyToMany
+	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
 	@JoinTable(name = "roles_privileges", joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"),
 			inverseJoinColumns = @JoinColumn(name = "privilege_id", referencedColumnName = "id"))
-	private Collection<Privilege> privileges;
+	private Set<Privilege> privileges = new HashSet<>();
 
 	/** The name. */
 	private String name;
 
 	private String description;
-
 
 	public Role() {
 		super();

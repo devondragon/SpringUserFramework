@@ -2,15 +2,13 @@ package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.util.Calendar;
 import java.util.Date;
-
-import javax.persistence.Entity;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.OneToOne;
-
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
 import lombok.Data;
 
 /**
@@ -49,8 +47,7 @@ public class PasswordResetToken {
 	/**
 	 * Instantiates a new password reset token.
 	 *
-	 * @param token
-	 *            the token
+	 * @param token the token
 	 */
 	public PasswordResetToken(final String token) {
 		super();
@@ -61,10 +58,8 @@ public class PasswordResetToken {
 	/**
 	 * Instantiates a new password reset token.
 	 *
-	 * @param token
-	 *            the token
-	 * @param user
-	 *            the user
+	 * @param token the token
+	 * @param user the user
 	 */
 	public PasswordResetToken(final String token, final User user) {
 		super();
@@ -76,8 +71,7 @@ public class PasswordResetToken {
 	/**
 	 * Calculate expiry date.
 	 *
-	 * @param expiryTimeInMinutes
-	 *            the expiry time in minutes
+	 * @param expiryTimeInMinutes the expiry time in minutes
 	 * @return the date
 	 */
 	private Date calculateExpiryDate(final int expiryTimeInMinutes) {
@@ -90,8 +84,7 @@ public class PasswordResetToken {
 	/**
 	 * Update token.
 	 *
-	 * @param token
-	 *            the token
+	 * @param token the token
 	 */
 	public void updateToken(final String token) {
 		this.token = token;
