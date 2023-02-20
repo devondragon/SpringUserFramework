@@ -19,9 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class ExpiredTokenCleanJob {
 
-	/** The registration email verificaiton token repository. */
+	/** The registration email verification token repository. */
 	@Autowired
-	VerificationTokenRepository verificaitonTokenRepository;
+	VerificationTokenRepository verificationTokenRepository;
 
 	/** The password reset token repository. */
 	@Autowired
@@ -36,7 +36,7 @@ public class ExpiredTokenCleanJob {
 		Date now = Date.from(Instant.now());
 
 		passwordTokenRepository.deleteAllExpiredSince(now);
-		verificaitonTokenRepository.deleteAllExpiredSince(now);
+		verificationTokenRepository.deleteAllExpiredSince(now);
 		log.info("ExpiredTokenCleanJob.purgeExpired: all expired tokens have been deleted.");
 	}
 }
