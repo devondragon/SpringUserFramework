@@ -2,8 +2,8 @@ package com.digitalsanctuary.spring.user.util;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,19 +11,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.FilterInvocation;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
@@ -37,13 +34,10 @@ import lombok.extern.slf4j.Slf4j;
 @EqualsAndHashCode(callSuper = false)
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+public class WebSecurityConfig {
 
 	private static String DEFAULT_ACTION_DENY = "deny";
 	private static String DEFAULT_ACTION_ALLOW = "allow";
-
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
 
 	@Value("${user.security.defaultAction}")
 	private String defaultAction;
@@ -105,22 +99,43 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 	@Autowired
 	private RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 
+
+
 	@Bean
-	@Override
-	public AuthenticationManager authenticationManagerBean() throws Exception {
-		return super.authenticationManagerBean();
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		log.debug("WebSecurityConfig.configure:" + "user.security.defaultAction: {}", getDefaultAction());
+		log.debug("WebSecurityConfig.configure:" + "unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
+		ArrayList<String> unprotectedURIs = getUnprotectedURIsList();
+		log.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
+
+		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
+
+		http.formLogin(
+				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll());
+
+		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
+				.deleteCookies("JSESSIONID"));
+
+		if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
+			http.csrf(csrf -> {
+				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
+			});
+		}
+
+		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
+			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated();
+		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
+			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
+		} else {
+			log.error("WebSecurityConfig.configure:"
+					+ "user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
+					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
+			http.authorizeHttpRequests().anyRequest().denyAll();
+		}
+		return http.build();
 	}
 
-	@Override
-	protected void configure(final AuthenticationManagerBuilder auth) throws Exception {
-		auth.authenticationProvider(authProvider());
-	}
-
-	@Override
-	protected void configure(HttpSecurity http) throws Exception {
-		logger.debug("WebSecurityConfig.configure:" + "user.security.defaultAction: {}", getDefaultAction());
-		logger.debug("WebSecurityConfig.configure:" + "unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
-
+	private ArrayList<String> getUnprotectedURIsList() {
 		// Add the required user pages and actions to the unprotectedURIsArray
 		ArrayList<String> unprotectedURIs = new ArrayList<String>();
 		unprotectedURIs.addAll(Arrays.asList(unprotectedURIsArray));
@@ -131,40 +146,11 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 		unprotectedURIs.add(registrationPendingURI);
 		unprotectedURIs.add(registrationNewVerificationURI);
 		unprotectedURIs.add(forgotPasswordURI);
+		unprotectedURIs.add(registrationSuccessURI);
 		unprotectedURIs.add(forgotPasswordPendingURI);
 		unprotectedURIs.add(forgotPasswordChangeURI);
 		unprotectedURIs.removeAll(Arrays.asList("", null));
-
-		logger.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
-
-		ArrayList<String> disableCSRFURIs = new ArrayList<String>();
-		disableCSRFURIs.addAll(Arrays.asList(disableCSRFURIsArray));
-		disableCSRFURIs.removeAll(Arrays.asList("", null));
-
-		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
-			http.authorizeRequests().antMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated().and().formLogin()
-					.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll().and().logout()
-					.logoutUrl(logoutActionURI).invalidateHttpSession(true).logoutSuccessHandler(logoutSuccessService).deleteCookies("JSESSIONID")
-					.permitAll();
-			if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
-				http.csrf().ignoringAntMatchers(disableCSRFURIs.toArray(new String[0]));
-			}
-		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
-			http.authorizeRequests().antMatchers(protectedURIsArray).authenticated().antMatchers("/**").permitAll().and().formLogin()
-					.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService)
-					.successHandler(loginSuccessService).and().logout().logoutUrl(logoutActionURI).invalidateHttpSession(true)
-					.logoutSuccessHandler(logoutSuccessService).deleteCookies("JSESSIONID").permitAll();
-
-			if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
-				http.csrf().ignoringAntMatchers(disableCSRFURIs.toArray(new String[0]));
-			}
-		} else {
-			logger.error("WebSecurityConfig.configure:"
-					+ "user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
-					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
-			http.authorizeRequests().anyRequest().denyAll();
-		}
-
+		return unprotectedURIs;
 	}
 
 	@Bean
@@ -177,7 +163,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
 	@Bean
 	public PasswordEncoder encoder() {
-		return new BCryptPasswordEncoder(11);
+		return new BCryptPasswordEncoder(16);
 	}
 
 	@Bean

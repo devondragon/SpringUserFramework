@@ -1,10 +1,9 @@
 package com.digitalsanctuary.spring.user.service;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import javax.transaction.Transactional;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -14,6 +13,7 @@ import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.repository.PrivilegeRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.util.RolesAndPrivilegesConfig;
+import jakarta.transaction.Transactional;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,26 +40,24 @@ public class RolePrivilegeSetupService implements ApplicationListener<ContextRef
         if (alreadySetup) {
             return;
         }
-
         log.debug("rolesAndPrivilegesConfig: " + rolesAndPrivilegesConfig);
 
         for (Map.Entry<String, List<String>> entry : rolesAndPrivilegesConfig.getRolesAndPrivileges().entrySet()) {
             final String roleName = entry.getKey();
             final List<String> privileges = entry.getValue();
             if (roleName != null && privileges != null) {
-                final List<Privilege> privilegesList = new ArrayList<Privilege>();
+                final Set<Privilege> privilegeSet = new HashSet<>();
                 for (String privilegeName : privileges) {
-                    privilegesList.add(createPrivilegeIfNotFound(privilegeName));
+                    privilegeSet.add(getOrCreatePrivilege(privilegeName));
                 }
-                createRoleIfNotFound(roleName, privilegesList);
+                getOrCreateRole(roleName, privilegeSet);
             }
-
         }
         alreadySetup = true;
     }
 
     @Transactional
-    Privilege createPrivilegeIfNotFound(final String name) {
+    Privilege getOrCreatePrivilege(final String name) {
         Privilege privilege = privilegeRepository.findByName(name);
         if (privilege == null) {
             privilege = new Privilege(name);
@@ -69,7 +67,7 @@ public class RolePrivilegeSetupService implements ApplicationListener<ContextRef
     }
 
     @Transactional
-    Role createRoleIfNotFound(final String name, final Collection<Privilege> privileges) {
+    Role getOrCreateRole(final String name, final Set<Privilege> privileges) {
         Role role = roleRepository.findByName(name);
         if (role == null) {
             role = new Role(name);
