@@ -14,6 +14,8 @@ import org.springframework.web.servlet.ModelAndView;
 import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.service.UserVerificationService;
+import com.digitalsanctuary.spring.user.service.UserService.PasswordResetTokenValidationResult;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +31,9 @@ public class UserActionController {
 	/** The user service. */
 	@Autowired
 	private UserService userService;
+
+	@Autowired
+	private UserVerificationService userVerificationService;
 
 	/** The messages. */
 	@Autowired
@@ -69,17 +74,17 @@ public class UserActionController {
 	@GetMapping("/user/changePassword")
 	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model, @RequestParam("token") final String token) {
 		log.debug("UserAPI.showChangePasswordPage: called with token: {}", token);
-		final String result = userService.validatePasswordResetToken(token);
+		final PasswordResetTokenValidationResult result = userService.validatePasswordResetToken(token);
 		log.debug("UserAPI.showChangePasswordPage:" + "result: {}", result);
 		AuditEvent changePasswordAuditEvent = new AuditEvent(this, null, request.getSession().getId(), UserUtils.getClientIP(request),
 				request.getHeader("User-Agent"), "showChangePasswordPage", "Success", "Requested. Result:" + result, null);
 		eventPublisher.publishEvent(changePasswordAuditEvent);
-		if (UserService.TOKEN_VALID.equals(result)) {
+		if (PasswordResetTokenValidationResult.VALID.equals(result)) {
 			model.addAttribute("token", token);
 			String redirectString = "redirect:" + forgotPasswordChangeURI;
 			return new ModelAndView(redirectString, model);
 		} else {
-			String messageKey = AUTH_MESSAGE_PREFIX + result;
+			String messageKey = AUTH_MESSAGE_PREFIX + result.name().toLowerCase();
 			model.addAttribute("messageKey", messageKey);
 			return new ModelAndView("redirect:/index.html", model);
 		}
@@ -100,12 +105,12 @@ public class UserActionController {
 		log.debug("UserAPI.confirmRegistration: called with token: {}", token);
 		Locale locale = request.getLocale();
 		model.addAttribute("lang", locale.getLanguage());
-		final String result = userService.userVerificationService.validateVerificationToken(token);
+		final String result = userVerificationService.validateVerificationToken(token);
 		if (result.equals("valid")) {
-			final User user = userService.userVerificationService.getUserByVerificationToken(token);
+			final User user = userVerificationService.getUserByVerificationToken(token);
 			if (user != null) {
 				userService.authWithoutPassword(user);
-				userService.userVerificationService.deleteVerificationToken(token);
+				userVerificationService.deleteVerificationToken(token);
 
 				AuditEvent registrationAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
 						request.getHeader("User-Agent"), "Registration Confirmation", "Success", "Registration Confirmed. User logged in.", null);

@@ -44,6 +44,7 @@ public class User {
 	private String lastName;
 
 	/** The email. */
+	@Column(unique = true, nullable = false)
 	private String email;
 
 	/** The password. */

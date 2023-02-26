@@ -23,7 +23,7 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MariaDB103Dialect
+        dialect: org.hibernate.dialect.MariaDBDialect
         globally_quoted_identifiers: false
     show-sql: 'false'
   application:

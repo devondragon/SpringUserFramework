@@ -6,7 +6,6 @@
 </head>
 
 <body>
-
 	<div layout:fragment="content">
 		<section id="main_content">
 			<div class="content">
@@ -15,6 +14,8 @@
 				<div sec:authorize="isAuthenticated()">
 					<span th:utext="#{message.welcome}" /> <span sec:authentication="principal.user.firstName" />!
 				</div>
+
+				Just some content here.
 			</div>
 		</section>
 

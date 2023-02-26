@@ -39,6 +39,20 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional
 public class UserService {
 
+	public enum PasswordResetTokenValidationResult {
+		VALID("valid"), INVALID_TOKEN("invalidToken"), EXPIRED("expired");
+
+		private final String value;
+
+		PasswordResetTokenValidationResult(String value) {
+			this.value = value;
+		}
+
+		public String getValue() {
+			return value;
+		}
+	}
+
 	private static final String USER_ROLE_NAME = "ROLE_USER";
 
 	/** The Constant TOKEN_INVALID. */
@@ -49,7 +63,6 @@ public class UserService {
 
 	/** The Constant TOKEN_VALID. */
 	public static final String TOKEN_VALID = "valid";
-
 
 	/** The user repository. */
 	@Autowired
@@ -195,7 +208,7 @@ public class UserService {
 	 * @param id the id
 	 * @return the user by ID
 	 */
-	public Optional<User> getUserByID(final long id) {
+	public Optional<User> findUserByID(final long id) {
 		return userRepository.findById(id);
 	}
 
@@ -235,19 +248,19 @@ public class UserService {
 	 * Validate password reset token.
 	 *
 	 * @param token the token
-	 * @return the string
+	 * @return the password reset token validation result enum
 	 */
-	public String validatePasswordResetToken(String token) {
+	public PasswordResetTokenValidationResult validatePasswordResetToken(String token) {
 		final PasswordResetToken passToken = passwordTokenRepository.findByToken(token);
 		if (passToken == null) {
-			return TOKEN_INVALID;
+			return PasswordResetTokenValidationResult.INVALID_TOKEN;
 		}
 		final Calendar cal = Calendar.getInstance();
 		if (passToken.getExpiryDate().before(cal.getTime())) {
 			passwordTokenRepository.delete(passToken);
-			return TOKEN_EXPIRED;
+			return PasswordResetTokenValidationResult.EXPIRED;
 		}
-		return TOKEN_VALID;
+		return PasswordResetTokenValidationResult.VALID;
 	}
 
 	/**
@@ -275,9 +288,7 @@ public class UserService {
 				user.getRoles().stream().map(Role::getPrivileges).flatMap(Collection::stream).distinct().collect(Collectors.toList());
 
 		List<GrantedAuthority> authorities = privileges.stream().map(p -> new SimpleGrantedAuthority(p.getName())).collect(Collectors.toList());
-
 		DSUserDetails userDetails = dsUserDetailsService.loadUserByUsername(user.getEmail());
-
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 	}

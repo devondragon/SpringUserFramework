@@ -11,12 +11,20 @@
 	<!-- Common styles and scripts -->
 	<link rel="stylesheet" th:href="@{/css/user.css}" type="text/css" />
 	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+	<script src="https://cdn.tailwindcss.com"></script>
 
+	<!-- <script src="https://unpkg.com/tailwindcss-jit-cdn"></script> -->
+	<script src="/js/soft-ui-dashboard-tailwind.js"></script>
+	<link rel="stylesheet" href="/css/soft-ui-dashboard-tailwind.css" />
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700" rel="stylesheet" />
+	<script src="https://kit.fontawesome.com/42d5adcbca.js" crossorigin="anonymous"></script>
+	<link href="/css/nucleo-icons.css" rel="stylesheet" />
+	<link href="/css/nucleo-svg.css" rel="stylesheet" />
 </head>
 
-<body>
+<body class="m-0 font-sans antialiased font-normal bg-white text-start text-base leading-default text-slate-500">
 	<!--/* Standard layout can be mixed with Layout Dialect */-->
-	<div th:replace="fragments/header :: header">
+	<div th:replace="~{fragments/header :: header}">
 		...
 	</div>
 	<div class="container">
@@ -39,8 +47,10 @@
 	</div>
 
 	<br /><br />
-	<div th:replace="fragments/footer :: footer">Footer</div>
+	<div th:replace="~{fragments/footer :: footer}">Footer</div>
 
+	<!-- Enable LiveReload in the dev environment -->
+	<script th:if="${@environment.acceptsProfiles('dev','local')}" src="http://localhost:35729/livereload.js"></script>
 </body>
 
 </html>

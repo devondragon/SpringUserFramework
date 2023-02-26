@@ -27,7 +27,6 @@ public class UserEmailService {
     @Autowired
     private PasswordResetTokenRepository passwordTokenRepository;
 
-
     @Autowired
     private ApplicationEventPublisher eventPublisher;
 
