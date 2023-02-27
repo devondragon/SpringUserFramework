@@ -8,6 +8,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -31,6 +33,10 @@ import lombok.Data;
 @Table(name = "user_account")
 public class User {
 
+	public enum Provider {
+		LOCAL, FACEBOOK, GOOGLE, APPLE
+	}
+
 	/** The id. */
 	@Id
 	@Column(unique = true, nullable = false)
@@ -46,6 +52,9 @@ public class User {
 	/** The email. */
 	@Column(unique = true, nullable = false)
 	private String email;
+
+	@Enumerated(EnumType.STRING)
+	private Provider provider = Provider.LOCAL;
 
 	/** The password. */
 	@Column(length = 60)

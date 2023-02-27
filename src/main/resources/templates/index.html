@@ -12,7 +12,9 @@
 				<div th:if="${message != null}" class="alert alert-info" th:utext="${message}">message</div>
 
 				<div sec:authorize="isAuthenticated()">
-					<span th:utext="#{message.welcome}" /> <span sec:authentication="principal.user.firstName" />!
+					<span th:utext="#{message.welcome}" />
+					<!-- <span sec:authentication="principal.user.firstName" />! -->
+					<span sec:authentication="principal.attributes['given_name']" />!
 				</div>
 
 				Just some content here.

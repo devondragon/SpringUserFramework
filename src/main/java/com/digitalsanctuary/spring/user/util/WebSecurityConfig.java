@@ -123,6 +123,11 @@ public class WebSecurityConfig {
 			});
 		}
 
+		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+			request.getSession().setAttribute("error.message", exception.getMessage());
+			// handler.onAuthenticationFailure(request, response, exception);
+		}));
+
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated();
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
