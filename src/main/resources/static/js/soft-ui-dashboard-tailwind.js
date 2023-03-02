@@ -23,39 +23,39 @@ if (!aux.includes("pages")) {
   page = "dashboard";
 }
 
-loadStylesheet(to_build + "css/perfect-scrollbar.css");
-loadJS(to_build + "js/perfect-scrollbar.js", true);
+loadStylesheet("/css/perfect-scrollbar.css");
+loadJS("/js/perfect-scrollbar.js", true);
 
 if (document.querySelector("nav [navbar-trigger]")) {
-  loadJS(to_build + "js/navbar-collapse.js", true);
+  loadJS("/js/navbar-collapse.js", true);
 }
 
 if (document.querySelector("[data-target='tooltip']")) {
-  loadJS(to_build + "js/tooltips.js", true);
-  loadStylesheet(to_build + "css/tooltips.css");
+  loadJS("/js/tooltips.js", true);
+  loadStylesheet("/css/tooltips.css");
 }
 
 if (document.querySelector("[nav-pills]")) {
-  loadJS(to_build + "js/nav-pills.js", true);
+  loadJS("/js/nav-pills.js", true);
 }
 
 if (document.querySelector("[dropdown-trigger]")) {
-  loadJS(to_build + "js/dropdown.js", true);
+  loadJS("/js/dropdown.js", true);
 
 }
 
 if (document.querySelector("[fixed-plugin]")) {
-  loadJS(to_build + "js/fixed-plugin.js", true);
+  loadJS("/js/fixed-plugin.js", true);
 }
 
 if (document.querySelector("[navbar-main]")) {
-  loadJS(to_build + "js/sidenav-burger.js", true);
-  loadJS(to_build + "js/navbar-sticky.js", true);
+  loadJS("/js/sidenav-burger.js", true);
+  loadJS("/js/navbar-sticky.js", true);
 }
 
 if (document.querySelector("canvas")) {
-  loadJS(to_build + "js/chart-1.js", true);
-  loadJS(to_build + "js/chart-2.js", true);
+  loadJS("/js/chart-1.js", true);
+  loadJS("/js/chart-2.js", true);
 }
 
 function loadJS(FILE_URL, async) {

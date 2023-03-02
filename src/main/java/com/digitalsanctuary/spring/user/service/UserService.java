@@ -140,8 +140,8 @@ public class UserService {
 	 *
 	 * @param user the user
 	 */
-	public void saveRegisteredUser(final User user) {
-		userRepository.save(user);
+	public User saveRegisteredUser(final User user) {
+		return userRepository.save(user);
 	}
 
 	/**
@@ -292,5 +292,6 @@ public class UserService {
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 	}
+
 
 }

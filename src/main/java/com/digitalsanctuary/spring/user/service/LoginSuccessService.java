@@ -1,14 +1,13 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
 import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -16,15 +15,16 @@ import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The LoginSuccessService is called after a user successfully logs in.
  */
-@Component
+@Slf4j
+@Service
 public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessHandler {
 
-	/** The logger. */
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
+
 	/** The event publisher. */
 	@Autowired
 	private ApplicationEventPublisher eventPublisher;
@@ -32,6 +32,9 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	/** The login success uri. */
 	@Value("${user.security.loginSuccessURI}")
 	private String loginSuccessUri;
+
+	@Autowired
+	private OAuth2UserService oauth2UserService;
 
 	/**
 	 * On authentication success.
@@ -45,12 +48,19 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	@Override
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																																	ServletException {
-		logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
-		logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
+		System.out.println("LoginSuccessService.onAuthenticationSuccess()");
+		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
+		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
-		if (authentication != null && authentication.getPrincipal() != null && authentication.getPrincipal() instanceof DSUserDetails) {
-			user = ((DSUserDetails) authentication.getPrincipal()).getUser();
+		if (authentication != null && authentication.getPrincipal() != null) {
+			if (authentication.getPrincipal() instanceof DSUserDetails) {
+				user = ((DSUserDetails) authentication.getPrincipal()).getUser();
+			} else if (authentication.getPrincipal() instanceof OAuth2User) {
+				log.debug("LoginSuccessService.onAuthenticationSuccess:" + "OAuth2User: {}", authentication.getPrincipal());
+				user = oauth2UserService.handleOAuthLoginSuccess("GOOGLE", (OAuth2User) authentication.getPrincipal());
+
+			}
 		}
 
 		AuditEvent loginAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
@@ -62,8 +72,8 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			targetUrl = loginSuccessUri;
 			this.setDefaultTargetUrl(targetUrl);
 
-			logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
-			logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "defaultTargetParam: {}", this.getTargetUrlParameter());
+			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
+			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "defaultTargetParam: {}", this.getTargetUrlParameter());
 		}
 
 		super.onAuthenticationSuccess(request, response, authentication);
