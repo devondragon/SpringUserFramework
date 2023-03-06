@@ -1,12 +1,8 @@
 package com.digitalsanctuary.spring.user.service;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.stream.Collectors;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -19,46 +15,49 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The DSUserDetailsService extends the Spring Security UserDetailsService to use the DSUserDetails object and to use email as username.
  */
+@Slf4j
 @Service
 @Transactional
 public class DSUserDetailsService implements UserDetailsService {
 
-	/** The logger. */
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
-
 	/** The user repository. */
-	@Autowired
 	private UserRepository userRepository;
 
 	/** The login attempt service. */
-	@Autowired
 	private LoginAttemptService loginAttemptService;
 
 	/** The request. */
-	@Autowired
 	private HttpServletRequest request;
 
 	/**
-	 * Instantiates a new DS user details service.
+	 * Instantiates a new DSUserDetailsService object.
+	 *
+	 * @param userRepository the user repository
+	 * @param loginAttemptService the login attempt service
+	 * @param request the HTTP servlet request
 	 */
-	public DSUserDetailsService() {
+	public DSUserDetailsService(UserRepository userRepository, LoginAttemptService loginAttemptService, HttpServletRequest request) {
 		super();
+		this.userRepository = userRepository;
+		this.loginAttemptService = loginAttemptService;
+		this.request = request;
 	}
 
 	/**
-	 * Load user by email address.
+	 * Load user details by email address.
 	 *
 	 * @param email the email address
-	 * @return the DS user details
-	 * @throws UsernameNotFoundException the email not found exception
+	 * @return the user details object
+	 * @throws UsernameNotFoundException if no user is found with the provided email address
 	 */
 	@Override
 	public DSUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {
-		logger.debug("DSUserDetailsService.loadUserByUsername:" + "called with username: {}", email);
+		log.debug("DSUserDetailsService.loadUserByUsername:" + "called with username: {}", email);
 		final String ip = UserUtils.getClientIP(request);
 		if (loginAttemptService.isBlocked(ip)) {
 			throw new RuntimeException("blocked");
@@ -72,55 +71,31 @@ public class DSUserDetailsService implements UserDetailsService {
 			// Updating lastActivity date for this login
 			user.setLastActivityDate(new Date());
 			userRepository.save(user);
-			DSUserDetails userDetails = new DSUserDetails(user, getAuthorities(user.getRoles()));
+			Collection<? extends GrantedAuthority> authorities = getAuthorities(user.getRoles());
+			DSUserDetails userDetails = new DSUserDetails(user, authorities);
 			return userDetails;
 		} catch (final Exception e) {
-			logger.error("DSUserDetailsService.loadUserByUsername:" + "Exception!", e);
+			log.error("DSUserDetailsService.loadUserByUsername:" + "Exception!", e);
 			throw new RuntimeException(e);
 		}
 	}
 
 	/**
-	 * Gets the authorities.
 	 *
-	 * @param roles the roles
-	 * @return the authorities
-	 */
-	private Collection<? extends GrantedAuthority> getAuthorities(final Collection<Role> roles) {
-		return getGrantedAuthorities(getPrivileges(roles));
-	}
-
-	/**
-	 * Gets the privileges.
+	 * Returns a collection of Spring Security's GrantedAuthority objects that corresponds to the privileges associated with the given collection of
+	 * roles.
 	 *
-	 * @param roles the roles
-	 * @return the privileges
+	 * @param roles a collection of roles whose privileges should be converted into Spring Security's GrantedAuthority objects
+	 * @return a collection of Spring Security's GrantedAuthority objects that corresponds to the privileges associated with the given collection of
+	 *         roles
 	 */
-	private List<String> getPrivileges(final Collection<Role> roles) {
-		final List<String> privileges = new ArrayList<>();
-		final List<Privilege> collection = new ArrayList<>();
-		for (final Role role : roles) {
-			collection.addAll(role.getPrivileges());
-		}
-		for (final Privilege item : collection) {
-			privileges.add(item.getName());
-		}
-
-		return privileges;
-	}
-
-	/**
-	 * Gets the granted authorities.
-	 *
-	 * @param privileges the privileges
-	 * @return the granted authorities
-	 */
-	private List<GrantedAuthority> getGrantedAuthorities(final List<String> privileges) {
-		final List<GrantedAuthority> authorities = new ArrayList<>();
-		for (final String privilege : privileges) {
-			authorities.add(new SimpleGrantedAuthority(privilege));
-		}
-		return authorities;
+	private Collection<? extends GrantedAuthority> getAuthorities(Collection<Role> roles) {
+		// flatMap streams the roles, and maps each Role to its privileges (a Collection of Privilege objects).
+		// The stream of Collection<Privilege> objects is then flattened into a single stream of Privilege objects.
+		// Finally, each Privilege is mapped to its name as a String, wrapped in a SimpleGrantedAuthority object,
+		// and collected into a Set of GrantedAuthority objects.
+		return roles.stream().flatMap(role -> role.getPrivileges().stream()).map(Privilege::getName).map(SimpleGrantedAuthority::new)
+				.collect(Collectors.toSet());
 	}
 
 }

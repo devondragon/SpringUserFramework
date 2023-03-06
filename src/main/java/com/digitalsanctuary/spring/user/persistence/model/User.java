@@ -97,4 +97,8 @@ public class User {
 	public void setLastActivityDate() {
 		setLastActivityDate(new Date());
 	}
+
+	public String getFullName() {
+		return firstName + " " + lastName;
+	}
 }

@@ -1,11 +1,9 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
@@ -24,17 +22,23 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessHandler {
 
-
 	/** The event publisher. */
-	@Autowired
 	private ApplicationEventPublisher eventPublisher;
 
 	/** The login success uri. */
 	@Value("${user.security.loginSuccessURI}")
 	private String loginSuccessUri;
 
-	@Autowired
-	private OAuth2UserService oauth2UserService;
+	/**
+	 * Instantiates a new Login success service.
+	 *
+	 * @param eventPublisher the event publisher
+	 * @param userDetailsService the user details service
+	 * @param loginSuccessUri the login success URI
+	 */
+	public LoginSuccessService(ApplicationEventPublisher eventPublisher) {
+		this.eventPublisher = eventPublisher;
+	}
 
 	/**
 	 * On authentication success.
@@ -48,18 +52,19 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	@Override
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																																	ServletException {
-		System.out.println("LoginSuccessService.onAuthenticationSuccess()");
+		log.debug("LoginSuccessService.onAuthenticationSuccess()");
 		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
 		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
 		if (authentication != null && authentication.getPrincipal() != null) {
+			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal(): " + authentication.getPrincipal());
+			log.debug("LoginSuccessService.onAuthenticatonSuccess() authentication.getClass(): " + authentication.getClass());
+			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal().getClass(): "
+					+ authentication.getPrincipal().getClass());
 			if (authentication.getPrincipal() instanceof DSUserDetails) {
+				log.debug("LoginSuccessService.onAuthenticationSuccess:" + "DSUserDetails: " + authentication.getPrincipal());
 				user = ((DSUserDetails) authentication.getPrincipal()).getUser();
-			} else if (authentication.getPrincipal() instanceof OAuth2User) {
-				log.debug("LoginSuccessService.onAuthenticationSuccess:" + "OAuth2User: {}", authentication.getPrincipal());
-				user = oauth2UserService.handleOAuthLoginSuccess("GOOGLE", (OAuth2User) authentication.getPrincipal());
-
 			}
 		}
 

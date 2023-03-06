@@ -4,6 +4,8 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta th:if="${@environment.acceptsProfiles('dev','local')}" http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+
 	<sec:csrfMetaTags />
 	<!--/*  Each token will be replaced by their respective titles in the resulting page. */-->
 	<title layout:title-pattern="$LAYOUT_TITLE - $CONTENT_TITLE">Spring User Framework</title>
@@ -50,7 +52,10 @@
 	<div th:replace="~{fragments/footer :: footer}">Footer</div>
 
 	<!-- Enable LiveReload in the dev environment -->
-	<script th:if="${@environment.acceptsProfiles('dev','local')}" src="http://localhost:35729/livereload.js"></script>
+	<!-- Uncomment this line if you are running without HTTPS -->
+	<!-- <script th:if="${@environment.acceptsProfiles('dev','local')}" src="http://localhost:35729/livereload.js"></script> -->
+	<!-- Uncomment this line if you are running with HTTPS, and refer to my blog post here: TBD  -->
+	<script th:if="${@environment.acceptsProfiles('dev','local')}" src="https://localhost:35739/livereload.js"></script>
 </body>
 
 </html>

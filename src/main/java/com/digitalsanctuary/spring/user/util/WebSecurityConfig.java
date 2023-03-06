@@ -23,6 +23,7 @@ import org.springframework.security.web.FilterInvocation;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
+import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
 import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
 import lombok.Data;
@@ -99,8 +100,18 @@ public class WebSecurityConfig {
 	@Autowired
 	private RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 
+	@Autowired
+	private DSOAuth2UserService dsOAuth2UserService;
 
 
+	/**
+	 *
+	 * The securityFilterChain method builds the security filter chain for Spring Security.
+	 *
+	 * @param http the HttpSecurity object
+	 * @return the SecurityFilterChain object
+	 * @throws Exception if there is an issue creating the SecurityFilterChain
+	 */
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		log.debug("WebSecurityConfig.configure:" + "user.security.defaultAction: {}", getDefaultAction());
@@ -126,13 +137,17 @@ public class WebSecurityConfig {
 		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
 			request.getSession().setAttribute("error.message", exception.getMessage());
 			// handler.onAuthenticationFailure(request, response, exception);
-		}));
+		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService);
 
+		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
+			// Allow access to unprotected URIs and require authentication for all other requests
 			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated();
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
+			// Require authentication for protected URIs and allow access to all other requests
 			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
 		} else {
+			// Log an error and deny access to all resources if the default action is not set correctly
 			log.error("WebSecurityConfig.configure:"
 					+ "user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
 					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
