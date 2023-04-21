@@ -8,6 +8,7 @@ import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -23,8 +24,12 @@ public class UserPageController {
 	 * @return the string
 	 */
 	@GetMapping("/user/login.html")
-	public String login(@AuthenticationPrincipal DSUserDetails userDetails) {
+	public String login(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
 		log.debug("UserPageController.login:" + "userDetails: {}", userDetails);
+		if (session != null && session.getAttribute("error.message") != null) {
+			model.addAttribute("errormessage", session.getAttribute("error.message"));
+			session.removeAttribute("error.message");
+		}
 		return "user/login";
 	}
 

@@ -4,6 +4,7 @@ import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserServ
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import com.digitalsanctuary.spring.user.exceptions.OAuth2AuthenticationProcessingException;
@@ -57,16 +58,35 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      *         currently using to log in.
      */
     public User handleOAuthLoginSuccess(String registrationId, OAuth2User oAuth2User) {
-        User user = getUserFromOAuth2User(oAuth2User);
+        User user = null;
+        if (registrationId.equalsIgnoreCase("google")) {
+            user = getUserFromGoogleOAuth2User(oAuth2User);
+        } else if (registrationId.equalsIgnoreCase("facebook")) {
+            user = getUserFromFacebookOAuth2User(oAuth2User);
+        } else {
+            log.error("Sorry! Login with " + registrationId + " is not supported yet.");
+            throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
+                    "Sorry! Login with " + registrationId + " is not supported yet.");
+        }
+        if (user == null) {
+            log.error("handleOAuthLoginSuccess: user is null");
+            throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
+                    "Sorry! An error occurred while processing your login request.");
+        }
+        log.debug("handleOAuthLoginSuccess: looking up user with email: {}", user.getEmail());
         User existingUser = userRepository.findByEmail(user.getEmail());
+        log.debug("handleOAuthLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
+            log.debug("handleOAuthLoginSuccess: ERROR! existingUser.getProvider(): {}", existingUser.getProvider());
             if (!existingUser.getProvider().toString().equals(registrationId.toUpperCase())) {
-                throw new OAuth2AuthenticationProcessingException("Looks like you're signed up with " + existingUser.getProvider()
-                        + " account. Please use your " + existingUser.getProvider() + " account to login.");
+                throw new OAuth2AuthenticationException(new OAuth2Error("User Registered With Alternate Provider"),
+                        "Looks like you're signed up with your " + existingUser.getProvider() + " account. Please use your "
+                                + existingUser.getProvider() + " account to log in.");
             }
             existingUser = updateExistingUser(existingUser, user);
             return userRepository.save(existingUser);
         } else {
+            log.debug("handleOAuthLoginSuccess: registering new user with email: {}", user.getEmail());
             user = registerNewOAuthUser(registrationId, user);
             return userRepository.save(user);
         }
@@ -110,8 +130,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @param principal The OAuth2User object containing information about the authenticated user.
      * @return A User object representing the authenticated user.
      */
-    public User getUserFromOAuth2User(OAuth2User principal) {
-        log.debug("Getting user info from OAuth2 provider with principal: {}", principal);
+    public User getUserFromGoogleOAuth2User(OAuth2User principal) {
+        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal);
         if (principal == null) {
             return null;
         }
@@ -120,7 +140,29 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         user.setEmail(principal.getAttribute("email"));
         user.setFirstName(principal.getAttribute("given_name"));
         user.setLastName(principal.getAttribute("family_name"));
-        user.setProvider(principal.getAttribute("iss"));
+        user.setProvider(User.Provider.GOOGLE);
+        return user;
+    }
+
+    public User getUserFromFacebookOAuth2User(OAuth2User principal) {
+        log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal);
+        if (principal == null) {
+            return null;
+        }
+        log.debug("Principal attributes: {}", principal.getAttributes());
+        User user = new User();
+        user.setEmail(principal.getAttribute("email"));
+        String fullName = principal.getAttribute("name");
+        if (fullName != null) {
+            String[] names = fullName.split(" ");
+            if (names.length > 0) {
+                user.setFirstName(names[0]);
+            }
+            if (names.length > 1) {
+                user.setLastName(names[names.length - 1]);
+            }
+        }
+        user.setProvider(User.Provider.FACEBOOK);
         return user;
     }
 

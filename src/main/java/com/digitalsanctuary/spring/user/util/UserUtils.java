@@ -18,4 +18,5 @@ public abstract class UserUtils {
 	public static String getAppUrl(HttpServletRequest request) {
 		return "http://" + request.getServerName() + ":" + request.getServerPort() + request.getContextPath();
 	}
+
 }

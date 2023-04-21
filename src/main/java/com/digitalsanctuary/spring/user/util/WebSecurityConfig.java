@@ -121,6 +121,8 @@ public class WebSecurityConfig {
 		ArrayList<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
+		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
+
 		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
 
 		http.formLogin(
@@ -135,11 +137,14 @@ public class WebSecurityConfig {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
 		}
-
 		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+			log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
 			request.getSession().setAttribute("error.message", exception.getMessage());
+			response.sendRedirect(loginPageURI);
 			// handler.onAuthenticationFailure(request, response, exception);
-		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService);
+		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
+				.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
+
 
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
