@@ -6,7 +6,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
-import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.service.UserEmailService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -18,9 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 public class RegistrationListener {
 
-	/** The user service. */
 	@Autowired
-	private UserService userService;
+	private UserEmailService userEmailService;
 
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -47,7 +46,7 @@ public class RegistrationListener {
 	 * @param event the event
 	 */
 	private void sendRegistrationVerificationEmail(final OnRegistrationCompleteEvent event) {
-		userService.userEmailService.sendRegistrationVerificationEmail(event.getUser(), event.getAppUrl());
+		userEmailService.sendRegistrationVerificationEmail(event.getUser(), event.getAppUrl());
 	}
 
 }

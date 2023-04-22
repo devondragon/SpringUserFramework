@@ -13,7 +13,40 @@ spring:
         transport:
           protocol: smtp
     host: email-smtp.us-west-2.amazonaws.com
-
+  # security:
+    # oauth2:
+    #   client:
+    #     registration:
+    #       google:
+    #         client-id:
+    #         client-secret:
+    #         scope:
+    #           - email
+    #           - profile
+    #         client-name: Google
+    #         authorization-grant-type: authorization_code
+    #         client-authentication-method: post
+    #         provider: google
+    #       facebook:
+    #         client-id:
+    #         client-secret:
+    #         scope:
+    #           - email
+    #           - public_profile
+    #         client-name: Facebook
+    #         authorization-grant-type: authorization_code
+    #         client-authentication-method: post
+    #         provider: facebook
+    #       apple:
+    #         client-id:
+    #         client-secret:
+    #         scope:
+    #           - email
+    #           - name
+    #         client-name: Apple
+    #         authorization-grant-type: authorization_code
+    #         client-authentication-method: post
+    #         provider: apple
   thymeleaf:
     cache: false
     template-loader-path: classpath:/templates
@@ -23,7 +56,7 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MariaDB103Dialect
+        dialect: org.hibernate.dialect.MariaDBDialect
         globally_quoted_identifiers: false
     show-sql: 'false'
   application:
@@ -58,7 +91,7 @@ user:
     defaultAction: deny
     loginPageURI: /user/login.html
     logoutActionURI: /user/logout
-    unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword
+    unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword,/oauth2/authorization/*,/login
     protectedURIs: /protected.html
     forgotPasswordPendingURI: /user/forgot-password-pending-verification.html
     updateUserURI: /user/update-user.html

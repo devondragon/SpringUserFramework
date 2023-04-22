@@ -3,8 +3,6 @@ package com.digitalsanctuary.spring.user.api;
 import java.util.Locale;
 import java.util.Optional;
 import javax.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -25,20 +23,20 @@ import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.service.UserService.PasswordResetTokenValidationResult;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The UserAPI is the Controller for the REST API endpoints for the user management functionality. By default these endpoints are defined under the
  * "/user" prefix.
  */
+@Slf4j
 @RestController
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
-
-	/** The logger. */
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
 
 	/** The user service. */
 	@Autowired
@@ -83,7 +81,7 @@ public class UserAPI {
 	 */
 	@PostMapping("/registration")
 	public ResponseEntity<JSONResponse> registerUserAccount(@Valid final UserDto userDto, final HttpServletRequest request) {
-		logger.debug("Registering user account with information: {}", userDto);
+		log.debug("Registering user account with information: {}", userDto);
 
 		User registeredUser = null;
 		try {
@@ -94,14 +92,14 @@ public class UserAPI {
 					request.getHeader("User-Agent"), "Registration", "Success", "Registration Successful", null);
 			eventPublisher.publishEvent(registrationAuditEvent);
 		} catch (UserAlreadyExistException uaee) {
-			logger.warn("UserAPI.registerUserAccount:" + "UserAlreadyExistException on registration with email: {}!", userDto.getEmail());
+			log.warn("UserAPI.registerUserAccount:" + "UserAlreadyExistException on registration with email: {}!", userDto.getEmail());
 			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
 					request.getHeader("User-Agent"), "Registration", "Failure", "User Already Exists", null);
 			eventPublisher.publishEvent(registrationAuditEvent);
 			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 02, "An account already exists for that email address!"),
 					HttpStatus.CONFLICT);
 		} catch (Exception e) {
-			logger.error("UserAPI.registerUserAccount:" + "Exception!", e);
+			log.error("UserAPI.registerUserAccount:" + "Exception!", e);
 			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
 					request.getHeader("User-Agent"), "Registration", "Failure", e.getMessage(), null);
 			eventPublisher.publishEvent(registrationAuditEvent);
@@ -120,21 +118,21 @@ public class UserAPI {
 	 */
 	@PostMapping("/resendRegistrationToken")
 	public ResponseEntity<JSONResponse> resendRegistrationToken(final UserDto userDto, final HttpServletRequest request) {
-		logger.debug("UserAPI.resendRegistrationToken:" + "email: {}", userDto.getEmail());
+		log.debug("UserAPI.resendRegistrationToken:" + "email: {}", userDto.getEmail());
 
 		// Lookup User by email
 		User user = userService.findUserByEmail(userDto.getEmail());
-		logger.debug("UserAPI.resendRegistrationToken:" + "user: {}", user);
+		log.debug("UserAPI.resendRegistrationToken:" + "user: {}", user);
 		// If user exists
 		if (user != null) {
 			// If user is enabled
 			if (user.isEnabled()) {
-				logger.debug("UserAPI.resendRegistrationToken:" + "user is already enabled.");
+				log.debug("UserAPI.resendRegistrationToken:" + "user is already enabled.");
 				// Send response with message and recommendation to login/forgot password
 				return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 1, "Account is already verified."), HttpStatus.CONFLICT);
 			} else {
 				// Else send new token email
-				logger.debug("UserAPI.resendRegistrationToken:" + "sending a new verification token email.");
+				log.debug("UserAPI.resendRegistrationToken:" + "sending a new verification token email.");
 				String appUrl = UserUtils.getAppUrl(request);
 				userService.userEmailService.sendRegistrationVerificationEmail(user, appUrl);
 				// Return happy path response
@@ -152,11 +150,11 @@ public class UserAPI {
 	@PostMapping("/updateUser")
 	public ResponseEntity<JSONResponse> updateUserAccount(@AuthenticationPrincipal DSUserDetails userDetails, @Valid final UserDto userDto,
 			final HttpServletRequest request, final Locale locale) {
-		logger.debug("UserAPI.updateUserAccount:" + "called with userDetails: {} and  userDto: {}", userDetails, userDto);
+		log.debug("UserAPI.updateUserAccount:" + "called with userDetails: {} and  userDto: {}", userDetails, userDto);
 		// If the userDetails is not available, or if the user is not logged in, log an error and return a failure.
 		if (userDetails == null || SecurityContextHolder.getContext().getAuthentication() == null
 				|| !SecurityContextHolder.getContext().getAuthentication().isAuthenticated()) {
-			logger.error("UserAPI.updateUserAccount:" + "updateUser called without logged in user state!");
+			log.error("UserAPI.updateUserAccount:" + "updateUser called without logged in user state!");
 			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 0, "User Not Logged In!"), HttpStatus.OK);
 		}
 
@@ -184,11 +182,11 @@ public class UserAPI {
 	 */
 	@PostMapping("/resetPassword")
 	public ResponseEntity<JSONResponse> resetPassword(final UserDto userDto, final HttpServletRequest request) {
-		logger.debug("UserAPI.resetPassword:" + "email: {}", userDto.getEmail());
+		log.debug("UserAPI.resetPassword:" + "email: {}", userDto.getEmail());
 
 		// Lookup User by email
 		User user = userService.findUserByEmail(userDto.getEmail());
-		logger.debug("UserAPI.resendRegistrationToken:" + "user: {}", user);
+		log.debug("UserAPI.resendRegistrationToken:" + "user: {}", user);
 
 		if (user != null) {
 			String appUrl = UserUtils.getAppUrl(request);
@@ -219,15 +217,15 @@ public class UserAPI {
 	 */
 	@PostMapping("/savePassword")
 	public ResponseEntity<JSONResponse> savePassword(@Valid PasswordDto passwordDto, final HttpServletRequest request, final Locale locale) {
-		logger.debug("UserAPI.savePassword:" + "called with passwordDto: {}", passwordDto);
+		log.debug("UserAPI.savePassword:" + "called with passwordDto: {}", passwordDto);
 
-		final String result = userService.validatePasswordResetToken(passwordDto.getToken());
-		logger.debug("UserAPI.savePassword:" + "result: {}", result);
-		if (UserService.TOKEN_VALID.equals(result)) {
+		final PasswordResetTokenValidationResult validationResult = userService.validatePasswordResetToken(passwordDto.getToken());
+		log.debug("UserAPI.savePassword:" + "result: {}", validationResult);
+		if (validationResult == PasswordResetTokenValidationResult.VALID) {
 			Optional<User> user = userService.getUserByPasswordResetToken(passwordDto.getToken());
 			if (user.isPresent()) {
 				userService.changeUserPassword(user.get(), passwordDto.getNewPassword());
-				logger.debug("UserAPI.savePassword:" + "password updated!");
+				log.debug("UserAPI.savePassword:" + "password updated!");
 
 				AuditEvent savePasswordAuditEvent = new AuditEvent(this, user.get(), request.getSession().getId(), UserUtils.getClientIP(request),
 						request.getHeader("User-Agent"), "Reset Save Password", "Success", "Success", null);
@@ -240,7 +238,7 @@ public class UserAPI {
 						messages.getMessage("message.resetPasswordSuccess", null, locale), "<br />", "<a href='/user/login.html'>Login</a>"),
 						HttpStatus.OK);
 			} else {
-				logger.debug("UserAPI.savePassword:" + "user could not be found!");
+				log.debug("UserAPI.savePassword:" + "user could not be found!");
 				return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 1, messages.getMessage("message.error", null, locale)),
 						HttpStatus.OK);
 			}
@@ -249,6 +247,7 @@ public class UserAPI {
 					HttpStatus.OK);
 		}
 	}
+
 
 	/**
 	 * Updates a user's password.
@@ -262,7 +261,7 @@ public class UserAPI {
 	public ResponseEntity<JSONResponse> changeUserPassword(@AuthenticationPrincipal DSUserDetails userDetails, final Locale locale,
 			@Valid PasswordDto passwordDto, final HttpServletRequest request) {
 		if (userDetails == null || userDetails.getUser() == null) {
-			logger.error("UserAPI.changeUserPassword:" + "changeUserPassword called with null userDetails or user.");
+			log.error("UserAPI.changeUserPassword:" + "changeUserPassword called with null userDetails or user.");
 			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 2, messages.getMessage("message.error", null, locale)),
 					HttpStatus.INTERNAL_SERVER_ERROR);
 		}

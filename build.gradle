@@ -1,6 +1,6 @@
 plugins {
   id 'java'
-  id 'org.springframework.boot' version '3.0.3'
+  id 'org.springframework.boot' version '3.0.6'
   id 'io.spring.dependency-management' version '1.1.0'
 }
 
@@ -34,13 +34,15 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity5:3.1.1.RELEASE'
+    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.1.RELEASE'
     implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect'
 
     // Other dependencies
+    runtimeOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
     runtimeOnly 'org.postgresql:postgresql'
@@ -73,8 +75,8 @@ bootJar {
 
 bootRun {
 	// Use Spring Boot DevTool only when we run Gradle bootRun task
-	classpath = sourceSets.main.runtimeClasspath + configurations.dev
-
+	classpath = sourceSets.main.runtimeClasspath + configurations.developmentOnly
+    sourceResources sourceSets.main
 	if (project.hasProperty('profiles')) {
 		environment SPRING_PROFILES_ACTIVE: profiles
 	} else {

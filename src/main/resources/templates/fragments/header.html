@@ -3,12 +3,21 @@
 <html xmlns:th="http://www.thymeleaf.org">
 
 <body>
-
 	<header th:fragment="header">
-		<div class="content">
-			<h1><span th:utext="#{site.h1}">Spring User Framework</span></h1>
-			<h2><span th:utext="#{site.h2}">Easy user management</span></h2>
-			<hr />
+		<div id="topNav"
+			class="absolute top-0 z-30 flex flex-wrap items-center justify-between w-full px-4 py-2 mt-6 mb-4 shadow-none lg:flex-nowrap lg:justify-start">
+
+		</div>
+		<div class="relative flex items-start pt-12 pb-56 m-4 overflow-hidden bg-center bg-cover min-h-30-screen rounded-xl">
+			<span class="absolute top-0 left-0 w-full h-full bg-center bg-cover bg-gradient-to-tl from-gray-900 to-slate-800 opacity-60"></span>
+			<div class="container z-10">
+				<div class="flex flex-wrap justify-center -mx-3">
+					<div class="w-full max-w-full px-3 mx-auto mt-0 text-center lg:flex-0 shrink-0 lg:w-8/12">
+						<h1 class="mt-12 mb-2 text-white"><span th:utext="#{site.h1}">Spring User Framework</span></h1>
+						<h3 class="text-white"><span th:utext="#{site.h2}">Easy user management</span></h3>
+					</div>
+				</div>
+			</div>
 		</div>
 	</header>
 </body>

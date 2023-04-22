@@ -1,14 +1,11 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
 import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -16,22 +13,32 @@ import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The LoginSuccessService is called after a user successfully logs in.
  */
-@Component
+@Slf4j
+@Service
 public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessHandler {
 
-	/** The logger. */
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
 	/** The event publisher. */
-	@Autowired
 	private ApplicationEventPublisher eventPublisher;
 
 	/** The login success uri. */
 	@Value("${user.security.loginSuccessURI}")
 	private String loginSuccessUri;
+
+	/**
+	 * Instantiates a new Login success service.
+	 *
+	 * @param eventPublisher the event publisher
+	 * @param userDetailsService the user details service
+	 * @param loginSuccessUri the login success URI
+	 */
+	public LoginSuccessService(ApplicationEventPublisher eventPublisher) {
+		this.eventPublisher = eventPublisher;
+	}
 
 	/**
 	 * On authentication success.
@@ -45,12 +52,20 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	@Override
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																																	ServletException {
-		logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
-		logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
+		log.debug("LoginSuccessService.onAuthenticationSuccess()");
+		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
+		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
-		if (authentication != null && authentication.getPrincipal() != null && authentication.getPrincipal() instanceof DSUserDetails) {
-			user = ((DSUserDetails) authentication.getPrincipal()).getUser();
+		if (authentication != null && authentication.getPrincipal() != null) {
+			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal(): " + authentication.getPrincipal());
+			log.debug("LoginSuccessService.onAuthenticatonSuccess() authentication.getClass(): " + authentication.getClass());
+			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal().getClass(): "
+					+ authentication.getPrincipal().getClass());
+			if (authentication.getPrincipal() instanceof DSUserDetails) {
+				log.debug("LoginSuccessService.onAuthenticationSuccess:" + "DSUserDetails: " + authentication.getPrincipal());
+				user = ((DSUserDetails) authentication.getPrincipal()).getUser();
+			}
 		}
 
 		AuditEvent loginAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
@@ -62,8 +77,8 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			targetUrl = loginSuccessUri;
 			this.setDefaultTargetUrl(targetUrl);
 
-			logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
-			logger.debug("LoginSuccessService.onAuthenticationSuccess:" + "defaultTargetParam: {}", this.getTargetUrlParameter());
+			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
+			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "defaultTargetParam: {}", this.getTargetUrlParameter());
 		}
 
 		super.onAuthenticationSuccess(request, response, authentication);
