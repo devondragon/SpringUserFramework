@@ -2,11 +2,9 @@ package com.digitalsanctuary.spring.user.persistence.repository;
 
 import java.util.Date;
 import java.util.stream.Stream;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
-
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 
@@ -18,8 +16,7 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	/**
 	 * Find by token.
 	 *
-	 * @param token
-	 *            the token
+	 * @param token the token
 	 * @return the verification token
 	 */
 	VerificationToken findByToken(String token);
@@ -27,8 +24,7 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	/**
 	 * Find by user.
 	 *
-	 * @param user
-	 *            the user
+	 * @param user the user
 	 * @return the verification token
 	 */
 	VerificationToken findByUser(User user);
@@ -36,8 +32,7 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	/**
 	 * Find all by expiry date less than.
 	 *
-	 * @param now
-	 *            the now
+	 * @param now the now
 	 * @return the stream
 	 */
 	Stream<VerificationToken> findAllByExpiryDateLessThan(Date now);
@@ -45,16 +40,14 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	/**
 	 * Delete by expiry date less than.
 	 *
-	 * @param now
-	 *            the now
+	 * @param now the now
 	 */
 	void deleteByExpiryDateLessThan(Date now);
 
 	/**
 	 * Delete all expired since.
 	 *
-	 * @param now
-	 *            the now
+	 * @param now the now
 	 */
 	@Modifying
 	@Query("delete from VerificationToken t where t.expiryDate <= ?1")

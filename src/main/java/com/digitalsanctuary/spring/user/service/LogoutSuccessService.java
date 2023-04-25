@@ -1,9 +1,6 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
@@ -16,17 +13,19 @@ import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * The LogoutSuccessService is called when a user logs out successfully.
  */
+@Slf4j
+@RequiredArgsConstructor
 @Service
 public class LogoutSuccessService extends SimpleUrlLogoutSuccessHandler {
-	/** The logger. */
-	public Logger logger = LoggerFactory.getLogger(this.getClass());
+
 	/** The event publisher. */
-	@Autowired
-	private ApplicationEventPublisher eventPublisher;
+	private final ApplicationEventPublisher eventPublisher;
 
 	/** The logout success uri. */
 	@Value("${user.security.logoutSuccessURI}")
@@ -44,9 +43,9 @@ public class LogoutSuccessService extends SimpleUrlLogoutSuccessHandler {
 	@Override
 	public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																															ServletException {
-		logger.debug("LogoutSuccessService.onLogoutSuccess:" + "called.");
-		logger.debug("LogoutSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
-		logger.debug("LogoutSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
+		log.debug("LogoutSuccessService.onLogoutSuccess:" + "called.");
+		log.debug("LogoutSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
+		log.debug("LogoutSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
 		if (authentication != null && authentication.getPrincipal() != null && authentication.getPrincipal() instanceof DSUserDetails) {

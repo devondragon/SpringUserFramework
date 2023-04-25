@@ -15,38 +15,28 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * The DSUserDetailsService extends the Spring Security UserDetailsService to use the DSUserDetails object and to use email as username.
- */
+
 @Slf4j
+@RequiredArgsConstructor
 @Service
 @Transactional
+/**
+ * DSUserDetailsService is an implementation of Spring Security's UserDetailsService. It is responsible for loading user-specific data during
+ * authentication.
+ */
 public class DSUserDetailsService implements UserDetailsService {
 
 	/** The user repository. */
-	private UserRepository userRepository;
+	private final UserRepository userRepository;
 
 	/** The login attempt service. */
-	private LoginAttemptService loginAttemptService;
+	private final LoginAttemptService loginAttemptService;
 
 	/** The request. */
-	private HttpServletRequest request;
-
-	/**
-	 * Instantiates a new DSUserDetailsService object.
-	 *
-	 * @param userRepository the user repository
-	 * @param loginAttemptService the login attempt service
-	 * @param request the HTTP servlet request
-	 */
-	public DSUserDetailsService(UserRepository userRepository, LoginAttemptService loginAttemptService, HttpServletRequest request) {
-		super();
-		this.userRepository = userRepository;
-		this.loginAttemptService = loginAttemptService;
-		this.request = request;
-	}
+	private final HttpServletRequest request;
 
 	/**
 	 * Load user details by email address.
@@ -54,6 +44,7 @@ public class DSUserDetailsService implements UserDetailsService {
 	 * @param email the email address
 	 * @return the user details object
 	 * @throws UsernameNotFoundException if no user is found with the provided email address
+	 * @throws CustomBlockedException if the request is coming from a blocked IP address
 	 */
 	@Override
 	public DSUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {

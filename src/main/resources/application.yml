@@ -71,6 +71,8 @@ spring:
 user:
   registration:
     sendVerificationEmail: true
+    googleEnabled: true
+    facebookEnabled: true
   audit:
     logFilePath: /opt/app/logs/user-audit.log
     flushOnWrite: false
@@ -95,6 +97,7 @@ user:
     protectedURIs: /protected.html
     forgotPasswordPendingURI: /user/forgot-password-pending-verification.html
     updateUserURI: /user/update-user.html
+    failedLoginAttempts: 10
   mail:
     fromAddress: test@test.com
   purgetokens:

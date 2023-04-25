@@ -1,12 +1,12 @@
 package com.digitalsanctuary.spring.user.util;
 
+import static org.springframework.security.config.Customizer.withDefaults;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import static org.springframework.security.config.Customizer.withDefaults;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -118,7 +118,7 @@ public class WebSecurityConfig {
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		log.debug("WebSecurityConfig.configure:" + "user.security.defaultAction: {}", getDefaultAction());
 		log.debug("WebSecurityConfig.configure:" + "unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
-		ArrayList<String> unprotectedURIs = getUnprotectedURIsList();
+		List<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
 		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
@@ -163,9 +163,9 @@ public class WebSecurityConfig {
 		return http.build();
 	}
 
-	private ArrayList<String> getUnprotectedURIsList() {
+	private List<String> getUnprotectedURIsList() {
 		// Add the required user pages and actions to the unprotectedURIsArray
-		ArrayList<String> unprotectedURIs = new ArrayList<String>();
+		List<String> unprotectedURIs = new ArrayList<String>();
 		unprotectedURIs.addAll(Arrays.asList(unprotectedURIsArray));
 		unprotectedURIs.add(loginPageURI);
 		unprotectedURIs.add(loginActionURI);
@@ -177,7 +177,7 @@ public class WebSecurityConfig {
 		unprotectedURIs.add(registrationSuccessURI);
 		unprotectedURIs.add(forgotPasswordPendingURI);
 		unprotectedURIs.add(forgotPasswordChangeURI);
-		unprotectedURIs.removeAll(Arrays.asList("", null));
+		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
 	}
 

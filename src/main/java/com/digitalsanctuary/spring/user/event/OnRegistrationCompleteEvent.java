@@ -1,19 +1,15 @@
 package com.digitalsanctuary.spring.user.event;
 
 import java.util.Locale;
-
 import org.springframework.context.ApplicationEvent;
 import org.springframework.scheduling.annotation.Async;
-
 import com.digitalsanctuary.spring.user.persistence.model.User;
-
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * The OnRegistrationCompleteEvent class is triggered when a user registers. We are using to send the registration
- * verification email, if enabled, asynchronously. You can also listen for this event and perform any other
- * post-registration processing desired.
+ * The OnRegistrationCompleteEvent class is triggered when a user registers. We are using to send the registration verification email, if enabled,
+ * asynchronously. You can also listen for this event and perform any other post-registration processing desired.
  */
 @Async
 @Data
@@ -35,12 +31,9 @@ public class OnRegistrationCompleteEvent extends ApplicationEvent {
 	/**
 	 * Instantiates a new on registration complete event.
 	 *
-	 * @param user
-	 *            the user
-	 * @param locale
-	 *            the locale
-	 * @param appUrl
-	 *            the app url
+	 * @param user the user
+	 * @param locale the locale
+	 * @param appUrl the app url
 	 */
 	public OnRegistrationCompleteEvent(final User user, final Locale locale, final String appUrl) {
 		super(user);

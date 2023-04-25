@@ -7,20 +7,19 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserVerificationService {
 
-    UserRepository userRepository;
+    /** The user repository. */
+    private final UserRepository userRepository;
 
-    VerificationTokenRepository tokenRepository;
-
-    public UserVerificationService(UserRepository userRepository, VerificationTokenRepository tokenRepository) {
-        this.userRepository = userRepository;
-        this.tokenRepository = tokenRepository;
-    }
+    /** The token repository. */
+    private final VerificationTokenRepository tokenRepository;
 
     /**
      * Gets the user by verification token.
@@ -79,22 +78,22 @@ public class UserVerificationService {
      * @param token the token
      * @return the string
      */
-    public String validateVerificationToken(String token) {
+    public UserService.TokenValidationResult validateVerificationToken(String token) {
         final VerificationToken verificationToken = tokenRepository.findByToken(token);
         if (verificationToken == null) {
-            return UserService.TOKEN_INVALID;
+            return UserService.TokenValidationResult.INVALID_TOKEN;
         }
 
         final User user = verificationToken.getUser();
         final Calendar cal = Calendar.getInstance();
         if (verificationToken.getExpiryDate().before(cal.getTime())) {
             tokenRepository.delete(verificationToken);
-            return UserService.TOKEN_EXPIRED;
+            return UserService.TokenValidationResult.EXPIRED;
         }
 
         user.setEnabled(true);
         userRepository.save(user);
-        return UserService.TOKEN_VALID;
+        return UserService.TokenValidationResult.VALID;
     }
 
     /**

@@ -6,9 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -29,6 +27,7 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -36,15 +35,16 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class UserService {
 
-	public enum PasswordResetTokenValidationResult {
+	public enum TokenValidationResult {
 		VALID("valid"), INVALID_TOKEN("invalidToken"), EXPIRED("expired");
 
 		private final String value;
 
-		PasswordResetTokenValidationResult(String value) {
+		TokenValidationResult(String value) {
 			this.value = value;
 		}
 
@@ -53,56 +53,37 @@ public class UserService {
 		}
 	}
 
+
 	private static final String USER_ROLE_NAME = "ROLE_USER";
 
-	/** The Constant TOKEN_INVALID. */
-	public static final String TOKEN_INVALID = "invalidToken";
-
-	/** The Constant TOKEN_EXPIRED. */
-	public static final String TOKEN_EXPIRED = "expired";
-
-	/** The Constant TOKEN_VALID. */
-	public static final String TOKEN_VALID = "valid";
-
 	/** The user repository. */
-	@Autowired
-	UserRepository userRepository;
+	private final UserRepository userRepository;
 
 	/** The token repository. */
-	@Autowired
-	private VerificationTokenRepository tokenRepository;
+	private final VerificationTokenRepository tokenRepository;
 
 	/** The password token repository. */
-	@Autowired
-	private PasswordResetTokenRepository passwordTokenRepository;
+	private final PasswordResetTokenRepository passwordTokenRepository;
 
 	/** The password encoder. */
-	@Autowired
-	private PasswordEncoder passwordEncoder;
+	private final PasswordEncoder passwordEncoder;
 
 	/** The role repository. */
-	@Autowired
-	private RoleRepository roleRepository;
+	private final RoleRepository roleRepository;
 
 	/** The session registry. */
-	@Autowired
-	private SessionRegistry sessionRegistry;
+	private final SessionRegistry sessionRegistry;
 
-	/** The event publisher. */
-	@Autowired
-	ApplicationEventPublisher eventPublisher;
+	/** The user email service. */
+	public final UserEmailService userEmailService;
 
-	@Autowired
-	public UserEmailService userEmailService;
+	/** The user verification service. */
+	public final UserVerificationService userVerificationService;
 
-	@Autowired
-	public UserVerificationService userVerificationService;
+	/** The user details service. */
+	private final DSUserDetailsService dsUserDetailsService;
 
-	/** The ds user details service. */
-	@Autowired
-	private DSUserDetailsService dsUserDetailsService;
-
-	/** The send registration verification email. */
+	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
 
@@ -150,27 +131,19 @@ public class UserService {
 	 * @param user the user
 	 */
 	public void deleteUser(final User user) {
+		// Clean up any Tokens associated with this user
 		final VerificationToken verificationToken = tokenRepository.findByUser(user);
-
 		if (verificationToken != null) {
 			tokenRepository.delete(verificationToken);
 		}
 
 		final PasswordResetToken passwordToken = passwordTokenRepository.findByUser(user);
-
 		if (passwordToken != null) {
 			passwordTokenRepository.delete(passwordToken);
 		}
+		// Delete the user
 		userRepository.delete(user);
 	}
-
-	/**
-	 * Creates the password reset token for user.
-	 *
-	 * @param user the user
-	 * @param token the token
-	 */
-
 
 	/**
 	 * Find user by email.
@@ -235,10 +208,10 @@ public class UserService {
 	}
 
 	/**
-	 * Email exists.
+	 * See if the Email exists in the user repository.
 	 *
-	 * @param email the email
-	 * @return true, if successful
+	 * @param email the email address to lookup
+	 * @return true, if the email address is already in the user repository
 	 */
 	private boolean emailExists(final String email) {
 		return userRepository.findByEmail(email) != null;
@@ -250,17 +223,17 @@ public class UserService {
 	 * @param token the token
 	 * @return the password reset token validation result enum
 	 */
-	public PasswordResetTokenValidationResult validatePasswordResetToken(String token) {
+	public TokenValidationResult validatePasswordResetToken(String token) {
 		final PasswordResetToken passToken = passwordTokenRepository.findByToken(token);
 		if (passToken == null) {
-			return PasswordResetTokenValidationResult.INVALID_TOKEN;
+			return TokenValidationResult.INVALID_TOKEN;
 		}
 		final Calendar cal = Calendar.getInstance();
 		if (passToken.getExpiryDate().before(cal.getTime())) {
 			passwordTokenRepository.delete(passToken);
-			return PasswordResetTokenValidationResult.EXPIRED;
+			return TokenValidationResult.EXPIRED;
 		}
-		return PasswordResetTokenValidationResult.VALID;
+		return TokenValidationResult.VALID;
 	}
 
 	/**
@@ -279,7 +252,7 @@ public class UserService {
 	}
 
 	/**
-	 * Auth without password.
+	 * Authenticate and the user without a password.
 	 *
 	 * @param user the user
 	 */
@@ -292,6 +265,5 @@ public class UserService {
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 	}
-
 
 }
