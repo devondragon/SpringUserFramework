@@ -27,6 +27,7 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.util.TimeLogger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -94,6 +95,7 @@ public class UserService {
 	 * @return the user
 	 */
 	public User registerNewUserAccount(final UserDto newUserDto) {
+		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
 		if (emailExists(newUserDto.getEmail())) {
 			log.debug("UserService.registerNewUserAccount:" + "email already exists: {}", newUserDto.getEmail());
@@ -113,6 +115,7 @@ public class UserService {
 			// Enable the user immediately
 			user.setEnabled(true);
 		}
+		timeLogger.end();
 		return userRepository.save(user);
 	}
 

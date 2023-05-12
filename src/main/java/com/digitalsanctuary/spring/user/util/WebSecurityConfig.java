@@ -16,6 +16,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -90,6 +91,9 @@ public class WebSecurityConfig {
 	@Value("${user.security.registrationNewVerificationURI}")
 	private String registrationNewVerificationURI;
 
+	@Value("${user.security.bcryptStrength}")
+	private int bcryptStrength = 10;
+
 	@Autowired
 	private UserDetailsService userDetailsService;
 
@@ -160,7 +164,15 @@ public class WebSecurityConfig {
 					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
 			http.authorizeHttpRequests().anyRequest().denyAll();
 		}
+
 		return http.build();
+	}
+
+	@Bean
+	public WebSecurityCustomizer webSecurityCustomizer() {
+		// Ignore the error endpoint. This can get caught in the auth filter chain from a failed static asset request and cause a bad redirect on a
+		// successful auth
+		return (web) -> web.ignoring().requestMatchers("/error", "/ignore2");
 	}
 
 	private List<String> getUnprotectedURIsList() {
@@ -191,7 +203,7 @@ public class WebSecurityConfig {
 
 	@Bean
 	public PasswordEncoder encoder() {
-		return new BCryptPasswordEncoder(16);
+		return new BCryptPasswordEncoder(bcryptStrength);
 	}
 
 	@Bean
