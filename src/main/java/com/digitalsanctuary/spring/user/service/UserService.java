@@ -16,6 +16,8 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
@@ -28,6 +30,8 @@ import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
 import com.digitalsanctuary.spring.user.util.TimeLogger;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -103,7 +107,7 @@ public class UserService {
 		}
 
 		// Create a new User entity
-		final User user = new User();
+		User user = new User();
 		user.setFirstName(newUserDto.getFirstName());
 		user.setLastName(newUserDto.getLastName());
 		user.setPassword(passwordEncoder.encode(newUserDto.getPassword()));
@@ -115,8 +119,11 @@ public class UserService {
 			// Enable the user immediately
 			user.setEnabled(true);
 		}
+
+		user = userRepository.save(user);
+		// authWithoutPassword(user);
 		timeLogger.end();
-		return userRepository.save(user);
+		return user;
 	}
 
 	/**
@@ -260,13 +267,21 @@ public class UserService {
 	 * @param user the user
 	 */
 	public void authWithoutPassword(User user) {
+		DSUserDetails userDetails = dsUserDetailsService.loadUserByUsername(user.getEmail());
 		List<Privilege> privileges =
 				user.getRoles().stream().map(Role::getPrivileges).flatMap(Collection::stream).distinct().collect(Collectors.toList());
 
 		List<GrantedAuthority> authorities = privileges.stream().map(p -> new SimpleGrantedAuthority(p.getName())).collect(Collectors.toList());
-		DSUserDetails userDetails = dsUserDetailsService.loadUserByUsername(user.getEmail());
+
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
+
+		// Create a new session and add the security context.
+		ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+		HttpServletRequest request = servletRequestAttributes.getRequest();
+		HttpSession session = request.getSession(true);
+		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
+		log.debug("UserService.authWithoutPassword: authenticated user: {}", user.getEmail());
 	}
 
 }

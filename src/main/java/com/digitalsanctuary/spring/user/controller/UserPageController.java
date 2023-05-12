@@ -68,10 +68,13 @@ public class UserPageController {
 	/**
 	 * Registration complete.
 	 *
+	 * @param userDetails
+	 *
 	 * @return the string
 	 */
 	@GetMapping("/user/registration-complete.html")
-	public String registrationComplete() {
+	public String registrationComplete(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
+		log.debug("UserPageController.registrationComplete:" + "userDetails: {}", userDetails);
 		return "user/registration-complete";
 	}
 

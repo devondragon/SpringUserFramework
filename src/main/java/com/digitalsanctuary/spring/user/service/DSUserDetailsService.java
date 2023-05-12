@@ -61,7 +61,7 @@ public class DSUserDetailsService implements UserDetailsService {
 			}
 			// Updating lastActivity date for this login
 			user.setLastActivityDate(new Date());
-			userRepository.save(user);
+			// userRepository.save(user);
 			Collection<? extends GrantedAuthority> authorities = getAuthorities(user.getRoles());
 			DSUserDetails userDetails = new DSUserDetails(user, authorities);
 			return userDetails;

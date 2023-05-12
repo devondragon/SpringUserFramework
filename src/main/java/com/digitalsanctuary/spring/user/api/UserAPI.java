@@ -106,7 +106,10 @@ public class UserAPI {
 		// If there were no exceptions then the registration was a success!
 		String nextURL = registrationPendingURI;
 		if (registeredUser.isEnabled()) {
+			log.debug("UserAPI.registerUserAccount:" + "User is already enabled, skipping email verification and auto-logging them in.");
 			nextURL = registrationSuccessURI;
+			// Auto-login the user after registration (this is a UX choice, which is why it is in the controller)
+			userService.authWithoutPassword(registeredUser);
 		}
 		return new ResponseEntity<JSONResponse>(new JSONResponse(true, nextURL, 0, "Registration Successful!"), HttpStatus.OK);
 	}
