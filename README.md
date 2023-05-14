@@ -37,6 +37,11 @@ You can do this using docker with a command like this:
 
 docker run -p 127.0.0.1:3306:3306 --name springuserframework -e MARIADB_ROOT_PASSWORD=springuserroot -e MARIADB_DATABASE=springuser -e MARIADB_USER=springuser -e MARIADB_PASSWORD=springuser -d mariadb:latest
 
+Or on Apple Silicon:
+
+docker run -p 127.0.0.1:3306:3306 --name springuserframework -e MARIADB_ROOT_PASSWORD=springuserroot -e MARIADB_DATABASE=springuser -e MARIADB_USER=springuser -e MARIADB_PASSWORD=springuser -d arm64v8/mariadb:latest
+
+
 ### Mail Sending (SMTP)
 The framework sends emails for verficiation links, forgot password flow, etc... so you need to configure the outbound SMTP server and authentication information.
 

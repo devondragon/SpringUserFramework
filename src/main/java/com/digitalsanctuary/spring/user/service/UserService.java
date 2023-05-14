@@ -13,6 +13,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +37,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserService provides a lot of the logic for this framework.
+ * Service class for managing users. It includes methods for user authentication, registration, deletion, password management, role assignment, and
+ * related operations. This class also interacts with the user repository and session registry to perform its tasks.
+ *
+ * <p>
+ * This class is transactional, meaning that any failure causes the entire operation to roll back to the previous state.
+ *
+ * @author Devon Hillard
  */
 @Slf4j
 @Service
@@ -262,26 +269,80 @@ public class UserService {
 	}
 
 	/**
-	 * Authenticate and the user without a password.
+	 * Authenticates the given user without a password. The user is authenticated by loading their details, generating their authorities from their
+	 * roles and privileges, and storing these details in the security context and session. This is a potentially dangerous method to call, as it will
+	 * authenticate the user without requiring a password!!! We are using it here to allow us to authenticate a user after they have registered,
+	 * without requiring them to log in again.
 	 *
-	 * @param user the user
+	 * @param user The user to authenticate.
 	 */
 	public void authWithoutPassword(User user) {
-		DSUserDetails userDetails = dsUserDetailsService.loadUserByUsername(user.getEmail());
+		log.debug("UserService.authWithoutPassword: authenticating user: {}", user);
+		if (user == null || user.getEmail() == null) {
+			log.error("Invalid user or user email");
+			return;
+		}
+
+		DSUserDetails userDetails;
+		try {
+			userDetails = dsUserDetailsService.loadUserByUsername(user.getEmail());
+		} catch (UsernameNotFoundException e) {
+			log.error("User not found: {}", user.getEmail(), e);
+			return;
+		}
+
+		// Generate authorities from user roles and privileges
+		List<GrantedAuthority> authorities = getAuthorities(user);
+
+		// Authenticate user
+		authenticateUser(userDetails, authorities);
+
+		// Store security context in session
+		storeSecurityContextInSession();
+
+		log.debug("UserService.authWithoutPassword: authenticated user: {}", user.getEmail());
+	}
+
+	/**
+	 * Generates the list of authorities for the given user from their roles and privileges.
+	 *
+	 * @param user The user whose authorities to generate.
+	 * @return The list of authorities for the user.
+	 */
+
+	private List<GrantedAuthority> getAuthorities(User user) {
 		List<Privilege> privileges =
 				user.getRoles().stream().map(Role::getPrivileges).flatMap(Collection::stream).distinct().collect(Collectors.toList());
+		return privileges.stream().map(p -> new SimpleGrantedAuthority(p.getName())).collect(Collectors.toList());
+	}
 
-		List<GrantedAuthority> authorities = privileges.stream().map(p -> new SimpleGrantedAuthority(p.getName())).collect(Collectors.toList());
-
+	/**
+	 * Authenticates the user by creating an authentication object and setting it in the security context.
+	 *
+	 * @param userDetails The user details.
+	 * @param authorities The list of authorities for the user.
+	 */
+	private void authenticateUser(DSUserDetails userDetails, List<GrantedAuthority> authorities) {
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
+	}
 
-		// Create a new session and add the security context.
+	/**
+	 * Stores the current security context in the session.
+	 */
+	private void storeSecurityContextInSession() {
 		ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+		// Check if request attributes are available
+		if (servletRequestAttributes == null) {
+			log.error("Could not get request attributes");
+			return;
+		}
+
 		HttpServletRequest request = servletRequestAttributes.getRequest();
 		HttpSession session = request.getSession(true);
+
+		// Store the security context in the session
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
-		log.debug("UserService.authWithoutPassword: authenticated user: {}", user.getEmail());
 	}
 
 }
