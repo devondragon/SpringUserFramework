@@ -91,6 +91,9 @@ public class WebSecurityConfig {
 	@Value("${user.security.registrationNewVerificationURI}")
 	private String registrationNewVerificationURI;
 
+	@Value("${spring.security.oauth2.enabled:false} ")
+	private boolean oauth2Enabled;
+
 	@Value("${user.security.bcryptStrength}")
 	private int bcryptStrength = 10;
 
@@ -141,14 +144,15 @@ public class WebSecurityConfig {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
 		}
-		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
-			log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
-			request.getSession().setAttribute("error.message", exception.getMessage());
-			response.sendRedirect(loginPageURI);
-			// handler.onAuthenticationFailure(request, response, exception);
-		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
-				.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
-
+		if (oauth2Enabled) {
+			http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+				log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
+				request.getSession().setAttribute("error.message", exception.getMessage());
+				response.sendRedirect(loginPageURI);
+				// handler.onAuthenticationFailure(request, response, exception);
+			}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
+					.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
+		}
 
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {

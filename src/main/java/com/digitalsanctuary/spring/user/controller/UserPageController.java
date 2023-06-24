@@ -51,7 +51,14 @@ public class UserPageController {
 	 * @return the string
 	 */
 	@GetMapping("/user/register.html")
-	public String register() {
+	public String register(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
+		log.debug("UserPageController.register:" + "userDetails: {}", userDetails);
+		if (session != null && session.getAttribute("error.message") != null) {
+			model.addAttribute("errormessage", session.getAttribute("error.message"));
+			session.removeAttribute("error.message");
+		}
+		model.addAttribute("googleEnabled", googleEnabled);
+		model.addAttribute("facebookEnabled", facebookEnabled);
 		return "user/register";
 	}
 

@@ -15,6 +15,7 @@ spring:
     host: email-smtp.us-west-2.amazonaws.com
   # security:
     # oauth2:
+    #   enabled: true
     #   client:
     #     registration:
     #       google:

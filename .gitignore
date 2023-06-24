@@ -59,6 +59,9 @@ local.properties
 .scala_dependencies
 .worksheet
 
+### MacOS ####
+.DS_Store
+
 ### Eclipse Patch ###
 # Eclipse Core
 .project
