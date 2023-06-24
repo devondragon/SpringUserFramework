@@ -91,7 +91,7 @@ public class WebSecurityConfig {
 	@Value("${user.security.registrationNewVerificationURI}")
 	private String registrationNewVerificationURI;
 
-	@Value("${spring.security.oauth2.enabled:false} ")
+	@Value("${spring.security.oauth2.enabled:false}")
 	private boolean oauth2Enabled;
 
 	@Value("${user.security.bcryptStrength}")
@@ -123,10 +123,10 @@ public class WebSecurityConfig {
 	 */
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		log.debug("WebSecurityConfig.configure:" + "user.security.defaultAction: {}", getDefaultAction());
-		log.debug("WebSecurityConfig.configure:" + "unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
+		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
+		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
 		List<String> unprotectedURIs = getUnprotectedURIsList();
-		log.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
+		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
 		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
 
@@ -144,14 +144,10 @@ public class WebSecurityConfig {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
 		}
+
+		// Configure OAuth2 if enabled. This would be for things like Google and Facebook registration and login
 		if (oauth2Enabled) {
-			http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
-				log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
-				request.getSession().setAttribute("error.message", exception.getMessage());
-				response.sendRedirect(loginPageURI);
-				// handler.onAuthenticationFailure(request, response, exception);
-			}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
-					.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
+			setupOAuth2(http, loginAuthenticationEntryPoint);
 		}
 
 		// Configure authorization rules based on the default action
@@ -163,13 +159,23 @@ public class WebSecurityConfig {
 			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
 		} else {
 			// Log an error and deny access to all resources if the default action is not set correctly
-			log.error("WebSecurityConfig.configure:"
-					+ "user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
+			log.error(
+					"WebSecurityConfig.configure: user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
 					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
 			http.authorizeHttpRequests().anyRequest().denyAll();
 		}
 
 		return http.build();
+	}
+
+	private void setupOAuth2(HttpSecurity http, CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint) throws Exception {
+		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+			log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
+			request.getSession().setAttribute("error.message", exception.getMessage());
+			response.sendRedirect(loginPageURI);
+			// handler.onAuthenticationFailure(request, response, exception);
+		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
+				.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
 	}
 
 	@Bean
@@ -219,7 +225,7 @@ public class WebSecurityConfig {
 	public RoleHierarchy roleHierarchy() {
 		RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
 		roleHierarchy.setHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
-		log.debug("WebSecurityConfig.roleHierarchy:" + "roleHierarchy: {}", roleHierarchy.toString());
+		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
 		return roleHierarchy;
 	}
 

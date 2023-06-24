@@ -72,8 +72,8 @@ spring:
 user:
   registration:
     sendVerificationEmail: true
-    googleEnabled: true
-    facebookEnabled: true
+    googleEnabled: false
+    facebookEnabled: false
   audit:
     logFilePath: /opt/app/logs/user-audit.log
     flushOnWrite: false
