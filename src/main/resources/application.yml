@@ -15,6 +15,7 @@ spring:
     host: email-smtp.us-west-2.amazonaws.com
   # security:
     # oauth2:
+    #   enabled: true
     #   client:
     #     registration:
     #       google:
@@ -71,6 +72,8 @@ spring:
 user:
   registration:
     sendVerificationEmail: true
+    googleEnabled: false
+    facebookEnabled: false
   audit:
     logFilePath: /opt/app/logs/user-audit.log
     flushOnWrite: false
