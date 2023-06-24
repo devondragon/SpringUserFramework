@@ -110,8 +110,7 @@ public class WebSecurityConfig {
 
 	/**
 	 *
-	 * The securityFilterChain method builds the security filter chain for Spring
-	 * Security.
+	 * The securityFilterChain method builds the security filter chain for Spring Security.
 	 *
 	 * @param http the HttpSecurity object
 	 * @return the SecurityFilterChain object
@@ -124,19 +123,15 @@ public class WebSecurityConfig {
 		ArrayList<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
-		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(
-				null, loginPageURI);
+		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
 
-		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty())
-				.collect(Collectors.toList());
+		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
 
 		http.formLogin(
-				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI)
-						.successHandler(loginSuccessService).permitAll())
+				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll())
 				.rememberMe(withDefaults());
 
-		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI)
-				.invalidateHttpSession(true)
+		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));
 
 		if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
@@ -145,26 +140,23 @@ public class WebSecurityConfig {
 			});
 		}
 		if (oauth2Enabled) {
-			http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService)
-					.failureHandler((request, response, exception) -> {
-						log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
-						request.getSession().setAttribute("error.message", exception.getMessage());
-						response.sendRedirect(loginPageURI);
-						// handler.onAuthenticationFailure(request, response, exception);
-					}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
+			http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+				log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
+				request.getSession().setAttribute("error.message", exception.getMessage());
+				response.sendRedirect(loginPageURI);
+				// handler.onAuthenticationFailure(request, response, exception);
+			}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
 					.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
 		}
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			// Allow access to unprotected URIs and require authentication for all other
 			// requests
-			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll()
-					.anyRequest().authenticated();
+			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated();
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
 			// Require authentication for protected URIs and allow access to all other
 			// requests
-			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**")
-					.permitAll();
+			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
 		} else {
 			// Log an error and deny access to all resources if the default action is not
 			// set correctly
