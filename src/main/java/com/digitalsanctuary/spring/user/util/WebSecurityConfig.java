@@ -112,7 +112,6 @@ public class WebSecurityConfig {
 	@Autowired
 	private DSOAuth2UserService dsOAuth2UserService;
 
-
 	/**
 	 *
 	 * The securityFilterChain method builds the security filter chain for Spring Security.
@@ -152,10 +151,12 @@ public class WebSecurityConfig {
 
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
-			// Allow access to unprotected URIs and require authentication for all other requests
+			// Allow access to unprotected URIs and require authentication for all other
+			// requests
 			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated();
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
-			// Require authentication for protected URIs and allow access to all other requests
+			// Require authentication for protected URIs and allow access to all other
+			// requests
 			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
 		} else {
 			// Log an error and deny access to all resources if the default action is not set correctly

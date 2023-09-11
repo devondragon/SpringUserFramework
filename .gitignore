@@ -2,6 +2,9 @@
 # Created by https://www.gitignore.io/api/java,gradle,eclipse
 # Edit at https://www.gitignore.io/?templates=java,gradle,eclipse
 
+### MacOS ###
+*.DS_Store
+
 ### Eclipse ###
 .metadata
 bin/
