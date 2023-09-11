@@ -2,21 +2,39 @@ package com.digitalsanctuary.spring.user.util;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-public abstract class UserUtils {
+/**
+ * Utility class for user-related operations.
+ */
+public final class UserUtils {
+
+	/**
+	 * Private constructor to prevent instantiation.
+	 */
+	private UserUtils() {
+		throw new IllegalStateException("Utility class");
+	}
+
+	/**
+	 * Get the client's IP address.
+	 *
+	 * @param request The HttpServletRequest object.
+	 * @return The client's IP address as a String.
+	 */
 	public static String getClientIP(HttpServletRequest request) {
-		String ip = null;
-		final String xfHeader = request.getHeader("X-Forwarded-For");
+		String xfHeader = request.getHeader("X-Forwarded-For");
 		if (xfHeader != null) {
-			ip = xfHeader.split(",")[0];
-		} else {
-			ip = request.getRemoteAddr();
+			return xfHeader.split(",")[0];
 		}
-
-		return ip;
+		return request.getRemoteAddr();
 	}
 
+	/**
+	 * Get the application URL based on the provided request.
+	 *
+	 * @param request The HttpServletRequest object.
+	 * @return The application URL as a String.
+	 */
 	public static String getAppUrl(HttpServletRequest request) {
-		return "http://" + request.getServerName() + ":" + request.getServerPort() + request.getContextPath();
+		return request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort() + request.getContextPath();
 	}
-
 }

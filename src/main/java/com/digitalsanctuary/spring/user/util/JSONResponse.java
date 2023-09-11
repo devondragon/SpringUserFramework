@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.util;
 import lombok.Data;
 
 @Data
-
 public class JSONResponse {
 
 	private boolean success;

@@ -98,6 +98,9 @@ user:
     protectedURIs: /protected.html
     forgotPasswordPendingURI: /user/forgot-password-pending-verification.html
     updateUserURI: /user/update-user.html
+    failedLoginAttempts: 10
+    bcryptStrength: 12
+    testHashTime: true
   mail:
     fromAddress: test@test.com
   purgetokens:

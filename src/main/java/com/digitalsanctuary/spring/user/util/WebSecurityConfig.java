@@ -1,12 +1,12 @@
 package com.digitalsanctuary.spring.user.util;
 
+import static org.springframework.security.config.Customizer.withDefaults;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import static org.springframework.security.config.Customizer.withDefaults;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +16,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -90,8 +91,11 @@ public class WebSecurityConfig {
 	@Value("${user.security.registrationNewVerificationURI}")
 	private String registrationNewVerificationURI;
 
-	@Value("${spring.security.oauth2.enabled:false} ")
+	@Value("${spring.security.oauth2.enabled:false}")
 	private boolean oauth2Enabled;
+
+	@Value("${user.security.bcryptStrength}")
+	private int bcryptStrength = 10;
 
 	@Autowired
 	private UserDetailsService userDetailsService;
@@ -118,10 +122,10 @@ public class WebSecurityConfig {
 	 */
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		log.debug("WebSecurityConfig.configure:" + "user.security.defaultAction: {}", getDefaultAction());
-		log.debug("WebSecurityConfig.configure:" + "unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
-		ArrayList<String> unprotectedURIs = getUnprotectedURIsList();
-		log.debug("WebSecurityConfig.configure:" + "enhanced unprotectedURIs: {}", unprotectedURIs.toString());
+		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
+		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
+		List<String> unprotectedURIs = getUnprotectedURIsList();
+		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
 		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
 
@@ -139,15 +143,12 @@ public class WebSecurityConfig {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
 		}
+
+		// Configure OAuth2 if enabled. This would be for things like Google and Facebook registration and login
 		if (oauth2Enabled) {
-			http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
-				log.error("WebSecurityConfig.configure:" + "OAuth2 login failure: {}", exception.getMessage());
-				request.getSession().setAttribute("error.message", exception.getMessage());
-				response.sendRedirect(loginPageURI);
-				// handler.onAuthenticationFailure(request, response, exception);
-			}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
-					.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
+			setupOAuth2(http, loginAuthenticationEntryPoint);
 		}
+
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			// Allow access to unprotected URIs and require authentication for all other
@@ -158,19 +159,36 @@ public class WebSecurityConfig {
 			// requests
 			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
 		} else {
-			// Log an error and deny access to all resources if the default action is not
-			// set correctly
-			log.error("WebSecurityConfig.configure:"
-					+ "user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
+			// Log an error and deny access to all resources if the default action is not set correctly
+			log.error(
+					"WebSecurityConfig.configure: user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
 					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
 			http.authorizeHttpRequests().anyRequest().denyAll();
 		}
+
 		return http.build();
 	}
 
-	private ArrayList<String> getUnprotectedURIsList() {
+	private void setupOAuth2(HttpSecurity http, CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint) throws Exception {
+		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+			log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
+			request.getSession().setAttribute("error.message", exception.getMessage());
+			response.sendRedirect(loginPageURI);
+			// handler.onAuthenticationFailure(request, response, exception);
+		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
+				.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
+	}
+
+	@Bean
+	public WebSecurityCustomizer webSecurityCustomizer() {
+		// Ignore the error endpoint. This can get caught in the auth filter chain from a failed static asset request and cause a bad redirect on a
+		// successful auth
+		return (web) -> web.ignoring().requestMatchers("/error", "/ignore2");
+	}
+
+	private List<String> getUnprotectedURIsList() {
 		// Add the required user pages and actions to the unprotectedURIsArray
-		ArrayList<String> unprotectedURIs = new ArrayList<String>();
+		List<String> unprotectedURIs = new ArrayList<String>();
 		unprotectedURIs.addAll(Arrays.asList(unprotectedURIsArray));
 		unprotectedURIs.add(loginPageURI);
 		unprotectedURIs.add(loginActionURI);
@@ -182,7 +200,7 @@ public class WebSecurityConfig {
 		unprotectedURIs.add(registrationSuccessURI);
 		unprotectedURIs.add(forgotPasswordPendingURI);
 		unprotectedURIs.add(forgotPasswordChangeURI);
-		unprotectedURIs.removeAll(Arrays.asList("", null));
+		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
 	}
 
@@ -196,7 +214,7 @@ public class WebSecurityConfig {
 
 	@Bean
 	public PasswordEncoder encoder() {
-		return new BCryptPasswordEncoder(16);
+		return new BCryptPasswordEncoder(bcryptStrength);
 	}
 
 	@Bean
@@ -208,7 +226,7 @@ public class WebSecurityConfig {
 	public RoleHierarchy roleHierarchy() {
 		RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
 		roleHierarchy.setHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
-		log.debug("WebSecurityConfig.roleHierarchy:" + "roleHierarchy: {}", roleHierarchy.toString());
+		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
 		return roleHierarchy;
 	}
 
