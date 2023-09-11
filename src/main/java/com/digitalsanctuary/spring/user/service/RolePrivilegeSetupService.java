@@ -4,7 +4,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.stereotype.Component;
@@ -15,32 +14,43 @@ import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.util.RolesAndPrivilegesConfig;
 import jakarta.transaction.Transactional;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * A service to set up roles and privileges from a configuration when the application starts.
+ */
 @Slf4j
 @Data
+@RequiredArgsConstructor
 @Component
 public class RolePrivilegeSetupService implements ApplicationListener<ContextRefreshedEvent> {
+
+    /** The already setup flag. */
     private boolean alreadySetup = false;
 
-    @Autowired
-    private RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
+    /** The roles and privileges configuration. */
+    private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 
+    /** The role repository. */
+    private final RoleRepository roleRepository;
 
-    @Autowired
-    private RoleRepository roleRepository;
+    /** The privilege repository. */
+    private final PrivilegeRepository privilegeRepository;
 
-    @Autowired
-    private PrivilegeRepository privilegeRepository;
-
-
+    /**
+     * Triggered when the application context is refreshed.
+     *
+     * @param event the context refreshed event
+     */
     @Override
     @Transactional
     public void onApplicationEvent(final ContextRefreshedEvent event) {
         if (alreadySetup) {
             return;
         }
-        log.debug("rolesAndPrivilegesConfig: " + rolesAndPrivilegesConfig);
+
+        log.debug("rolesAndPrivilegesConfig: {}", rolesAndPrivilegesConfig);
 
         for (Map.Entry<String, List<String>> entry : rolesAndPrivilegesConfig.getRolesAndPrivileges().entrySet()) {
             final String roleName = entry.getKey();
@@ -56,6 +66,12 @@ public class RolePrivilegeSetupService implements ApplicationListener<ContextRef
         alreadySetup = true;
     }
 
+    /**
+     * Retrieves or creates a privilege by name.
+     *
+     * @param name the name of the privilege
+     * @return the privilege
+     */
     @Transactional
     Privilege getOrCreatePrivilege(final String name) {
         Privilege privilege = privilegeRepository.findByName(name);
@@ -66,6 +82,13 @@ public class RolePrivilegeSetupService implements ApplicationListener<ContextRef
         return privilege;
     }
 
+    /**
+     * Retrieves or creates a role by name and privileges.
+     *
+     * @param name the name of the role
+     * @param privileges the set of privileges associated with the role
+     * @return the role
+     */
     @Transactional
     Role getOrCreateRole(final String name, final Set<Privilege> privileges) {
         Role role = roleRepository.findByName(name);

@@ -1,0 +1,164 @@
+{
+  "properties": [
+    {
+      "name": "user.registration.facebook-enabled",
+      "type": "java.lang.String",
+      "description": "A description for 'user.registration.facebook-enabled'"
+    },
+    {
+      "name": "user.registration.google-enabled",
+      "type": "java.lang.String",
+      "description": "A description for 'user.registration.google-enabled'"
+    },
+    {
+      "name": "user.registration.send-verification-email",
+      "type": "java.lang.String",
+      "description": "A description for 'user.registration.send-verification-email'"
+    },
+    {
+      "name": "user.copyrightFirstYear",
+      "type": "java.lang.String",
+      "description": "A description for 'user.copyrightFirstYear'"
+    },
+    {
+      "name": "user.purgetokens.cron.expression",
+      "type": "java.lang.String",
+      "description": "A description for 'user.purgetokens.cron.expression'"
+    },
+    {
+      "name": "user.security.login-action-uRI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.login-action-uRI'"
+    },
+    {
+      "name": "user.security.protectedURIs",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.protectedURIs'"
+    },
+    {
+      "name": "user.security.unprotectedURIs",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.unprotectedURIs'"
+    },
+    {
+      "name": "user.security.logoutActionURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.logoutActionURI'"
+    },
+    {
+      "name": "user.security.loginPageURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.loginPageURI'"
+    },
+    {
+      "name": "user.security.logoutSuccessURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.logoutSuccessURI'"
+    },
+    {
+      "name": "user.security.registrationSuccessURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.registrationSuccessURI'"
+    },
+    {
+      "name": "user.security.loginSuccessURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.loginSuccessURI'"
+    },
+    {
+      "name": "user.security.registrationNewVerificationURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.registrationNewVerificationURI'"
+    },
+    {
+      "name": "user.mail.from-address",
+      "type": "java.lang.String",
+      "description": "A description for 'user.mail.from-address'"
+    },
+    {
+      "name": "user.security.failedLoginAttempts",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.failedLoginAttempts'"
+    },
+    {
+      "name": "user.security.updateUserURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.updateUserURI'"
+    },
+    {
+      "name": "user.security.forgotPasswordPendingURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.forgotPasswordPendingURI'"
+    },
+    {
+      "name": "user.security.defaultAction",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.defaultAction'"
+    },
+    {
+      "name": "user.security.registrationURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.registrationURI'"
+    },
+    {
+      "name": "user.security.disableCSRFdURIs",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.disableCSRFdURIs'"
+    },
+    {
+      "name": "user.security.registrationPendingURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.registrationPendingURI'"
+    },
+    {
+      "name": "user.security.forgotPasswordURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.forgotPasswordURI'"
+    },
+    {
+      "name": "user.security.forgotPasswordChangeURI",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.forgotPasswordChangeURI'"
+    },
+    {
+      "name": "hibernate.globally_quoted_identifiers",
+      "type": "java.lang.String",
+      "description": "A description for 'hibernate.globally_quoted_identifiers'"
+    },
+    {
+      "name": "spring.thymeleaf.template-loader-path",
+      "type": "java.lang.String",
+      "description": "A description for 'spring.thymeleaf.template-loader-path'"
+    },
+    {
+      "name": "user.audit.log-events",
+      "type": "java.lang.String",
+      "description": "A description for 'user.audit.log-events'"
+    },
+    {
+      "name": "user.audit.flush-on-write",
+      "type": "java.lang.Boolean",
+      "description": "A description for 'user.audit.flush-on-write'"
+    },
+    {
+      "name": "user.audit.log-file-path",
+      "type": "java.lang.String",
+      "description": "A description for 'user.audit.log-file-path'"
+    },
+    {
+      "name": "user.security.bcryptStrength",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.bcryptStrength'"
+    },
+    {
+      "name": "user.security.testHashTime",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.testHashTime'"
+    },
+    {
+      "name": "spring.security.oauth2.enabled",
+      "type": "java.lang.String",
+      "description": "A flag to enable/disable OAuth2 setup in WebSecurityConfig"
+    }
+  ]
+}

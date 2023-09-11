@@ -2,12 +2,12 @@ package com.digitalsanctuary.spring.user.service;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+
 
 /**
  * The LoginAttemptService can be used to track successful and failed logins by IP, and block abusive IP addresses.
@@ -16,7 +16,8 @@ import com.google.common.cache.LoadingCache;
 public class LoginAttemptService {
 
 	/** The max attempt. */
-	private final int MAX_ATTEMPT = 10;
+	@Value("${user.security.failedLoginAttempts}")
+	private final int failedLoginAttempts = 10;
 
 	/** The attempts cache. */
 	private LoadingCache<String, Integer> attemptsCache;
@@ -26,20 +27,18 @@ public class LoginAttemptService {
 	 */
 	public LoginAttemptService() {
 		super();
-		attemptsCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.DAYS)
-				.build(new CacheLoader<String, Integer>() {
-					@Override
-					public Integer load(final String key) {
-						return 0;
-					}
-				});
+		attemptsCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.DAYS).build(new CacheLoader<String, Integer>() {
+			@Override
+			public Integer load(final String key) {
+				return 0;
+			}
+		});
 	}
 
 	/**
 	 * Login succeeded.
 	 *
-	 * @param ipAddress
-	 *            the ip address of the user
+	 * @param ipAddress the ip address of the user
 	 */
 	public void loginSucceeded(final String ipAddress) {
 		attemptsCache.invalidate(ipAddress);
@@ -48,8 +47,7 @@ public class LoginAttemptService {
 	/**
 	 * Login failed.
 	 *
-	 * @param ipAddress
-	 *            the ip address of the user
+	 * @param ipAddress the ip address of the user
 	 */
 	public void loginFailed(final String ipAddress) {
 		int attempts = 0;
@@ -65,13 +63,12 @@ public class LoginAttemptService {
 	/**
 	 * Checks if the IP address is blocked.
 	 *
-	 * @param ipAddress
-	 *            the ip address of the user
+	 * @param ipAddress the ip address of the user
 	 * @return true, if the ip is blocked
 	 */
 	public boolean isBlocked(final String ipAddress) {
 		try {
-			return attemptsCache.get(ipAddress) >= MAX_ATTEMPT;
+			return attemptsCache.get(ipAddress) >= failedLoginAttempts;
 		} catch (final ExecutionException e) {
 			return false;
 		}

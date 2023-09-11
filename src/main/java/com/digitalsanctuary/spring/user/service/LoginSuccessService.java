@@ -13,32 +13,23 @@ import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * The LoginSuccessService is called after a user successfully logs in.
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessHandler {
 
 	/** The event publisher. */
-	private ApplicationEventPublisher eventPublisher;
+	private final ApplicationEventPublisher eventPublisher;
 
 	/** The login success uri. */
 	@Value("${user.security.loginSuccessURI}")
 	private String loginSuccessUri;
-
-	/**
-	 * Instantiates a new Login success service.
-	 *
-	 * @param eventPublisher the event publisher
-	 * @param userDetailsService the user details service
-	 * @param loginSuccessUri the login success URI
-	 */
-	public LoginSuccessService(ApplicationEventPublisher eventPublisher) {
-		this.eventPublisher = eventPublisher;
-	}
 
 	/**
 	 * On authentication success.

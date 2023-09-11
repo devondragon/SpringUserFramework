@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
@@ -9,14 +10,23 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * The UserPageController for the user management pages.
  */
 @Slf4j
+@RequiredArgsConstructor
 @Controller
 public class UserPageController {
+
+	@Value("${user.registration.facebookEnabled}")
+	private boolean facebookEnabled;
+
+	@Value("${user.registration.googleEnabled}")
+	private boolean googleEnabled;
+
 	/**
 	 * Login Page.
 	 *
@@ -30,6 +40,8 @@ public class UserPageController {
 			model.addAttribute("errormessage", session.getAttribute("error.message"));
 			session.removeAttribute("error.message");
 		}
+		model.addAttribute("googleEnabled", googleEnabled);
+		model.addAttribute("facebookEnabled", facebookEnabled);
 		return "user/login";
 	}
 
@@ -39,7 +51,14 @@ public class UserPageController {
 	 * @return the string
 	 */
 	@GetMapping("/user/register.html")
-	public String register() {
+	public String register(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
+		log.debug("UserPageController.register:" + "userDetails: {}", userDetails);
+		if (session != null && session.getAttribute("error.message") != null) {
+			model.addAttribute("errormessage", session.getAttribute("error.message"));
+			session.removeAttribute("error.message");
+		}
+		model.addAttribute("googleEnabled", googleEnabled);
+		model.addAttribute("facebookEnabled", facebookEnabled);
 		return "user/register";
 	}
 
@@ -56,10 +75,13 @@ public class UserPageController {
 	/**
 	 * Registration complete.
 	 *
+	 * @param userDetails
+	 *
 	 * @return the string
 	 */
 	@GetMapping("/user/registration-complete.html")
-	public String registrationComplete() {
+	public String registrationComplete(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
+		log.debug("UserPageController.registrationComplete:" + "userDetails: {}", userDetails);
 		return "user/registration-complete";
 	}
 

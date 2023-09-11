@@ -1,31 +1,31 @@
 # SpringUserFramework
-An Easy to leverage Java Spring Boot User Management Framework based on [Spring Security](https://spring.io/projects/spring-security)
+
+SpringUserFramework is a Java Spring Boot User Management Framework designed to simplify the implementation of user management features in your Spring-based web application. It is built on top of [Spring Security](https://spring.io/projects/spring-security) and provides out-of-the-box support for registration, login, logout, and forgot password flows. The framework includes basic example pages that are unstyled, allowing for seamless integration into your application.
 
 ## Summary
-This is an easy to use starter application or framework for handling basic user management features for your [Spring](https://spring.io/) based Web Application.  It provides registration, with optional email verification, login, logout, and forgot password flows.  There are basic example pages for everything, unstyled, to allow for the easiest integration to your application.
 
-## Goals
-- To build an easy to use starting point for any Spring based web application that needs user features.
-- To provide a local database backed user store (although SSO integrations are easy to add using Spring Security).
-- To design based on REST APIs
-- To build on top of Spring Security to provide the best security and make it easy to leverage Spring Security features such as 2FA and SSO integrations.
-- To make it easily configurable using application.properties when possible
-- To use the messages feature for all user facing text and messaging, so that internationalization is straight forward.
-- To provide an audit event framework to make security audit trails easy to deliver.
-- To use email address as the username by default.
+This framework aims to achieve the following goals:
+- Provide an easy-to-use starting point for any Spring-based web application that requires user management features.
+- Offer a local database-backed user store, with the flexibility to integrate Single Sign-On (SSO) using Spring Security.
+- Design the framework around REST APIs.
+- Utilize Spring Security for enhanced security features, such as two-factor authentication (2FA) and SSO integrations.
+- Enable easy configuration through the use of `application.properties` whenever possible.
+- Support internationalization by utilizing the messages feature for all user-facing text and messaging.
+- Provide an audit event framework to facilitate the generation of security audit trails.
+- Use the email address as the default username.
 
 ## Features
-At the highest level the framework provides support for, and working examples of, registration, with or without email verification, log in, log out, and forgot password flows.
 
-It uses a database for the user store, and leverages Spring JPA to make it easy to use any database you like.
+The framework provides support for the following features:
+- Registration, with optional email verification.
+- Login and logout functionality.
+- Forgot password flow.
+- Database-backed user store using Spring JPA.
+- Configuration options to control anonymous access, whitelist URIs, and protect specific URIs requiring a logged-in user session.
+- CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
+- Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
+- Role and Privilege setup service to define roles, associated privileges, and role inheritance hierarchy using `application.yml`.
 
-Via simple configuration you can setup Spring Security to either block anonymous access to pages, excepting a whitelist of URIs (the most secure configuration) or to allow access by default, and configure a list of URIs to protect and require a logged in user session to access.
-
-CSRF is enabled by default and the example jQuery AJAX calls pass the CSRF token from the Thymeleaf page context.
-
-An audit event and listener are implmented to allow for recording security events, or any type of event you like, and logging them to a seperate file. You can easily replace the logging listener with your own and store audit events in a database, publish them to a REST API, or anything else.
-
-There is Role and Privilege setup service, which allows you to easily define Roles, associated Privileges, and Role inheritance hierachy in your application.yml. Check out the application.yml for the basic OOTB configuration, and look at the RolePrivilegeSetupService component.  You can still create and leverage roles and privileges programatically, but this makes it easy to define and see the associations.
 
 
 ## How To Get Started
@@ -37,8 +37,19 @@ You can do this using docker with a command like this:
 
 docker run -p 127.0.0.1:3306:3306 --name springuserframework -e MARIADB_ROOT_PASSWORD=springuserroot -e MARIADB_DATABASE=springuser -e MARIADB_USER=springuser -e MARIADB_PASSWORD=springuser -d mariadb:latest
 
+Or on Apple Silicon:
+
+docker run -p 127.0.0.1:3306:3306 --name springuserframework -e MARIADB_ROOT_PASSWORD=springuserroot -e MARIADB_DATABASE=springuser -e MARIADB_USER=springuser -e MARIADB_PASSWORD=springuser -d arm64v8/mariadb:latest
+
+
 ### Mail Sending (SMTP)
 The framework sends emails for verficiation links, forgot password flow, etc... so you need to configure the outbound SMTP server and authentication information.
+
+### SSO OAuth2 with Google and Facebook
+The framework supports SSO OAuth2 with Google and Facebook.  To enable this you need to configure the client id and secret for each provider.
+
+For local development you will need a public hostname and HTTPS enabled.  You can use ngrok to create a public hostname and tunnel to your local machine.  You can then use the ngrok hostname in your Google and Facebook developer console configuration.
+
 
 ### New Relic
 Out of the box the project includes the New Relic Telemetry module, and as such requires a New Relic account id, and associated API key.  If you don't use New Relic you can remove the dependancy from the build.gradle file and ignore the configuration values.
@@ -47,12 +58,20 @@ Beyond that the default configurations should be all you need, although of cours
 
 ## Docker
 
-After running 'gradle build', you can build a simple docker image with the application using the included Dockerfile.  It's very basic and is not using layering, buildpacks, or other things you may want for real applications.
+After running gradle build, you can build a simple Docker image of the application using the provided Dockerfile. Please note that this Dockerfile is basic and does not incorporate advanced features such as layering or buildpacks that you may require for production applications.
 
-I have also included a docker-compose file which will launch a stack with the Spring Boot Application, MariaDB Database, and Postfix Mail Server, with basic configurations in place to make everything work.  Sending email from your computer (via the docker Postfix Mail Server) will likely get blocked by GMail, Outlook, etc... due to spam checks.  You can always test by using [10MinuteMail.com](https://10MinuteMail.com) addresses, but for real use you should probably leave off the mail server entirely and configure the Spring Boot application to use a real mail server for outbound transactional emails.
+Additionally, a docker-compose file is included, which launches a stack with the Spring Boot Application, MariaDB Database, and Postfix Mail Server. The configurations in the docker-compose file are set to make everything work smoothly. However, please be aware that sending emails from your computer (via the docker Postfix Mail Server) may be blocked by email providers due to spam checks. You can use temporary email addresses from [10MinuteMail.com](https://10minutemail.com) for testing purposes, but for real use, it is recommended to configure the Spring Boot application to use a real mail server for outbound transactional emails.
+
+
 
 
 ## Dev Tools
+
+### SpringBoot DevTools Auto Restart and Live Reload
+Read the following articles:
+ - https://www.digitalsanctuary.com/java/springboot-devtools-auto-restart-and-live-reload.html
+ - https://www.digitalsanctuary.com/java/how-to-get-springboot-livereload-working-over-https.html
+
 ### Live Reload over HTTPS Setup
 If you are running your local dev env using HTTPS or referencing it from a ngrok tunnel using HTTPS, you will need to make a few changes to get Live Reload to work. First you need to comment out the LiveReload HTTP line near the bottom of the index.html Thymeleaf template file.  And uncomment the HTTPS line just below.
 
@@ -63,8 +82,8 @@ mitmproxy --mode reverse:http://localhost:35729 -p 35739
 By default, mitmproxy uses self-signed SSL certificates, so you need to tell your browser to trust them before this will work. You can do this by opening https://localhost:35739/livereload.js in your browser and going through the steps to trust the server and certificate. Alternatively, you can configure mitmproxy to use real certificates and avoid this step. Follow these directions: https://docs.mitmproxy.org/stable/concepts-certificates/
 
 ## Notes
-Much of this is based on the [Baeldung course on Spring Security](https://www.baeldung.com/learn-spring-security-course).  If you want to learn more about Spring Security or you'd like to add an SSO integration or add 2FA, that guide is a great place to get started!
+Much of this is based on the [Baeldung course on Spring Security](https://www.baeldung.com/learn-spring-security-course).  If you want to learn more about Spring Security or would like to add SSO integration or 2FA to your application, that guide is a great place to start.
 
-You will see examples of different ways to to serve and consume the APIs in the codebase. For example some of the APIs return 200 response for all queries with a success flag and status codes to convey success or failures. Whereas others only use the 200 response on success, and use 409 or 500 for various error scenarios.  Some AJAX client JS will trigger a redirect to a new page, whereas other client JS will display messaging directly on the current page.  I think there are good reasons you may wish to use one or another approach, so I wanted to provide working examples of each.
+The codebase provides examples of different ways to serve and consume APIs. For instance, some APIs return a 200 response for all queries with a success flag and use status codes to convey success or failures. Others only use the 200 response for successful requests and use 409 or 500 for various error scenarios. The AJAX client JavaScript in the codebase also showcases different approaches, with some triggering redirects to new pages while others display messaging directly on the current page. These examples aim to demonstrate different implementation options depending on your preferences and requirements.
 
-There is no warranty or garantee of functionaltiy, quality, performance, or security made by the author.  This code is availble freely but you take all responsibilty and liabilty for your application.
+Please note that there is no warranty or guarantee of functionality, quality, performance, or security made by the author. The code is available freely, but you assume all responsibility and liability for its usage in your application.

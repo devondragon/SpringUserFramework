@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.digitalsanctuary.spring.user.exceptions.OAuth2AuthenticationProcessingException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -35,16 +36,13 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
     /** The user repository. */
-    UserRepository userRepository;
+    private final UserRepository userRepository;
 
     DefaultOAuth2UserService defaultOAuth2UserService = new DefaultOAuth2UserService();
-
-    public DSOAuth2UserService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
 
     /**
      *
@@ -77,8 +75,10 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         User existingUser = userRepository.findByEmail(user.getEmail());
         log.debug("handleOAuthLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
-            log.debug("handleOAuthLoginSuccess: ERROR! existingUser.getProvider(): {}", existingUser.getProvider());
+            log.debug("handleOAuthLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());
+            // If the user is already registered with a different auth provider (OAuth2 or Local), throw an exception.
             if (!existingUser.getProvider().toString().equals(registrationId.toUpperCase())) {
+                log.debug("handleOAuthLoginSuccess: ERROR! existingUser.getProvider(): {}", existingUser.getProvider());
                 throw new OAuth2AuthenticationException(new OAuth2Error("User Registered With Alternate Provider"),
                         "Looks like you're signed up with your " + existingUser.getProvider() + " account. Please use your "
                                 + existingUser.getProvider() + " account to log in.");
@@ -88,7 +88,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         } else {
             log.debug("handleOAuthLoginSuccess: registering new user with email: {}", user.getEmail());
             user = registerNewOAuthUser(registrationId, user);
-            return userRepository.save(user);
+            return user;
         }
     }
 
@@ -105,7 +105,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
         // user.setRoles(Collections.singletonList(roleRepository.findByName(RoleName.ROLE_USER)));
-
+        // We will trust OAuth2 providers to provide us with a verified email address.
+        user.setEnabled(true);
         return userRepository.save(user);
     }
 
@@ -125,7 +126,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
 
     /**
      *
-     * Retrieves user information from an OAuth2User object.
+     * Retrieves user information from a Google OAuth2User object.
      *
      * @param principal The OAuth2User object containing information about the authenticated user.
      * @return A User object representing the authenticated user.
@@ -144,6 +145,12 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         return user;
     }
 
+    /**
+     * Retrieves user information from a Facebook OAuth2User object.
+     *
+     * @param principal
+     * @return
+     */
     public User getUserFromFacebookOAuth2User(OAuth2User principal) {
         log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal);
         if (principal == null) {

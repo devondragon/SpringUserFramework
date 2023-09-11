@@ -1,6 +1,6 @@
 plugins {
   id 'java'
-  id 'org.springframework.boot' version '3.0.6'
+  id 'org.springframework.boot' version '3.0.8'
   id 'io.spring.dependency-management' version '1.1.0'
 }
 
@@ -43,11 +43,13 @@ dependencies {
 
     // Other dependencies
     runtimeOnly 'org.springframework.boot:spring-boot-devtools'
-    runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
+    // runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.passay:passay:1.6.2'
     implementation 'com.google.guava:guava:31.1-jre'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     compileOnly 'javax.validation:validation-api:2.0.1.Final'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'

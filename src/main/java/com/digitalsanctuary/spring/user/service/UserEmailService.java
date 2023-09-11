@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.service;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import com.digitalsanctuary.spring.user.event.AuditEvent;
@@ -11,24 +10,25 @@ import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserEmailService {
 
     /** The mail service. */
-    @Autowired
-    private MailService mailService;
+    private final MailService mailService;
 
-    @Autowired
-    private UserVerificationService userVerificationService;
+    /** The user verification service. */
+    private final UserVerificationService userVerificationService;
 
-    @Autowired
-    private PasswordResetTokenRepository passwordTokenRepository;
+    /** The password token repository. */
+    private final PasswordResetTokenRepository passwordTokenRepository;
 
-    @Autowired
-    private ApplicationEventPublisher eventPublisher;
+    /** The event publisher. */
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Send forgot password verification email.
@@ -45,11 +45,7 @@ public class UserEmailService {
                 new AuditEvent(this, user, "", "", "", "sendForgotPasswordVerificationEmail", "Success", "Forgot password email to be sent.", null);
         eventPublisher.publishEvent(sendForgotPasswordEmailAuditEvent);
 
-        Map<String, Object> variables = new HashMap<String, Object>();
-        variables.put("token", token);
-        variables.put("appUrl", appUrl);
-        variables.put("confirmationUrl", appUrl + "/user/changePassword?token=" + token);
-        variables.put("user", user);
+        Map<String, Object> variables = createEmailVariables(user, appUrl, token, "/user/changePassword?token=");
 
         mailService.sendTemplateMessage(user.getEmail(), "Password Reset", variables, "mail/forgot-password-token.html");
     }
@@ -66,24 +62,44 @@ public class UserEmailService {
         final String token = generateToken();
         userVerificationService.createVerificationTokenForUser(user, token);
 
-        Map<String, Object> variables = createEmailVariables(user, appUrl, token);
+        Map<String, Object> variables = createEmailVariables(user, appUrl, token, "/user/registrationConfirm?token=");
 
         mailService.sendTemplateMessage(user.getEmail(), "Registration Confirmation", variables, "mail/registration-token.html");
     }
 
-    private Map<String, Object> createEmailVariables(final User user, final String appUrl, final String token) {
-        Map<String, Object> variables = new HashMap<String, Object>();
+    /**
+     * Creates the email variables.
+     *
+     * @param user the user
+     * @param appUrl the app url
+     * @param token the token
+     * @param confirmationPath the confirmation path
+     * @return the map
+     */
+    private Map<String, Object> createEmailVariables(final User user, final String appUrl, final String token, final String confirmationPath) {
+        Map<String, Object> variables = new HashMap<>();
         variables.put("token", token);
         variables.put("appUrl", appUrl);
-        variables.put("confirmationUrl", appUrl + "/user/registrationConfirm?token=" + token);
+        variables.put("confirmationUrl", appUrl + confirmationPath + token);
         variables.put("user", user);
         return variables;
     }
 
+    /**
+     * Generate random token.
+     *
+     * @return the string
+     */
     private String generateToken() {
         return UUID.randomUUID().toString();
     }
 
+    /**
+     * Creates the password reset token for user.
+     *
+     * @param user the user
+     * @param token the token
+     */
     public void createPasswordResetTokenForUser(final User user, final String token) {
         final PasswordResetToken myToken = new PasswordResetToken(token, user);
         passwordTokenRepository.save(myToken);

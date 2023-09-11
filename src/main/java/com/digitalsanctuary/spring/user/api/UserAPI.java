@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.api;
 import java.util.Locale;
 import java.util.Optional;
 import javax.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
@@ -23,10 +22,11 @@ import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.UserService;
-import com.digitalsanctuary.spring.user.service.UserService.PasswordResetTokenValidationResult;
+import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -34,21 +34,19 @@ import lombok.extern.slf4j.Slf4j;
  * "/user" prefix.
  */
 @Slf4j
+@RequiredArgsConstructor
 @RestController
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
 
 	/** The user service. */
-	@Autowired
-	private UserService userService;
+	private final UserService userService;
 
 	/** The messages. */
-	@Autowired
-	private MessageSource messages;
+	private final MessageSource messages;
 
 	/** The event publisher. */
-	@Autowired
-	private ApplicationEventPublisher eventPublisher;
+	private final ApplicationEventPublisher eventPublisher;
 
 	// URIs configured in application.properties
 	/** The registration pending URI. */
@@ -106,7 +104,14 @@ public class UserAPI {
 			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 05, "System Error!"), HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 		// If there were no exceptions then the registration was a success!
-		return new ResponseEntity<JSONResponse>(new JSONResponse(true, registrationPendingURI, 0, "Registration Successful!"), HttpStatus.OK);
+		String nextURL = registrationPendingURI;
+		if (registeredUser.isEnabled()) {
+			log.debug("UserAPI.registerUserAccount:" + "User is already enabled, skipping email verification and auto-logging them in.");
+			nextURL = registrationSuccessURI;
+			// Auto-login the user after registration (this is a UX choice, which is why it is in the controller)
+			userService.authWithoutPassword(registeredUser);
+		}
+		return new ResponseEntity<JSONResponse>(new JSONResponse(true, nextURL, 0, "Registration Successful!"), HttpStatus.OK);
 	}
 
 	/**
@@ -219,9 +224,9 @@ public class UserAPI {
 	public ResponseEntity<JSONResponse> savePassword(@Valid PasswordDto passwordDto, final HttpServletRequest request, final Locale locale) {
 		log.debug("UserAPI.savePassword:" + "called with passwordDto: {}", passwordDto);
 
-		final PasswordResetTokenValidationResult validationResult = userService.validatePasswordResetToken(passwordDto.getToken());
+		final TokenValidationResult validationResult = userService.validatePasswordResetToken(passwordDto.getToken());
 		log.debug("UserAPI.savePassword:" + "result: {}", validationResult);
-		if (validationResult == PasswordResetTokenValidationResult.VALID) {
+		if (validationResult == TokenValidationResult.VALID) {
 			Optional<User> user = userService.getUserByPasswordResetToken(passwordDto.getToken());
 			if (user.isPresent()) {
 				userService.changeUserPassword(user.get(), passwordDto.getNewPassword());
