@@ -1,0 +1,104 @@
+debug: 'true'
+
+logging:
+  level:
+    com:
+      digitalsanctuary: DEBUG
+    org:
+      springframework:
+        web:
+          nodeValue: DEBUG
+          filter:
+            CommonsRequestLoggingFilter: DEBUG
+        security: DEBUG
+
+spring:
+  mail:
+    username: AAAAAAAAA
+    password: BBBBBBBBBBB
+  security:
+    oauth2:
+      enabled: true
+      client:
+        registration:
+          google:
+            client-id: 45XXXXXXXXX.apps.googleusercontent.com
+            client-secret: GOXXXXXXXXXXXXXXX
+            authorization-grant-type: authorization_code
+            redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
+            scope:
+              - email
+              - profile
+            client-name: Google
+          facebook:
+            client-id: 3333333333333333
+            client-secret: 555555555555555GGGGGGGGG
+            authorization-grant-type: authorization_code
+            redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
+            scope:
+              - email
+              - public_profile
+            client-name: Facebook
+        #   apple:
+        #     client-id: com.YYYYYYYYYY
+        #     client-secret: XXXXXX
+        #     authorization-grant-type: authorization_code
+        #     redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
+        #     scope:
+        #       - email
+        #       - name
+        #     client-name: Apple
+        #     client-authentication-method: client_secret_post
+        # provider:
+        #   apple:
+        #     authorization-uri: https://appleid.apple.com/auth/authorize?response_mode=form_post
+        #     token-uri: https://appleid.apple.com/auth/token
+        #     jwk-set-uri: https://appleid.apple.com/auth/keys
+        #     user-name-attribute: sub
+  thymeleaf:
+    cache: 'false'
+    prefix: file:src/main/resources/templates/
+  devtools:
+    restart:
+      enabled: 'true'
+      poll-interval: '2s'
+      quiet-period: '1s'
+
+      additional-paths:
+      - src/main/java/
+
+    livereload:
+      enabled: 'true'
+
+  mvc:
+    log-request-details: 'true'
+  web:
+    resources:
+      static-locations: file:src/main/resources/static/, classpath:/static/
+      cache:
+        period: 0
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: 'false'
+
+user:
+  audit:
+    flushOnWrite: 'true'
+  registration:
+    sendVerificationEmail: false
+    googleEnabled: true
+    facebookEnabled: true
+  security:
+    # unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword
+  mail:
+    fromAddress: you@test.com
+
+management:
+  newrelic:
+    metrics:
+      export:
+        account-id: ACCTID
+        api-key: KEYYYYY
