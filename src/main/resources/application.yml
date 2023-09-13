@@ -58,7 +58,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MariaDBDialect
-        globally_quoted_identifiers: false
+        "[globally_quoted_identifiers]": false
     show-sql: 'false'
   application:
     name: User Framework
@@ -109,17 +109,17 @@ user:
   copyrightFirstYear: 2020
 
   roles-and-privileges:
-    ROLE_ADMIN:
+    "[ROLE_ADMIN]":
       - ADMIN_PRIVILEGE
       - INVITE_USER_PRIVILEGE
       - READ_USER_PRIVILEGE
       - ASSIGN_MANAGER_PRIVILEGE
       - RESET_ANY_USER_PASSWORD_PRIVILEGE
-    ROLE_MANAGER:
+    "[ROLE_MANAGER]":
       - ADD_USER_TO_TEAM_PRIVILEGE
       - REMOVE_USER_FROM_TEAM_PRIVILEGE
       - RESET_TEAM_PASSWORD_PRIVILEGE
-    ROLE_USER:
+    "[ROLE_USER]":
       - LOGIN_PRIVILEGE
       - UPDATE_OWN_USER_PRIVILEGE
       - RESET_OWN_PASSWORD_PRIVILEGE

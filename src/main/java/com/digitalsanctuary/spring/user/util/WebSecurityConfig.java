@@ -151,32 +151,30 @@ public class WebSecurityConfig {
 
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
-			// Allow access to unprotected URIs and require authentication for all other
-			// requests
-			http.authorizeHttpRequests().requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated();
+			// Allow access to unprotected URIs and require authentication for all other requests
+			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(unprotectedURIsArray).permitAll().anyRequest().authenticated());
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
-			// Require authentication for protected URIs and allow access to all other
-			// requests
-			http.authorizeHttpRequests().requestMatchers(protectedURIsArray).authenticated().requestMatchers("/**").permitAll();
+			// Require authentication for protected URIs and allow access to all other requests
+			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(protectedURIsArray).authenticated().anyRequest().permitAll());
 		} else {
 			// Log an error and deny access to all resources if the default action is not set correctly
 			log.error(
 					"WebSecurityConfig.configure: user.security.defaultAction must be set to either {} or {}!!!  Denying access to all resources to force intentional configuration.",
 					DEFAULT_ACTION_ALLOW, DEFAULT_ACTION_DENY);
-			http.authorizeHttpRequests().anyRequest().denyAll();
+			http.authorizeHttpRequests((authorize) -> authorize.anyRequest().denyAll());
 		}
 
 		return http.build();
 	}
 
 	private void setupOAuth2(HttpSecurity http, CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint) throws Exception {
-		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
-			log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
-			request.getSession().setAttribute("error.message", exception.getMessage());
-			response.sendRedirect(loginPageURI);
-			// handler.onAuthenticationFailure(request, response, exception);
-		}).userInfoEndpoint().userService(dsOAuth2UserService)).userDetailsService(userDetailsService)
-				.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint));
+		http.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint))
+				.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+					log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
+					request.getSession().setAttribute("error.message", exception.getMessage());
+					response.sendRedirect(loginPageURI);
+					// handler.onAuthenticationFailure(request, response, exception);
+				}).userInfoEndpoint(userInfo -> userInfo.userService(dsOAuth2UserService)));
 	}
 
 	@Bean
