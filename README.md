@@ -50,6 +50,10 @@ The framework supports SSO OAuth2 with Google and Facebook.  To enable this you 
 
 For local development you will need a public hostname and HTTPS enabled.  You can use ngrok to create a public hostname and tunnel to your local machine.  You can then use the ngrok hostname in your Google and Facebook developer console configuration.
 
+There is an example configuration file in /src/main/resources called application-local.yml-example.  By default this project's gradle bootRun command runs Spring using the "local" profile.  So you can just copy that file to application-local.yml and replace the values (keys, URLs, etc..) with your values.  If you are using a different profile to run (such as default) you will just need to ensure the same configs are in place in your active configuration file(s).  
+
+Missing or incorrect configuration values will make this framework not work correctly.  
+
 
 ### New Relic
 Out of the box the project includes the New Relic Telemetry module, and as such requires a New Relic account id, and associated API key.  If you don't use New Relic you can remove the dependancy from the build.gradle file and ignore the configuration values.
