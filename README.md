@@ -9,7 +9,7 @@ This framework aims to achieve the following goals:
 - Offer a local database-backed user store, with the flexibility to integrate Single Sign-On (SSO) using Spring Security.
 - Design the framework around REST APIs.
 - Utilize Spring Security for enhanced security features, such as two-factor authentication (2FA) and SSO integrations.
-- Enable easy configuration through the use of `application.properties` whenever possible.
+- Enable easy configuration through the use of `application.yml` whenever possible.
 - Support internationalization by utilizing the messages feature for all user-facing text and messaging.
 - Provide an audit event framework to facilitate the generation of security audit trails.
 - Use the email address as the default username.
