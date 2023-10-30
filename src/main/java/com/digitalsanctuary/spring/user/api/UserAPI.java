@@ -17,7 +17,6 @@ import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
-import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
@@ -38,14 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
-
-	/** The user service. */
 	private final UserService userService;
-
-	/** The messages. */
 	private final MessageSource messages;
-
-	/** The event publisher. */
 	private final ApplicationEventPublisher eventPublisher;
 
 	// URIs configured in application.properties
@@ -94,15 +87,19 @@ public class UserAPI {
 			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
 					request.getHeader("User-Agent"), "Registration", "Failure", "User Already Exists", null);
 			eventPublisher.publishEvent(registrationAuditEvent);
-			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 02, "An account already exists for that email address!"),
+			return new ResponseEntity<JSONResponse>(
+					JSONResponse.builder().success(false).code(02).message("An account already exists for the email address").build(),
 					HttpStatus.CONFLICT);
 		} catch (Exception e) {
 			log.error("UserAPI.registerUserAccount:" + "Exception!", e);
 			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
 					request.getHeader("User-Agent"), "Registration", "Failure", e.getMessage(), null);
 			eventPublisher.publishEvent(registrationAuditEvent);
-			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 05, "System Error!"), HttpStatus.INTERNAL_SERVER_ERROR);
+
+			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).redirectUrl(null).code(05).message("System Error!").build(),
+					HttpStatus.INTERNAL_SERVER_ERROR);
 		}
+
 		// If there were no exceptions then the registration was a success!
 		String nextURL = registrationPendingURI;
 		if (registeredUser.isEnabled()) {
@@ -111,7 +108,8 @@ public class UserAPI {
 			// Auto-login the user after registration (this is a UX choice, which is why it is in the controller)
 			userService.authWithoutPassword(registeredUser);
 		}
-		return new ResponseEntity<JSONResponse>(new JSONResponse(true, nextURL, 0, "Registration Successful!"), HttpStatus.OK);
+		return new ResponseEntity<JSONResponse>(
+				JSONResponse.builder().success(true).redirectUrl(nextURL).code(0).message("Registration Successful!").build(), HttpStatus.OK);
 	}
 
 	/**
@@ -134,7 +132,8 @@ public class UserAPI {
 			if (user.isEnabled()) {
 				log.debug("UserAPI.resendRegistrationToken:" + "user is already enabled.");
 				// Send response with message and recommendation to login/forgot password
-				return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 1, "Account is already verified."), HttpStatus.CONFLICT);
+				return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).code(1).message("Account is already verified.").build(),
+						HttpStatus.CONFLICT);
 			} else {
 				// Else send new token email
 				log.debug("UserAPI.resendRegistrationToken:" + "sending a new verification token email.");
@@ -144,12 +143,13 @@ public class UserAPI {
 				AuditEvent resendRegTokenAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
 						request.getHeader("User-Agent"), "Resend Reg Token", "Success", "Success", null);
 				eventPublisher.publishEvent(resendRegTokenAuditEvent);
-				return new ResponseEntity<JSONResponse>(new JSONResponse(true, registrationPendingURI, 0, "Verification Email Resent Successfully!"),
-						HttpStatus.OK);
+				return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(registrationPendingURI).code(0)
+						.message("Verification Email Resent Successfully!").build(), HttpStatus.OK);
 			}
 		}
 		// Return generic error response (don't leak too much info)
-		return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 2, "System Error!"), HttpStatus.INTERNAL_SERVER_ERROR);
+		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).code(2).message("System Error!").build(),
+				HttpStatus.INTERNAL_SERVER_ERROR);
 	}
 
 	@PostMapping("/updateUser")
@@ -160,7 +160,7 @@ public class UserAPI {
 		if (userDetails == null || SecurityContextHolder.getContext().getAuthentication() == null
 				|| !SecurityContextHolder.getContext().getAuthentication().isAuthenticated()) {
 			log.error("UserAPI.updateUserAccount:" + "updateUser called without logged in user state!");
-			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 0, "User Not Logged In!"), HttpStatus.OK);
+			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).message("User Not Logged In!").build(), HttpStatus.OK);
 		}
 
 		User user = userDetails.getUser();
@@ -173,9 +173,10 @@ public class UserAPI {
 				request.getHeader("User-Agent"), "ProfileUpdate", "Success", "Success", null);
 		eventPublisher.publishEvent(userUpdateAuditEvent);
 
-		return new ResponseEntity<JSONResponse>(
-				new JSONResponse(true, null, 0, messages.getMessage("message.updateUserSuccess", null, locale) + "<br /><br />"), HttpStatus.OK);
 
+		return new ResponseEntity<JSONResponse>(
+				JSONResponse.builder().success(true).message(messages.getMessage("message.updateUserSuccess", null, locale) + "<br /><br />").build(),
+				HttpStatus.OK);
 	}
 
 	/**
@@ -208,8 +209,8 @@ public class UserAPI {
 			eventPublisher.publishEvent(resetPasswordAuditEvent);
 		}
 
-		return new ResponseEntity<JSONResponse>(
-				new JSONResponse(true, forgotPasswordPendingURI, 0, "If account exists, password reset email has been sent!"), HttpStatus.OK);
+		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(forgotPasswordChangeURI)
+				.message("If account exists, password reset email has been sent!").build(), HttpStatus.OK);
 	}
 
 	/**
@@ -237,19 +238,20 @@ public class UserAPI {
 				eventPublisher.publishEvent(savePasswordAuditEvent);
 
 				// In this case we are returning a success, with multiple messages designed to be displayed on-page,
-				// instead of a redirect URL like most of the other calls. The difference is just to provide working
-				// examples of each type of response handling.
-				return new ResponseEntity<JSONResponse>(new JSONResponse(true, null, 0,
-						messages.getMessage("message.resetPasswordSuccess", null, locale), "<br />", "<a href='/user/login.html'>Login</a>"),
+				// instead of a redirect URL like most of the other calls.
+				return new ResponseEntity<JSONResponse>(
+						JSONResponse.builder().success(true).message(messages.getMessage("message.resetPasswordSuccess", null, locale))
+								.message("<a href='/user/login.html'>Login</a>").build(),
 						HttpStatus.OK);
 			} else {
 				log.debug("UserAPI.savePassword:" + "user could not be found!");
-				return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 1, messages.getMessage("message.error", null, locale)),
+				return new ResponseEntity<JSONResponse>(
+						JSONResponse.builder().success(false).code(1).message(messages.getMessage("message.error", null, locale)).build(),
 						HttpStatus.OK);
 			}
 		} else {
-			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 2, messages.getMessage("message.error", null, locale)),
-					HttpStatus.OK);
+			return new ResponseEntity<JSONResponse>(
+					JSONResponse.builder().success(false).code(2).message(messages.getMessage("message.error", null, locale)).build(), HttpStatus.OK);
 		}
 	}
 
@@ -267,12 +269,16 @@ public class UserAPI {
 			@Valid PasswordDto passwordDto, final HttpServletRequest request) {
 		if (userDetails == null || userDetails.getUser() == null) {
 			log.error("UserAPI.changeUserPassword:" + "changeUserPassword called with null userDetails or user.");
-			return new ResponseEntity<JSONResponse>(new JSONResponse(false, null, 2, messages.getMessage("message.error", null, locale)),
+			return new ResponseEntity<JSONResponse>(
+					JSONResponse.builder().success(false).code(2).message(messages.getMessage("message.error", null, locale)).build(),
 					HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 		final User user = userDetails.getUser();
+		// Check to see if the provided old password matches the current password
 		if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
-			throw new InvalidOldPasswordException();
+			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).code(1).message("Invalid Old Password").build(),
+					HttpStatus.UNAUTHORIZED);
+
 		}
 		userService.changeUserPassword(user, passwordDto.getNewPassword());
 
@@ -281,8 +287,8 @@ public class UserAPI {
 		eventPublisher.publishEvent(updatePasswordAuditEvent);
 
 		return new ResponseEntity<JSONResponse>(
-				new JSONResponse(true, null, 0, messages.getMessage("message.updatePasswordSuccess", null, locale) + "<br /><br />"), HttpStatus.OK);
-
+				JSONResponse.builder().success(true).code(0).message(messages.getMessage("message.updatePasswordSuccess", null, locale)).build(),
+				HttpStatus.OK);
 	}
 
 }
