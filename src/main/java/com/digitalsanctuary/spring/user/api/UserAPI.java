@@ -17,7 +17,6 @@ import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
-import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
