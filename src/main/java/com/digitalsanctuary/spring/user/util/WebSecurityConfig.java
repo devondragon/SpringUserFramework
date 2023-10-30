@@ -152,7 +152,8 @@ public class WebSecurityConfig {
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			// Allow access to unprotected URIs and require authentication for all other requests
-			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(unprotectedURIsArray).permitAll().anyRequest().authenticated());
+			http.authorizeHttpRequests(
+					(authorize) -> authorize.requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated());
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
 			// Require authentication for protected URIs and allow access to all other requests
 			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(protectedURIsArray).authenticated().anyRequest().permitAll());

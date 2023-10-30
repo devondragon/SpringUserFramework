@@ -29,16 +29,9 @@ import lombok.extern.slf4j.Slf4j;
 public class UserActionController {
 	private static final String AUTH_MESSAGE_PREFIX = "auth.message.";
 
-	/** The user service. */
 	private final UserService userService;
-
-	/** The user verification service. */
 	private final UserVerificationService userVerificationService;
-
-	/** The messages. */
 	private final MessageSource messages;
-
-	/** The event publisher. */
 	private final ApplicationEventPublisher eventPublisher;
 
 	// URIs configured in application.properties
