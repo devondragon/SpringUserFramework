@@ -69,6 +69,7 @@ spring:
 
     livereload:
       enabled: 'true'
+      https: 'true'
 
   mvc:
     log-request-details: 'true'
@@ -102,3 +103,4 @@ management:
       export:
         account-id: ACCTID
         api-key: KEYYYYY
+
