@@ -211,7 +211,7 @@ public class UserAPI {
 			eventPublisher.publishEvent(resetPasswordAuditEvent);
 		}
 
-		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(forgotPasswordChangeURI)
+		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(forgotPasswordPendingURI)
 				.message("If account exists, password reset email has been sent!").build(), HttpStatus.OK);
 	}
 
