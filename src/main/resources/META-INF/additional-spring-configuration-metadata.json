@@ -159,6 +159,11 @@
       "name": "spring.security.oauth2.enabled",
       "type": "java.lang.String",
       "description": "A flag to enable/disable OAuth2 setup in WebSecurityConfig"
+    },
+    {
+      "name": "spring.devtools.livereload.https",
+      "type": "java.lang.String",
+      "description": "A description for 'spring.devtools.livereload.https'"
     }
   ]
 }
