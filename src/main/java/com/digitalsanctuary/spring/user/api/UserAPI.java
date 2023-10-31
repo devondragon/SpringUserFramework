@@ -20,6 +20,7 @@ import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
@@ -38,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
 	private final UserService userService;
+	private final UserEmailService userEmailService;
 	private final MessageSource messages;
 	private final ApplicationEventPublisher eventPublisher;
 
@@ -138,7 +140,7 @@ public class UserAPI {
 				// Else send new token email
 				log.debug("UserAPI.resendRegistrationToken:" + "sending a new verification token email.");
 				String appUrl = UserUtils.getAppUrl(request);
-				userService.userEmailService.sendRegistrationVerificationEmail(user, appUrl);
+				userEmailService.sendRegistrationVerificationEmail(user, appUrl);
 				// Return happy path response
 				AuditEvent resendRegTokenAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
 						request.getHeader("User-Agent"), "Resend Reg Token", "Success", "Success", null);
@@ -196,7 +198,7 @@ public class UserAPI {
 
 		if (user != null) {
 			String appUrl = UserUtils.getAppUrl(request);
-			userService.userEmailService.sendForgotPasswordVerificationEmail(user, appUrl);
+			userEmailService.sendForgotPasswordVerificationEmail(user, appUrl);
 
 			AuditEvent resetPasswordAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
 					request.getHeader("User-Agent"), "Reset Password", "Success", "Success", null);
@@ -209,7 +211,7 @@ public class UserAPI {
 			eventPublisher.publishEvent(resetPasswordAuditEvent);
 		}
 
-		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(forgotPasswordChangeURI)
+		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(forgotPasswordPendingURI)
 				.message("If account exists, password reset email has been sent!").build(), HttpStatus.OK);
 	}
 
