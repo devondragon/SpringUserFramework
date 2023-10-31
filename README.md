@@ -77,6 +77,10 @@ Additionally, a docker-compose file is included, which launches a stack with the
 
 
 
+## Overriding Spring Security Messages
+
+You may want to override the default Spring Security user facing messages.  You can do this in your messages.properties file, by adding any of the message keys from Spring Security (found here: [Spring Security Messages](https://github.com/spring-projects/spring-security/blob/main/core/src/main/resources/org/springframework/security/messages.properties)) and providing your own values.
+
 
 ## Dev Tools
 
