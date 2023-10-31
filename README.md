@@ -30,6 +30,11 @@ The framework provides support for the following features:
 
 ## How To Get Started
 
+### Quickstart Guide
+You can jump right in and get started by following the [Quickstart Guide](QUICKSTART.md).
+
+For more information, read on.
+
 ### Configuring Your Local Environment
 There is an example configuration file in /src/main/resources called application-local.yml-example.  By default this project's gradle bootRun command runs Spring using the "local" profile.  So you can just copy that file to application-local.yml and replace the values (keys, URLs, etc..) with your values.  If you are using a different profile to run (such as default) you will just need to ensure the same configs are in place in your active configuration file(s).
 
