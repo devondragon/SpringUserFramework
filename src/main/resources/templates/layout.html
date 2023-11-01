@@ -1,12 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}">
 
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta th:if="${@environment.acceptsProfiles('dev','local')}" http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
 
-	<sec:csrfMetaTags />
+	<meta name="_csrf" th:content="${_csrf.token}" />
+	<!-- default header name is X-CSRF-TOKEN -->
+	<meta name="_csrf_header" th:content="${_csrf.headerName}" />
+
 	<!--/*  Each token will be replaced by their respective titles in the resulting page. */-->
 	<title layout:title-pattern="$LAYOUT_TITLE - $CONTENT_TITLE">Spring User Framework</title>
 

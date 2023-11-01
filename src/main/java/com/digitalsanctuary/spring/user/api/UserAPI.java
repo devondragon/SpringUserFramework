@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,7 @@ import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +65,10 @@ public class UserAPI {
 	/** The forgot password change URI. */
 	@Value("${user.security.forgotPasswordChangeURI}")
 	private String forgotPasswordChangeURI;
+
+	@Value("${user.actuallyDeleteAccount:false}")
+	private boolean actuallyDeleteAccount;
+
 
 	/**
 	 * Register a new user account.
@@ -292,5 +298,41 @@ public class UserAPI {
 				JSONResponse.builder().success(true).code(0).message(messages.getMessage("message.updatePasswordSuccess", null, locale)).build(),
 				HttpStatus.OK);
 	}
+
+	/**
+	 * Deletes the current user's account.
+	 *
+	 * @param locale the locale
+	 * @param request the request
+	 * @return the generic response
+	 */
+	@DeleteMapping("/deleteAccount")
+	public ResponseEntity<JSONResponse> deleteAccount(@AuthenticationPrincipal DSUserDetails userDetails, final Locale locale,
+			final HttpServletRequest request) {
+
+		if (userDetails == null || userDetails.getUser() == null) {
+			log.error("UserAPI.deleteAccount:" + "deleteAccount called with null userDetails or user.");
+			return new ResponseEntity<JSONResponse>(
+					JSONResponse.builder().success(false).code(2).message(messages.getMessage("message.error", null, locale)).build(),
+					HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+		final User user = userDetails.getUser();
+
+		if (actuallyDeleteAccount) {
+			userService.deleteUser(user);
+		} else {
+			user.setEnabled(false);
+			userService.saveRegisteredUser(user);
+		}
+		try {
+			SecurityContextHolder.clearContext();
+			request.logout();
+		} catch (ServletException e) {
+			log.warn("UserAPI.deleteAccount:" + "Exception on logout!", e);
+		}
+
+		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).message("Account Deleted").build(), HttpStatus.OK);
+	}
+
 
 }

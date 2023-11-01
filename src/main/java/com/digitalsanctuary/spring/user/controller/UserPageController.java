@@ -142,4 +142,9 @@ public class UserPageController {
 		return "user/update-password";
 	}
 
+	@GetMapping("/user/delete-account.html")
+	public String deleteAccount() {
+		return "user/delete-account";
+	}
+
 }
