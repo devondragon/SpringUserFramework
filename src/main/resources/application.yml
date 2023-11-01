@@ -70,6 +70,7 @@ spring:
   messages:
     basename: messages/messages
 user:
+  actuallyDeleteAccount: false
   registration:
     sendVerificationEmail: true
     googleEnabled: false

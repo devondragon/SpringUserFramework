@@ -24,10 +24,11 @@ function register(event) {
         $("#globalError").show().html(/*[[#{PasswordMatches.user}]]*/);
         return;
     }
-    var token = $('input[name="_csrf"]').attr('value')
     $.ajaxSetup({
         beforeSend: function (xhr) {
-            xhr.setRequestHeader('Csrf-Token', token);
+            var token = $("meta[name='_csrf']").attr("content");
+            var header = $("meta[name='_csrf_header']").attr("content");
+            xhr.setRequestHeader(header, token);
         }
     });
     var formData = $('form').serialize();
