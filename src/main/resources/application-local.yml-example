@@ -15,6 +15,7 @@ spring:
   mail: # Mail configuration
     username: AAAAAAAAA # Mail server username
     password: BBBBBBBBBBB # Mail server password
+    host: mail.myhost.com # Mail server hostname
   security:
     oauth2:
       enabled: true # Enable or disable OAuth2

@@ -1,18 +1,19 @@
 spring:
   mail:
-    username:
-    password:
-    properties:
+    username: # Mail server username
+    password: # Mail server password
+    host: email-smtp.us-west-2.amazonaws.com # Mail server host
+    port: 587 # Mail server port
+    properties: # Mail server properties
       mail:
         smtp:
           starttls:
-            enable: true
-            required: true
-          auth: true
-          port: 587
+            enable: true # Enable or disable STARTTLS
+            required: true # Require STARTTLS
+        auth: true # Enable or disable authentication
         transport:
-          protocol: smtp
-    host: email-smtp.us-west-2.amazonaws.com
+          protocol: smtp # Mail server protocol
+
   # security:
     # oauth2:
     #   enabled: true
@@ -48,68 +49,71 @@ spring:
     #         authorization-grant-type: authorization_code
     #         client-authentication-method: post
     #         provider: apple
-  thymeleaf:
-    cache: false
-    template-loader-path: classpath:/templates
-    suffix: .html
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
+  thymeleaf: # Thymeleaf configuration
+    cache: false # Enable or disable Thymeleaf cache
+    template-loader-path: classpath:/templates # Template loader path for Thymeleaf
+    suffix: .html # Suffix for Thymeleaf templates
+  jpa: # JPA configuration
+    hibernate: # Hibernate configuration
+      ddl-auto: update # Hibernate DDL auto
+    properties: # Hibernate properties
       hibernate:
-        dialect: org.hibernate.dialect.MariaDBDialect
-        "[globally_quoted_identifiers]": false
-    show-sql: 'false'
-  application:
-    name: User Framework
-  datasource:
-    password: springuser
-    url: jdbc:mariadb://localhost:3306/springuser?createDatabaseIfNotExist=true
-    driverClassName: org.mariadb.jdbc.Driver
-    username: springuser
+        dialect: org.hibernate.dialect.MariaDBDialect # Hibernate dialect
+        "[globally_quoted_identifiers]": false # Globally quoted identifiers
+    show-sql: 'false' # Enable or disable SQL logging
+  application: # Application configuration
+    name: User Framework # Application name
+  datasource: # Datasource configuration
+    password: springuser # Database password
+    url: jdbc:mariadb://localhost:3306/springuser?createDatabaseIfNotExist=true # Database URL
+    driverClassName: org.mariadb.jdbc.Driver # Database driver
+    username: springuser # Database username
   messages:
-    basename: messages/messages
+    basename: messages/messages # Message basename
 user:
-  actuallyDeleteAccount: false
+  actuallyDeleteAccount: false # If true, users can delete their own accounts.  If false, accounts are disabled instead of deleted.
   registration:
-    sendVerificationEmail: true
-    googleEnabled: false
-    facebookEnabled: false
+    sendVerificationEmail: true # If true, a verification email will be sent to the user after registration.  If false, the user will be automatically verified.
+    googleEnabled: false # If true, Google OAuth2 will be enabled for registration.
+    facebookEnabled: false # If true, Facebook OAuth2 will be enabled for registration.
   audit:
-    logFilePath: /opt/app/logs/user-audit.log
-    flushOnWrite: false
-    logEvents: true
+    logFilePath: /opt/app/logs/user-audit.log # The path to the audit log file.
+    flushOnWrite: false # If true, the audit log will be flushed to disk after every write (less performant).  If false, the audit log will be flushed to disk every 10 seconds (more performant).
+    logEvents: true # If true, all events will be logged.
 
 # Centralizing the URIs of common pages to make changing paths easier.  You can leave this section alone if you use the default page locations from this project.  These URLs do NOT have to be included in the unprotectedURIs list above as they will automatically be handled.
   security:
-    loginActionURI: /user/login
-    forgotPasswordChangeURI: /user/forgot-password-change.html
-    registrationNewVerificationURI: /user/request-new-verification-email.html
-    loginSuccessURI: /index.html?messageKey=message.loginSuccess
-    forgotPasswordURI: /user/forgot-password.html
-    registrationPendingURI: /user/registration-pending-verification.html
-    disableCSRFdURIs: /no-csrf-test
-    registrationURI: /user/register.html
-    registrationSuccessURI: /user/registration-complete.html
-    logoutSuccessURI: /index.html?messageKey=message.logoutSuccess
-    defaultAction: deny
-    loginPageURI: /user/login.html
-    logoutActionURI: /user/logout
-    unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword,/oauth2/authorization/*,/login
-    protectedURIs: /protected.html
-    forgotPasswordPendingURI: /user/forgot-password-pending-verification.html
-    updateUserURI: /user/update-user.html
-    failedLoginAttempts: 10
-    bcryptStrength: 12
-    testHashTime: true
+    failedLoginAttempts: 10 # The number of failed login attempts before the user is locked out.
+    bcryptStrength: 12 # The bcrypt strength to use for password hashing.  The higher the number, the longer it takes to hash the password.  The default is 12.  The minimum is 4.  The maximum is 31.
+    testHashTime: true # If true, the test hash time will be logged to the console on startup.  This is useful for determining the optimal bcryptStrength value.
+    defaultAction: deny # The default action for all requests.  This can be either deny or allow.
+    unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword,/oauth2/authorization/*,/login # A comma delimited list of URIs that should not be protected by Spring Security if the defaultAction is deny.
+    protectedURIs: /protected.html # A comma delimited list of URIs that should be protected by Spring Security if the defaultAction is allow.
+    disableCSRFdURIs: /no-csrf-test # A comma delimited list of URIs that should not be protected by CSRF protection. This may include API endpoints that need to be called without a CSRF token.
+
+    # URIs for known user related pages. You can change these paths to your own pages if you want.
+    loginPageURI: /user/login.html # The URI for the login page.
+    loginActionURI: /user/login # The URI for the login action.
+    loginSuccessURI: /index.html?messageKey=message.loginSuccess # The URI for the login success page.
+    logoutSuccessURI: /index.html?messageKey=message.logoutSuccess # The URI for the logout success page.    
+    logoutActionURI: /user/logout # The URI for the logout action.
+    forgotPasswordChangeURI: /user/forgot-password-change.html # The URI for the forgot password change page.
+    forgotPasswordURI: /user/forgot-password.html # The URI for the forgot password page.
+    forgotPasswordPendingURI: /user/forgot-password-pending-verification.html # The URI for the forgot password pending verification page.
+    registrationPendingURI: /user/registration-pending-verification.html # The URI for the registration pending verification page.
+    registrationURI: /user/register.html # The URI for the registration page.
+    registrationSuccessURI: /user/registration-complete.html # The URI for the registration success page.
+    registrationNewVerificationURI: /user/request-new-verification-email.html # The URI for the request new verification email page.
+    updateUserURI: /user/update-user.html # The URI for the update user page.
+
   mail:
-    fromAddress: test@test.com
+    fromAddress: test@test.com # The from address for all emails sent by the application.
   purgetokens:
     cron:
-      expression: 0 0 3 * * ?
-  copyrightFirstYear: 2020
+      expression: 0 0 3 * * ? # The cron expression for the token purge job.  This defaults to 3 am every day.
+  copyrightFirstYear: 2020 # The first year of the copyright. This is used for dispaly of the page footer.
 
-  roles-and-privileges:
+  roles-and-privileges: # Roles and privileges configuration section. This is a YAML map of roles to privileges.  Each role can have one or more privileges.  The privileges are defined in the privileges section below.
     "[ROLE_ADMIN]":
       - ADMIN_PRIVILEGE
       - INVITE_USER_PRIVILEGE
@@ -124,7 +128,7 @@ user:
       - LOGIN_PRIVILEGE
       - UPDATE_OWN_USER_PRIVILEGE
       - RESET_OWN_PASSWORD_PRIVILEGE
-  role-hierarchy:
+  role-hierarchy: # Role hierarchy configuration section.  This defines a hierarchy of roles, where a higher level role inherits all roles from a lower level role.  The roles are defined in the roles-and-privileges section above. 
     - ROLE_ADMIN > ROLE_MANAGER
     - ROLE_MANAGER > ROLE_USER
 
@@ -132,17 +136,17 @@ management:
   newrelic:
     metrics:
       export:
-        api-key:
-        account-id:
+        api-key: # New Relic API key
+        account-id: # New Relic account ID
 hibernate:
-  globally_quoted_identifiers: 'false'
+  globally_quoted_identifiers: 'false' # Hibernate Globally quoted identifiers
 server:
   servlet:
     session:
       cookie:
-        secure: true
-        http-only: true
-      timeout: 30m
+        secure: true # Whether the cookie should be flagged as secure or not.  If true, the cookie will only be sent over HTTPS.
+        http-only: true # Whether the cookie should be flagged as HTTP only or not.  If true, the cookie will not be accessible to client side scripts.
+      timeout: 30m # Session timeout in minutes
 logging:
   file:
-    name: /opt/app/logs/user-app.log
+    name: /opt/app/logs/user-app.log # The path to the application log file.
