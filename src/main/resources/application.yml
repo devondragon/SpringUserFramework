@@ -1,40 +1,78 @@
-spring:
-  mail:
-    username:
-    password:
+spring: # Spring Framework properties
+  mail: # Mail properties
+    username: # Username for the mail server
+    password: # Password for the mail server
     properties:
       mail:
-        smtp:
-          starttls:
-            enable: true
-            required: true
-          auth: true
-          port: 587
+        smtp: # SMTP mail properties
+          starttls: # STARTTLS properties
+            enable: true # Enable STARTTLS
+            required: true # Require STARTTLS
+          auth: true # Enable SMTP authentication
+          port: 587 # SMTP port
         transport:
-          protocol: smtp
-    host: email-smtp.us-west-2.amazonaws.com
-  # security:
-    # oauth2:
-    #   enabled: true
-    #   client:
-    #     registration:
-    #       google:
-    #         client-id:
-    #         client-secret:
-    #         scope:
+          protocol: smtp # Mail transport protocol
+    host: email-smtp.us-west-2.amazonaws.com # SMTP host
+  # security: # Security properties
+    # oauth2: # OAuth2 properties
+    #   enabled: true # Enable OAuth2
+    disableCSRFdURIs: /no-csrf-test # Disable CSRF URIs
+    registrationURI: /user/register.html # Registration URI
+    registrationSuccessURI: /user/registration-complete.html # Registration success URI
+    logoutSuccessURI: /index.html?messageKey=message.logoutSuccess # Logout success URI
+    defaultAction: deny # Default action
+    loginPageURI: /user/login.html # Login page URI
+    logoutActionURI: /user/logout # Logout action URI
+    unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword,/oauth2/authorization/*,/login # Unprotected URIs
+    protectedURIs: /protected.html # Protected URIs
+    forgotPasswordPendingURI: /user/forgot-password-pending-verification.html # Forgot password pending URI
+    updateUserURI: /user/update-user.html # Update user URI
+    failedLoginAttempts: 10 # Failed login attempts limit
+    bcryptStrength: 12 # BCrypt strength
+    testHashTime: true # Test hash time setting
+  mail: # Mail properties
+    fromAddress: test@test.com # From address for emails
     #           - email
-    #           - profile
-    #         client-name: Google
-    #         authorization-grant-type: authorization_code
-    #         client-authentication-method: post
-    #         provider: google
-    #       facebook:
-    #         client-id:
-    #         client-secret:
-    #         scope:
+    #       facebook: # Facebook OAuth2 properties
+    #         client-id: # Facebook OAuth2 client ID
+    #         client-secret: # Facebook OAuth2 client secret
+    #         scope: # Facebook OAuth2 scopes
     #           - email
-    #           - public_profile
-    #         client-name: Facebook
+        account-id: # New Relic account ID
+hibernate: # Hibernate properties
+  globally_quoted_identifiers: 'false' # Hibernate globally quoted identifiers setting
+server: # Server properties
+  servlet: # Servlet properties
+    session: # Session properties
+      cookie: # Cookie properties
+        secure: true # Secure cookie setting
+        http-only: true # HTTP only cookie setting
+      timeout: 30m # Session timeout
+logging: # Logging properties
+  file: # File logging properties
+    name: /opt/app/logs/user-app.log # Log file name
+    #         client-id: # Apple OAuth2 client ID
+    #         client-secret: # Apple OAuth2 client secret
+    #         scope: # Apple OAuth2 scopes
+    #           - email
+    #           - name
+    #       facebook: # Facebook OAuth2 properties
+        "[globally_quoted_identifiers]": false # Hibernate globally quoted identifiers setting
+    show-sql: 'false' # Show SQL queries in the console
+  application:
+    name: User Framework # Application name
+  datasource: # Datasource properties
+    password: springuser # Datasource password
+    url: jdbc:mariadb://localhost:3306/springuser?createDatabaseIfNotExist=true # Datasource URL
+    driverClassName: org.mariadb.jdbc.Driver # Datasource driver class name
+    username: springuser # Datasource username
+  messages:
+    basename: messages/messages # Messages basename
+user: # User properties
+  actuallyDeleteAccount: false # Actually delete account setting
+  registration: # Registration properties
+    sendVerificationEmail: true # Send verification email setting
+    googleEnabled: false # Google registration enabled setting
     #         authorization-grant-type: authorization_code
     #         client-authentication-method: post
     #         provider: facebook
@@ -43,22 +81,22 @@ spring:
     #         client-secret:
     #         scope:
     #           - email
-    #           - name
-    #         client-name: Apple
-    #         authorization-grant-type: authorization_code
-    #         client-authentication-method: post
-    #         provider: apple
-  thymeleaf:
-    cache: false
-    template-loader-path: classpath:/templates
-    suffix: .html
-  jpa:
-    hibernate:
-      ddl-auto: update
+    #           - name # Apple OAuth2 scope
+    #         client-name: Apple # Apple OAuth2 client name
+    #         authorization-grant-type: authorization_code # Apple OAuth2 authorization grant type
+    #         client-authentication-method: post # Apple OAuth2 client authentication method
+    #         provider: apple # Apple OAuth2 provider
+  thymeleaf: # Thymeleaf properties
+    cache: false # Disable Thymeleaf cache
+    template-loader-path: classpath:/templates # Thymeleaf template loader path
+    suffix: .html # Thymeleaf template suffix
+  jpa: # JPA properties
+    hibernate: # Hibernate properties
+      ddl-auto: update # Hibernate DDL auto setting
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MariaDBDialect
-        "[globally_quoted_identifiers]": false
+        dialect: org.hibernate.dialect.MariaDBDialect # Hibernate dialect
+        "[globally_quoted_identifiers]": false # Hibernate globally quoted identifiers setting
     show-sql: 'false'
   application:
     name: User Framework
@@ -73,22 +111,22 @@ user:
   actuallyDeleteAccount: false
   registration:
     sendVerificationEmail: true
-    googleEnabled: false
-    facebookEnabled: false
-  audit:
-    logFilePath: /opt/app/logs/user-audit.log
-    flushOnWrite: false
-    logEvents: true
+    googleEnabled: false # Google registration enabled setting
+    facebookEnabled: false # Facebook registration enabled setting
+  audit: # Audit properties
+    logFilePath: /opt/app/logs/user-audit.log # Audit log file path
+    flushOnWrite: false # Flush on write setting
+    logEvents: true # Log events setting
 
 # Centralizing the URIs of common pages to make changing paths easier.  You can leave this section alone if you use the default page locations from this project.  These URLs do NOT have to be included in the unprotectedURIs list above as they will automatically be handled.
-  security:
-    loginActionURI: /user/login
-    forgotPasswordChangeURI: /user/forgot-password-change.html
-    registrationNewVerificationURI: /user/request-new-verification-email.html
-    loginSuccessURI: /index.html?messageKey=message.loginSuccess
-    forgotPasswordURI: /user/forgot-password.html
-    registrationPendingURI: /user/registration-pending-verification.html
-    disableCSRFdURIs: /no-csrf-test
+  security: # Security properties
+    loginActionURI: /user/login # Login action URI
+    forgotPasswordChangeURI: /user/forgot-password-change.html # Forgot password change URI
+    registrationNewVerificationURI: /user/request-new-verification-email.html # Registration new verification URI
+    loginSuccessURI: /index.html?messageKey=message.loginSuccess # Login success URI
+    forgotPasswordURI: /user/forgot-password.html # Forgot password URI
+    registrationPendingURI: /user/registration-pending-verification.html # Registration pending URI
+    disableCSRFdURIs: /no-csrf-test # Disable CSRF URIs
     registrationURI: /user/register.html
     registrationSuccessURI: /user/registration-complete.html
     logoutSuccessURI: /index.html?messageKey=message.logoutSuccess
@@ -103,37 +141,37 @@ user:
     bcryptStrength: 12
     testHashTime: true
   mail:
-    fromAddress: test@test.com
-  purgetokens:
-    cron:
-      expression: 0 0 3 * * ?
-  copyrightFirstYear: 2020
+    fromAddress: test@test.com # From address for emails
+  purgetokens: # Purge tokens properties
+    cron: # Cron properties
+      expression: 0 0 3 * * ? # Cron expression for purging tokens
+  copyrightFirstYear: 2020 # Copyright first year
 
-  roles-and-privileges:
-    "[ROLE_ADMIN]":
+  roles-and-privileges: # Roles and privileges properties
+    "[ROLE_ADMIN]": # Admin role privileges
       - ADMIN_PRIVILEGE
       - INVITE_USER_PRIVILEGE
       - READ_USER_PRIVILEGE
       - ASSIGN_MANAGER_PRIVILEGE
       - RESET_ANY_USER_PASSWORD_PRIVILEGE
-    "[ROLE_MANAGER]":
+    "[ROLE_MANAGER]": # Manager role privileges
       - ADD_USER_TO_TEAM_PRIVILEGE
-      - REMOVE_USER_FROM_TEAM_PRIVILEGE
-      - RESET_TEAM_PASSWORD_PRIVILEGE
-    "[ROLE_USER]":
-      - LOGIN_PRIVILEGE
-      - UPDATE_OWN_USER_PRIVILEGE
-      - RESET_OWN_PASSWORD_PRIVILEGE
-  role-hierarchy:
-    - ROLE_ADMIN > ROLE_MANAGER
-    - ROLE_MANAGER > ROLE_USER
+      - REMOVE_USER_FROM_TEAM_PRIVILEGE # Privilege to remove user from team
+      - RESET_TEAM_PASSWORD_PRIVILEGE # Privilege to reset team password
+    "[ROLE_USER]": # User role privileges
+      - LOGIN_PRIVILEGE # Privilege to login
+      - UPDATE_OWN_USER_PRIVILEGE # Privilege to update own user
+      - RESET_OWN_PASSWORD_PRIVILEGE # Privilege to reset own password
+  role-hierarchy: # Role hierarchy properties
+    - ROLE_ADMIN > ROLE_MANAGER # Admin role includes manager role
+    - ROLE_MANAGER > ROLE_USER # Manager role includes user role
 
-management:
-  newrelic:
-    metrics:
-      export:
-        api-key:
-        account-id:
+management: # Management properties
+  newrelic: # New Relic properties
+    metrics: # Metrics properties
+      export: # Export properties
+        api-key: # New Relic API key
+        account-id: # New Relic account ID
 hibernate:
   globally_quoted_identifiers: 'false'
 server:
