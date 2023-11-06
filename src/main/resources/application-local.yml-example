@@ -1,106 +1,180 @@
+# Enable or disable debug mode. Set to 'true' to enable debug mode.
 debug: 'true'
 
+# Logging configuration
 logging:
   level:
+    # Set the logging level for com.digitalsanctuary
     com:
       digitalsanctuary: DEBUG
+    # Set the logging level for org.springframework
     org:
       springframework:
         web:
+          # Set the logging level for nodeValue
           nodeValue: DEBUG
           filter:
+            # Set the logging level for CommonsRequestLoggingFilter
             CommonsRequestLoggingFilter: DEBUG
+        # Set the logging level for security
         security: DEBUG
 
+# Spring mail configuration
 spring:
   mail:
+    # Username for the mail server
     username: AAAAAAAAA
+    # Password for the mail server
     password: BBBBBBBBBBB
+  # Spring security configuration
   security:
+    # OAuth2 configuration
     oauth2:
+      # Enable or disable OAuth2. Set to 'true' to enable OAuth2.
       enabled: true
       client:
         registration:
+          # Google OAuth2 configuration
           google:
+            # Google client ID
             client-id: 45XXXXXXXXX.apps.googleusercontent.com
+            # Google client secret
             client-secret: GOXXXXXXXXXXXXXXX
+            # Authorization grant type
             authorization-grant-type: authorization_code
+            # Redirect URI
             redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
+            # Scopes for the Google OAuth2
             scope:
               - email
               - profile
+            # Name of the Google OAuth2 client
             client-name: Google
+          # Facebook OAuth2 configuration
           facebook:
+            # Facebook client ID
             client-id: 3333333333333333
+            # Facebook client secret
             client-secret: 555555555555555GGGGGGGGG
+            # Authorization grant type
             authorization-grant-type: authorization_code
+            # Redirect URI
             redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
+            # Scopes for the Facebook OAuth2
             scope:
               - email
               - public_profile
+            # Name of the Facebook OAuth2 client
             client-name: Facebook
+        #   # Apple OAuth2 configuration
         #   apple:
+        #     # Apple client ID
         #     client-id: com.YYYYYYYYYY
+        #     # Apple client secret
         #     client-secret: XXXXXX
+        #     # Authorization grant type
         #     authorization-grant-type: authorization_code
-        #     redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
+        #     # Redirect URI
+        #     # Scopes for the Apple OAuth2
         #     scope:
         #       - email
         #       - name
+        #     # Name of the Apple OAuth2 client
         #     client-name: Apple
+        #     # Client authentication method
         #     client-authentication-method: client_secret_post
         # provider:
         #   apple:
+        #     # Authorization URI
         #     authorization-uri: https://appleid.apple.com/auth/authorize?response_mode=form_post
+        #     # Token URI
         #     token-uri: https://appleid.apple.com/auth/token
+        #     # JWK set URI
         #     jwk-set-uri: https://appleid.apple.com/auth/keys
+        #     # User name attribute
         #     user-name-attribute: sub
+  # Thymeleaf configuration
   thymeleaf:
+    # Enable or disable Thymeleaf cache. Set to 'false' to disable the cache.
     cache: 'false'
+    # Prefix for Thymeleaf templates
     prefix: file:src/main/resources/templates/
+  # Spring Boot DevTools configuration
   devtools:
+    # DevTools restart configuration
     restart:
+      # Enable or disable DevTools restart. Set to 'true' to enable restart.
       enabled: 'true'
+      # Poll interval for DevTools restart
       poll-interval: '2s'
+      # Quiet period for DevTools restart
       quiet-period: '1s'
 
+      # Additional paths for DevTools restart
       additional-paths:
       - src/main/java/
 
+    # LiveReload configuration
     livereload:
+      # Enable or disable LiveReload. Set to 'true' to enable LiveReload.
       enabled: 'true'
+      # Enable or disable HTTPS for LiveReload. Set to 'true' to enable HTTPS.
       https: 'true'
 
+  # MVC configuration
   mvc:
+    # Enable or disable request details logging. Set to 'true' to enable logging.
     log-request-details: 'true'
+  # Web configuration
   web:
     resources:
+      # Static locations for web resources
       static-locations: file:src/main/resources/static/, classpath:/static/
+      # Cache configuration for web resources
       cache:
+        # Cache period for web resources
         period: 0
 
+# Server configuration
 server:
   servlet:
     session:
       cookie:
+        # Enable or disable secure cookie. Set to 'false' to disable secure cookie.
         secure: 'false'
 
+# User configuration
 user:
+  # Audit configuration
   audit:
+    # Enable or disable flush on write. Set to 'true' to enable flush on write.
     flushOnWrite: 'true'
+  # Registration configuration
   registration:
+    # Enable or disable sending verification email. Set to 'false' to disable sending verification email.
     sendVerificationEmail: false
+    # Enable or disable Google registration. Set to 'true' to enable Google registration.
     googleEnabled: true
+    # Enable or disable Facebook registration. Set to 'true' to enable Facebook registration.
     facebookEnabled: true
+  # Security configuration
   security:
+    # List of unprotected URIs
     # unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword
+  # Mail configuration
   mail:
+    # From address for the mail
     fromAddress: you@test.com
 
+# Management configuration
 management:
+  # New Relic configuration
   newrelic:
+    # Metrics configuration
     metrics:
       export:
+        # New Relic account ID
         account-id: ACCTID
+        # New Relic API key
         api-key: KEYYYYY
 
