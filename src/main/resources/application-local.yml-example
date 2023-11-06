@@ -1,49 +1,18 @@
-debug: 'true' # Enable or disable debug mode
+debug: true # Enable or disable debug mode
+
 logging:
   level:
     com:
       digitalsanctuary: DEBUG # Set logging level for digitalsanctuary package
     org:
       springframework:
-        web:
-          nodeValue: DEBUG # Set logging level for web nodeValue
+        web: DEBUG # Set logging level for web 
           filter:
             CommonsRequestLoggingFilter: DEBUG # Set logging level for CommonsRequestLoggingFilter
         security: DEBUG # Set logging level for security
 
 spring:
   mail: # Mail configuration
-    username: AAAAAAAAA
-    password: BBBBBBBBBBB
-  security:
-    oauth2:
-      enabled: true
-      client:
-        registration:
-          google:
-            client-id: 45XXXXXXXXX.apps.googleusercontent.com
-            client-secret: GOXXXXXXXXXXXXXXX
-            authorization-grant-type: authorization_code
-            redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}'
-            scope:
-              - email
-              - profile # Request profile scope for OAuth2
-            client-name: Google # Name of the OAuth2 client
-          facebook:
-            client-id: 3333333333333333 # Facebook client ID for OAuth2
-            client-secret: 555555555555555GGGGGGGGG # Facebook client secret for OAuth2
-            authorization-grant-type: authorization_code # Authorization grant type for OAuth2
-            redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}' # Redirect URI for OAuth2
-            scope:
-              - email # Request email scope for OAuth2
-              - public_profile # Request public_profile scope for OAuth2
-            client-name: Facebook # Name of the OAuth2 client
-        #   apple:
-        #     client-id: com.YYYYYYYYYY # Apple client ID for OAuth2
-        #     client-secret: XXXXXX # Apple client secret for OAuth2
-        #     authorization-grant-type: authorization_code # Authorization grant type for OAuth2
-        #     redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}' # Redirect URI for OAuth2
-  mail:
     username: AAAAAAAAA # Mail server username
     password: BBBBBBBBBBB # Mail server password
   security:
@@ -59,39 +28,35 @@ spring:
             scope:
               - email # Request email scope for OAuth2
               - profile # Request profile scope for OAuth2
+            client-name: Google # Name of the OAuth2 client
+          facebook:
+            client-id: 3333333333333333 # Facebook client ID for OAuth2
+            client-secret: 555555555555555GGGGGGGGG # Facebook client secret for OAuth2
+            authorization-grant-type: authorization_code # Authorization grant type for OAuth2
+            redirect-uri: 'https://yourtestdomain.ngrok.io/login/oauth2/code/{registrationId}' # Redirect URI for OAuth2
+            scope:
+              - email # Request email scope for OAuth2
+              - public_profile # Request public_profile scope for OAuth2
+            client-name: Facebook # Name of the OAuth2 client
+        #   apple:   # This isn't working currently
+        #     client-id: com.digitalsanctuary.springuserapp
+        #     client-secret: XXXXXX
+        #     authorization-grant-type: authorization_code
+        #     redirect-uri: 'https://springuser.ngrok.io/login/oauth2/code/{registrationId}'
+        #     scope:
         #       - email
         #       - name
         #     client-name: Apple
-  web:
-    resources:
-      static-locations: file:src/main/resources/static/, classpath:/static/ # Static locations for web resources
-      cache:
-        period: 0 # Cache period for web resources
-
-server:
-  servlet:
-    session:
-      cookie:
-        secure: 'false' # Enable or disable secure cookie
-
-user:
-  audit:
-    flushOnWrite: 'true' # Enable or disable flush on write for user audit
-  registration: # User registration configuration
+        #     client-authentication-method: client_secret_post
+        # provider:
         #   apple:
-        #     authorization-uri: https://appleid.apple.com/auth/authorize?response_mode=form_post # Authorization URI for OAuth2
-        #     token-uri: https://appleid.apple.com/auth/token # Token URI for OAuth2
-        #     jwk-set-uri: https://appleid.apple.com/auth/keys # JWK Set URI for OAuth2
-        #     user-name-attribute: sub # User name attribute for OAuth2
-  thymeleaf:
-    cache: 'false' # Enable or disable Thymeleaf cache
-    prefix: file:src/main/resources/templates/ # Prefix for Thymeleaf templates
-  devtools: # Devtools configuration
+        #     authorization-uri: https://appleid.apple.com/auth/authorize?response_mode=form_post
+        #     token-uri: https://appleid.apple.com/auth/token
         #     jwk-set-uri: https://appleid.apple.com/auth/keys
         #     user-name-attribute: sub
   thymeleaf:
-    cache: 'false'
-    prefix: file:src/main/resources/templates/
+    cache: 'false' # Enable or disable Thymeleaf cache
+    prefix: file:src/main/resources/templates/ # Prefix for Thymeleaf templates
   devtools:
     restart:
       enabled: 'true' # Enable or disable devtools restart
@@ -117,19 +82,19 @@ server:
   servlet:
     session:
       cookie:
-        secure: 'false'
+        secure: false # disabling secure cookie for local development
 
 user:
   audit:
-    flushOnWrite: 'true'
-  registration:
-    sendVerificationEmail: false # Enable or disable sending verification email
-    googleEnabled: true # Enable or disable Google registration
-    facebookEnabled: true # Enable or disable Facebook registration
+    flushOnWrite: true # Enable flush on write for user audit
+  registration: # User registration configuration
+    sendVerificationEmail: false # Disable sending verification email
+    googleEnabled: true # Enable Google registration
+    facebookEnabled: true # Enable Facebook registration
   security:
-    # unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword # Unprotected URIs for security
+    # unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword # Unprotected URIs 
   mail:
-    fromAddress: you@test.com # From address for mail
+    fromAddress: you@test.com # From address for outbound mail
 
 management:
   newrelic:
@@ -137,4 +102,3 @@ management:
       export:
         account-id: ACCTID # Account ID for New Relic metrics export
         api-key: KEYYYYY # API key for New Relic metrics export
-
