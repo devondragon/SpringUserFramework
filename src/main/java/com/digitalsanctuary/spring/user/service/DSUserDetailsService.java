@@ -13,8 +13,6 @@ import com.digitalsanctuary.spring.user.persistence.model.Privilege;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.util.UserUtils;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +34,7 @@ public class DSUserDetailsService implements UserDetailsService {
 	private final LoginAttemptService loginAttemptService;
 
 	/** The request. */
-	private final HttpServletRequest request;
+	// private final HttpServletRequest request;
 
 	/**
 	 * Load user details by email address.
@@ -49,19 +47,18 @@ public class DSUserDetailsService implements UserDetailsService {
 	@Override
 	public DSUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {
 		log.debug("DSUserDetailsService.loadUserByUsername:" + "called with username: {}", email);
-		final String ip = UserUtils.getClientIP(request);
-		if (loginAttemptService.isBlocked(ip)) {
-			throw new RuntimeException("blocked");
-		}
 
 		try {
-			final User user = userRepository.findByEmail(email);
+			User user = userRepository.findByEmail(email);
 			if (user == null) {
 				throw new UsernameNotFoundException("No user found with email/username: " + email);
 			}
 			// Updating lastActivity date for this login
 			user.setLastActivityDate(new Date());
-			// userRepository.save(user);
+
+			// Check if the user account is locked, but should be unlocked now, and unlock it
+			user = loginAttemptService.checkIfUserShouldBeUnlocked(user);
+
 			Collection<? extends GrantedAuthority> authorities = getAuthorities(user.getRoles());
 			DSUserDetails userDetails = new DSUserDetails(user, authorities);
 			return userDetails;

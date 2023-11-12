@@ -91,7 +91,18 @@
 							<div class="flex-auto p-6">
 								<div id="loginError" th:if="${param.error}"
 									class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-10 text-center" role="alert">
-									<p><strong><span th:utext="#{message.badCredentials}"></span></strong></p>
+									<div th:if="${session.SPRING_SECURITY_LAST_EXCEPTION != null}" class="mb-4">
+										<div th:switch="${session.SPRING_SECURITY_LAST_EXCEPTION.getClass().getSimpleName()}">
+											<p th:case="'LockedException'" th:text="#{message.accountLocked}" class="font-bold">Your account is
+												locked.</p>
+											<p th:case="'DisabledException'" th:text="#{message.accountDisabled}" class="font-bold">Your account is
+												disabled.</p>
+											<p th:case="'BadCredentialsException'" th:text="#{message.badCredentials}" class="font-bold">Invalid
+												username or password.
+											</p>
+											<p th:case="*" th:text="#{message.loginError}" class="font-bold">An error occurred during login.</p>
+										</div>
+									</div>
 								</div>
 								<form th:action="${@environment.getProperty('user.security.loginActionURI')}" method="POST" enctype="utf8"
 									role="form text-left">

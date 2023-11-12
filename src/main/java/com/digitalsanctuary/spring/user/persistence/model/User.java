@@ -58,8 +58,13 @@ public class User {
 	@Temporal(TemporalType.TIMESTAMP)
 	private Date lastActivityDate;
 
+	private int failedLoginAttempts;
+
 	/** The locked. */
 	private boolean locked;
+
+	@Temporal(TemporalType.TIMESTAMP)
+	private Date lockedDate;
 
 	/** The roles. */
 	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
