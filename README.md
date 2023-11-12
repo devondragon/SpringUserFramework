@@ -25,6 +25,7 @@ The framework provides support for the following features:
 - CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
 - Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
 - Role and Privilege setup service to define roles, associated privileges, and role inheritance hierarchy using `application.yml`.
+- Configurable Account Lockout after too many failed login attempts
 
 
 
