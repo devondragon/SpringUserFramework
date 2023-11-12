@@ -6,13 +6,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.security.authentication.AuthenticationEventPublisher;
+import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -31,17 +33,19 @@ import com.digitalsanctuary.spring.user.service.LoginSuccessService;
 import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Configuration
+@RequiredArgsConstructor
 @EnableWebSecurity
 public class WebSecurityConfig {
 
-	private static String DEFAULT_ACTION_DENY = "deny";
-	private static String DEFAULT_ACTION_ALLOW = "allow";
+	private static final String DEFAULT_ACTION_DENY = "deny";
+	private static final String DEFAULT_ACTION_ALLOW = "allow";
 
 	@Value("${user.security.defaultAction}")
 	private String defaultAction;
@@ -97,20 +101,12 @@ public class WebSecurityConfig {
 	@Value("${user.security.bcryptStrength}")
 	private int bcryptStrength = 10;
 
-	@Autowired
-	private UserDetailsService userDetailsService;
 
-	@Autowired
-	private LoginSuccessService loginSuccessService;
-
-	@Autowired
-	private LogoutSuccessService logoutSuccessService;
-
-	@Autowired
-	private RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
-
-	@Autowired
-	private DSOAuth2UserService dsOAuth2UserService;
+	private final UserDetailsService userDetailsService;
+	private final LoginSuccessService loginSuccessService;
+	private final LogoutSuccessService logoutSuccessService;
+	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
+	private final DSOAuth2UserService dsOAuth2UserService;
 
 	/**
 	 *
@@ -127,10 +123,6 @@ public class WebSecurityConfig {
 		List<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
-		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
-
-		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
-
 		http.formLogin(
 				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll())
 				.rememberMe(withDefaults());
@@ -138,7 +130,9 @@ public class WebSecurityConfig {
 		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));
 
-		if (disableCSRFURIs != null && disableCSRFURIs.size() > 0) {
+		// If we have URIs to disable CSRF validation on, do so here
+		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
+		if (disableCSRFURIs.size() > 0) {
 			http.csrf(csrf -> {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
@@ -146,7 +140,7 @@ public class WebSecurityConfig {
 
 		// Configure OAuth2 if enabled. This would be for things like Google and Facebook registration and login
 		if (oauth2Enabled) {
-			setupOAuth2(http, loginAuthenticationEntryPoint);
+			setupOAuth2(http);
 		}
 
 		// Configure authorization rules based on the default action
@@ -168,7 +162,15 @@ public class WebSecurityConfig {
 		return http.build();
 	}
 
-	private void setupOAuth2(HttpSecurity http, CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint) throws Exception {
+	/**
+	 * Setup OAuth2 specific configuration.
+	 *
+	 * @param http the http security object to configure
+	 * @throws Exception the exception
+	 */
+	private void setupOAuth2(HttpSecurity http) throws Exception {
+		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
+
 		http.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint))
 				.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
 					log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
@@ -240,5 +242,18 @@ public class WebSecurityConfig {
 	public HttpSessionEventPublisher httpSessionEventPublisher() {
 		return new HttpSessionEventPublisher();
 	}
+
+	/**
+	 * This is required to publish authentication events to the Spring event system. This allows us to listen for authentication events and perform
+	 * actions based on successful or failed authentication.
+	 * 
+	 * @param applicationEventPublisher
+	 * @return the Spring Security default AuthenticationEventPublisher
+	 */
+	@Bean
+	public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
+		return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
+	}
+
 
 }

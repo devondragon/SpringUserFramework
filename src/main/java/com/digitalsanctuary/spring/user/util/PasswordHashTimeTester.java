@@ -28,14 +28,16 @@ public class PasswordHashTimeTester {
             int runs = 5;
             long totalTime = 0;
             String password = "password";
-
+            StringBuilder sb = new StringBuilder();
             for (int i = 0; i < runs; i++) {
                 long startTime = System.currentTimeMillis();
                 String encodedPassword = passwordEncoder.encode(password);
+                sb.append(encodedPassword); // Prevents the JVM from optimizing away the password hashing
                 long endTime = System.currentTimeMillis();
                 long duration = (endTime - startTime);
                 totalTime += duration;
             }
+            sb.toString(); // Prevents the JVM from optimizing away the password hashing
 
             long averageTime = totalTime / runs;
             log.info(
