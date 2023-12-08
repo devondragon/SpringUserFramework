@@ -86,22 +86,30 @@ public class UserAPI {
 		try {
 			registeredUser = userService.registerNewUserAccount(userDto);
 
-			eventPublisher.publishEvent(new OnRegistrationCompleteEvent(registeredUser, request.getLocale(), UserUtils.getAppUrl(request)));
-			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
-					request.getHeader("User-Agent"), "Registration", "Success", "Registration Successful", null);
+			eventPublisher.publishEvent(OnRegistrationCompleteEvent.builder().user(registeredUser).locale(request.getLocale())
+					.appUrl(UserUtils.getAppUrl(request)).build());
+
+			AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(registeredUser).sessionId(request.getSession().getId())
+					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration")
+					.actionStatus("Success").message("Registration Successful").build();
 			eventPublisher.publishEvent(registrationAuditEvent);
 		} catch (UserAlreadyExistException uaee) {
 			log.warn("UserAPI.registerUserAccount:" + "UserAlreadyExistException on registration with email: {}!", userDto.getEmail());
-			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
-					request.getHeader("User-Agent"), "Registration", "Failure", "User Already Exists", null);
+			AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(registeredUser).sessionId(request.getSession().getId())
+					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration")
+					.actionStatus("Failure").message("User Already Exists").build();
+
 			eventPublisher.publishEvent(registrationAuditEvent);
+
 			return new ResponseEntity<JSONResponse>(
 					JSONResponse.builder().success(false).code(02).message("An account already exists for the email address").build(),
 					HttpStatus.CONFLICT);
 		} catch (Exception e) {
 			log.error("UserAPI.registerUserAccount:" + "Exception!", e);
-			AuditEvent registrationAuditEvent = new AuditEvent(this, registeredUser, request.getSession().getId(), UserUtils.getClientIP(request),
-					request.getHeader("User-Agent"), "Registration", "Failure", e.getMessage(), null);
+			AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(registeredUser).sessionId(request.getSession().getId())
+					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration")
+					.actionStatus("Failure").message(e.getMessage()).build();
+
 			eventPublisher.publishEvent(registrationAuditEvent);
 
 			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).redirectUrl(null).code(05).message("System Error!").build(),
@@ -148,8 +156,10 @@ public class UserAPI {
 				String appUrl = UserUtils.getAppUrl(request);
 				userEmailService.sendRegistrationVerificationEmail(user, appUrl);
 				// Return happy path response
-				AuditEvent resendRegTokenAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
-						request.getHeader("User-Agent"), "Resend Reg Token", "Success", "Success", null);
+				AuditEvent resendRegTokenAuditEvent = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
+						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Resend Reg Token")
+						.actionStatus("Success").message("Success").build();
+
 				eventPublisher.publishEvent(resendRegTokenAuditEvent);
 				return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(registrationPendingURI).code(0)
 						.message("Verification Email Resent Successfully!").build(), HttpStatus.OK);
@@ -177,8 +187,10 @@ public class UserAPI {
 		user.setLastName(userDto.getLastName());
 		userService.saveRegisteredUser(user);
 
-		AuditEvent userUpdateAuditEvent = new AuditEvent(this, userDetails.getUser(), request.getSession().getId(), UserUtils.getClientIP(request),
-				request.getHeader("User-Agent"), "ProfileUpdate", "Success", "Success", null);
+		AuditEvent userUpdateAuditEvent = AuditEvent.builder().source(this).user(userDetails.getUser()).sessionId(request.getSession().getId())
+				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("ProfileUpdate").actionStatus("Success")
+				.message("Success").build();
+
 		eventPublisher.publishEvent(userUpdateAuditEvent);
 
 
@@ -206,14 +218,16 @@ public class UserAPI {
 			String appUrl = UserUtils.getAppUrl(request);
 			userEmailService.sendForgotPasswordVerificationEmail(user, appUrl);
 
-			AuditEvent resetPasswordAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
-					request.getHeader("User-Agent"), "Reset Password", "Success", "Success", null);
+			AuditEvent resetPasswordAuditEvent =
+					AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
+							.userAgent(request.getHeader("User-Agent")).action("Reset Password").actionStatus("Success").message("Success").build();
+
 			eventPublisher.publishEvent(resetPasswordAuditEvent);
 
 		} else {
-			AuditEvent resetPasswordAuditEvent =
-					new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request), request.getHeader("User-Agent"),
-							"Reset Password", "Failure", "Invalid EMail Submitted", "Email submitted: " + userDto.getEmail());
+			AuditEvent resetPasswordAuditEvent = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
+					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Reset Password")
+					.actionStatus("Failure").message("Invalid EMail Submitted").extraData("Email submitted: " + userDto.getEmail()).build();
 			eventPublisher.publishEvent(resetPasswordAuditEvent);
 		}
 
@@ -241,8 +255,9 @@ public class UserAPI {
 				userService.changeUserPassword(user.get(), passwordDto.getNewPassword());
 				log.debug("UserAPI.savePassword:" + "password updated!");
 
-				AuditEvent savePasswordAuditEvent = new AuditEvent(this, user.get(), request.getSession().getId(), UserUtils.getClientIP(request),
-						request.getHeader("User-Agent"), "Reset Save Password", "Success", "Success", null);
+				AuditEvent savePasswordAuditEvent = AuditEvent.builder().source(this).user(user.get()).sessionId(request.getSession().getId())
+						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Reset Save Password")
+						.actionStatus("Success").message("Success").build();
 				eventPublisher.publishEvent(savePasswordAuditEvent);
 
 				// In this case we are returning a success, with multiple messages designed to be displayed on-page,
@@ -290,8 +305,10 @@ public class UserAPI {
 		}
 		userService.changeUserPassword(user, passwordDto.getNewPassword());
 
-		AuditEvent updatePasswordAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
-				request.getHeader("User-Agent"), "Update Save Password", "Success", "Success", null);
+		AuditEvent updatePasswordAuditEvent =
+				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
+						.userAgent(request.getHeader("User-Agent")).action("Update Save Password").actionStatus("Success").message("Success").build();
+
 		eventPublisher.publishEvent(updatePasswordAuditEvent);
 
 		return new ResponseEntity<JSONResponse>(

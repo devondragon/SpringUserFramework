@@ -59,8 +59,10 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			}
 		}
 
-		AuditEvent loginAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
-				request.getHeader("User-Agent"), "Login", "Success", "Success", null);
+		AuditEvent loginAuditEvent =
+				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
+						.userAgent(request.getHeader("User-Agent")).action("Login").actionStatus("Success").message("Success").build();
+
 		eventPublisher.publishEvent(loginAuditEvent);
 
 		String targetUrl = super.determineTargetUrl(request, response);

@@ -4,6 +4,7 @@ import java.util.Locale;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.scheduling.annotation.Async;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -35,6 +36,7 @@ public class OnRegistrationCompleteEvent extends ApplicationEvent {
 	 * @param locale the locale
 	 * @param appUrl the app url
 	 */
+	@Builder
 	public OnRegistrationCompleteEvent(final User user, final Locale locale, final String appUrl) {
 		super(user);
 		this.user = user;

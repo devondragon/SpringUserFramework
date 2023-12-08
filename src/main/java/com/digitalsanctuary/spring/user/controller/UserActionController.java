@@ -67,8 +67,10 @@ public class UserActionController {
 		log.debug("UserAPI.showChangePasswordPage: called with token: {}", token);
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
 		log.debug("UserAPI.showChangePasswordPage:" + "result: {}", result);
-		AuditEvent changePasswordAuditEvent = new AuditEvent(this, null, request.getSession().getId(), UserUtils.getClientIP(request),
-				request.getHeader("User-Agent"), "showChangePasswordPage", "Success", "Requested. Result:" + result, null);
+		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
+				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("showChangePasswordPage")
+				.actionStatus("Success").message("Requested. Result:" + result).build();
+
 		eventPublisher.publishEvent(changePasswordAuditEvent);
 		if (TokenValidationResult.VALID.equals(result)) {
 			model.addAttribute("token", token);
@@ -104,8 +106,10 @@ public class UserActionController {
 				userService.authWithoutPassword(user);
 				userVerificationService.deleteVerificationToken(token);
 
-				AuditEvent registrationAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
-						request.getHeader("User-Agent"), "Registration Confirmation", "Success", "Registration Confirmed. User logged in.", null);
+				AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
+						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration Confirmation")
+						.actionStatus("Success").message("Registration Confirmed. User logged in.").build();
+
 				eventPublisher.publishEvent(registrationAuditEvent);
 			}
 
