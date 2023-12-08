@@ -52,8 +52,10 @@ public class LogoutSuccessService extends SimpleUrlLogoutSuccessHandler {
 			user = ((DSUserDetails) authentication.getPrincipal()).getUser();
 		}
 
-		AuditEvent logoutAuditEvent = new AuditEvent(this, user, request.getSession().getId(), UserUtils.getClientIP(request),
-				request.getHeader("User-Agent"), "Logout", "Success", "Success", null);
+		AuditEvent logoutAuditEvent =
+				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
+						.userAgent(request.getHeader("User-Agent")).action("Logout").actionStatus("Success").message("Success").build();
+
 		eventPublisher.publishEvent(logoutAuditEvent);
 
 		String targetUrl = super.determineTargetUrl(request, response);

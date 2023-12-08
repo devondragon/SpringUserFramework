@@ -4,15 +4,16 @@ import java.util.Date;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.scheduling.annotation.Async;
 import com.digitalsanctuary.spring.user.persistence.model.User;
-import lombok.Data;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 /**
  * The AuditEvent class is used to record security audit events and actions. It can be created and sent from any code, and is captured by the
  * AuditEventListener for handling and persistence.
  */
 @Async
-@Data
+@Getter
 @EqualsAndHashCode(callSuper = false)
 public class AuditEvent extends ApplicationEvent {
 
@@ -47,7 +48,8 @@ public class AuditEvent extends ApplicationEvent {
 	private final String extraData;
 
 	/**
-	 * Instantiates a new audit event.
+	 * Instantiates a new audit event. Using Builder annotation on this method instead of on the class itself, in order to handle the source field
+	 * which is on the superclass.
 	 *
 	 * @param source the source
 	 * @param user the user
@@ -59,6 +61,7 @@ public class AuditEvent extends ApplicationEvent {
 	 * @param message the message
 	 * @param extraData the extra data
 	 */
+	@Builder
 	public AuditEvent(Object source, User user, String sessionId, String ipAddress, String userAgent, String action, String actionStatus,
 			String message, String extraData) {
 		super(source);

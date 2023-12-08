@@ -41,8 +41,9 @@ public class UserEmailService {
         final String token = generateToken();
         createPasswordResetTokenForUser(user, token);
 
-        AuditEvent sendForgotPasswordEmailAuditEvent =
-                new AuditEvent(this, user, "", "", "", "sendForgotPasswordVerificationEmail", "Success", "Forgot password email to be sent.", null);
+        AuditEvent sendForgotPasswordEmailAuditEvent = AuditEvent.builder().source(this).user(user).action("sendForgotPasswordVerificationEmail")
+                .actionStatus("Success").message("Forgot password email to be sent.").build();
+
         eventPublisher.publishEvent(sendForgotPasswordEmailAuditEvent);
 
         Map<String, Object> variables = createEmailVariables(user, appUrl, token, "/user/changePassword?token=");
