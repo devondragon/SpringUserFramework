@@ -43,6 +43,10 @@ dependencies {
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.2.RELEASE'
     implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:3.3.0'
 
+    // UI autotests
+    implementation group: 'com.codeborne', name: 'selenide', version: '7.0.0'
+    implementation group: 'io.github.bonigarcia', name: 'webdrivermanager', version: '5.8.0'
+
     // Other dependencies
     runtimeOnly 'org.springframework.boot:spring-boot-devtools'
     // runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
