@@ -43,6 +43,7 @@ dependencies {
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.2.RELEASE'
     implementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:3.3.0'
 
+
     // Other dependencies
     runtimeOnly 'org.springframework.boot:spring-boot-devtools'
     // runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
@@ -61,6 +62,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.h2database:h2:2.2.224'
+    testImplementation group: 'com.codeborne', name: 'selenide', version: '7.0.0'
+    testImplementation group: 'io.github.bonigarcia', name: 'webdrivermanager', version: '5.8.0'
 }
 
 test {
