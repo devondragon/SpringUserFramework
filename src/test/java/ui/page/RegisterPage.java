@@ -13,6 +13,7 @@ public class RegisterPage {
     private final SelenideElement PASSWORD_FIELD = Selenide.$x("//input[@id='password']");
     private final SelenideElement CONFIRM_PASSWORD_FIELD = Selenide.$x("//input[@id='matchPassword']");
     private final SelenideElement SIGN_UP_BUTTON = Selenide.$x("//button[@id='signUpButton']");
+    private final SelenideElement ACCOUNT_EXIST_ERROR_MESSAGE = Selenide.$x("//div[@id='existingAccountError']//span");
 
     public RegisterPage(String url) {
         Selenide.open(url);
@@ -20,13 +21,18 @@ public class RegisterPage {
     /**
      * Filling register form and click signUp button
      */
-    public void signUp(String firstName, String lastName, String email, String password, String confirmPassword) {
+    public SuccessRegisterPage signUp(String firstName, String lastName, String email, String password, String confirmPassword) {
         FIRST_NAME_FIELD.setValue(firstName);
         LAST_NAME_FIELD.setValue(lastName);
         EMAIL_FIELD.setValue(email);
         PASSWORD_FIELD.setValue(password);
         CONFIRM_PASSWORD_FIELD.setValue(confirmPassword);
         SIGN_UP_BUTTON.click();
+        return new SuccessRegisterPage();
+    }
+
+    public String accountExistErrorMessage() {
+        return ACCOUNT_EXIST_ERROR_MESSAGE.text();
     }
 
 }

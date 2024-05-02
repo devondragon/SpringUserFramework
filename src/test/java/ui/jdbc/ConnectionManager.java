@@ -5,6 +5,10 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class ConnectionManager {
+    private static final String driver = "org.mariadb.jdbc.Driver";
+    private static final String url = "jdbc:mariadb://127.0.0.1:3306/springuser";
+    private static final String username = "springuser";
+    private static final String password = "springuser";
 
     static {
         initDriver();
@@ -12,7 +16,7 @@ public class ConnectionManager {
 
     private static void initDriver() {
         try {
-            Class.forName("org.mariadb.jdbc.Driver");
+            Class.forName(driver);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
@@ -20,7 +24,7 @@ public class ConnectionManager {
 
     public static Connection open() {
         try {
-            return DriverManager.getConnection("jdbc:mariadb://127.0.0.1:3306/springuser", "springuser", "springuser");
+            return DriverManager.getConnection(url, username, password);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
