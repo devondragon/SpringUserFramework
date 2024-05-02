@@ -7,12 +7,19 @@ import com.codeborne.selenide.SelenideElement;
  * Register page
  */
 public class RegisterPage {
+
     private final SelenideElement FIRST_NAME_FIELD = Selenide.$x("//input[@id='firstName']");
+
     private final SelenideElement LAST_NAME_FIELD = Selenide.$x("//input[@id='lastName']");
+
     private final SelenideElement EMAIL_FIELD = Selenide.$x("//input[@id='email']");
+
     private final SelenideElement PASSWORD_FIELD = Selenide.$x("//input[@id='password']");
+
     private final SelenideElement CONFIRM_PASSWORD_FIELD = Selenide.$x("//input[@id='matchPassword']");
+
     private final SelenideElement SIGN_UP_BUTTON = Selenide.$x("//button[@id='signUpButton']");
+
     private final SelenideElement ACCOUNT_EXIST_ERROR_MESSAGE = Selenide.$x("//div[@id='existingAccountError']//span");
 
     public RegisterPage(String url) {
