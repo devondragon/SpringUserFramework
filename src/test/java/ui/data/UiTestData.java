@@ -8,6 +8,8 @@ public class UiTestData {
 
     public static final String SUCCESS_SING_UP_MESSAGE = "Thank you for registering!";
 
+    public static final String TEST_USER_ENCODED_PASSWORD = "$2a$10$RoyC5aE9etri.md4kD1Ne.9OH4aTzrb9pOQq8PN6MR8FOyObltZRG";
+
     public static UserDto getUserDto() {
         UserDto userDto = new UserDto();
         userDto.setFirstName("testUser");

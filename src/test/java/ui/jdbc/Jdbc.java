@@ -6,6 +6,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+import static ui.data.UiTestData.TEST_USER_ENCODED_PASSWORD;
+
 /**
  * Using for delete/save user test data
  */
@@ -39,7 +41,7 @@ public class Jdbc {
                 id = (resultSet.getInt(1) + 1);
             }
             Object[] params = new Object[]{id, userDto.getFirstName(), userDto.getEmail(),
-                    userDto.getEmail(), userDto.getPassword(), true, 0, false};
+                    userDto.getEmail(), TEST_USER_ENCODED_PASSWORD, true, 0, false};
             execute(connection, SAVE_TEST_USER_QUERY, params);
         } catch (SQLException e) {
             throw new RuntimeException(e);
