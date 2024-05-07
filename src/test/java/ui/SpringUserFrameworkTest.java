@@ -1,11 +1,13 @@
 package ui;
 
 import com.digitalsanctuary.spring.user.dto.UserDto;
-import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import ui.data.UiTestData;
 import ui.jdbc.Jdbc;
+import ui.page.LoginPage;
+import ui.page.LoginSuccessPage;
 import ui.page.RegisterPage;
 import ui.page.SuccessRegisterPage;
 
@@ -17,8 +19,8 @@ public class SpringUserFrameworkTest extends BaseTest {
 
     private static final UserDto testUser = UiTestData.getUserDto();
 
-    @AfterAll
-    public static void deleteTestUser() {
+    @AfterEach
+    public void deleteTestUser() {
       Jdbc.deleteTestUser(testUser);
     }
 
@@ -34,11 +36,23 @@ public class SpringUserFrameworkTest extends BaseTest {
     @Test
     public void userAlreadyExistSignUp() {
         Jdbc.saveTestUser(testUser);
-        RegisterPage page = new RegisterPage(URI + "user/register.html");
-        page.signUp(testUser.getFirstName(), testUser.getLastName(), testUser.getEmail(),
+        RegisterPage registerPage = new RegisterPage(URI + "user/register.html");
+        registerPage.signUp(testUser.getFirstName(), testUser.getLastName(), testUser.getEmail(),
                 testUser.getPassword(), testUser.getMatchingPassword());
-        String actualMessage = page.accountExistErrorMessage();
+        String actualMessage = registerPage.accountExistErrorMessage();
         Assertions.assertEquals(ACCOUNT_EXIST_ERROR_MESSAGE, actualMessage);
     }
 
+    /**
+     * checks that welcome message in success login page contains username
+     */
+    @Test
+    public void successSignIn() {
+        Jdbc.saveTestUser(testUser);
+        LoginPage loginPage = new LoginPage(URI + "user/login.html");
+        LoginSuccessPage loginSuccessPage = loginPage.signIn(testUser.getEmail(), testUser.getPassword());
+        String welcomeMessage = loginSuccessPage.welcomeMessage();
+        String firstName = testUser.getFirstName();
+        Assertions.assertTrue(welcomeMessage.contains(firstName));
+    }
 }
