@@ -19,6 +19,10 @@ public class SpringUserFrameworkTest extends BaseTest {
 
     private static final UserDto testUser = UiTestData.getUserDto();
 
+    {
+        super.setDriver(Driver.CHROME);
+    }
+
     @AfterEach
     public void deleteTestUser() {
       Jdbc.deleteTestUser(testUser);
