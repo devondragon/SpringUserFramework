@@ -26,7 +26,7 @@ public abstract class BaseTest {
         switch (this.driver) {
             case CHROME -> WebDriverManager.chromedriver().setup();
             case OPERA -> WebDriverManager.operadriver().setup();
-            case FIREFOX -> WebDriverManager.firefoxdriver();
+            case FIREFOX -> WebDriverManager.firefoxdriver().setup();
             case EDGE -> WebDriverManager.edgedriver().setup();
         }
         Configuration.browser = driver.browser;
