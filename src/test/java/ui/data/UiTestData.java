@@ -12,11 +12,11 @@ public class UiTestData {
 
     public static UserDto getUserDto() {
         UserDto userDto = new UserDto();
-        userDto.setFirstName("testUser");
-        userDto.setLastName("userTest");
-        userDto.setEmail("testUser@bk.com");
-        userDto.setPassword("testUserPassword");
-        userDto.setMatchingPassword("testUserPassword");
+        userDto.setFirstName("testUiUser");
+        userDto.setLastName("userUiTest");
+        userDto.setEmail("testUiUser@bk.com");
+        userDto.setPassword("testUiUserPassword");
+        userDto.setMatchingPassword(userDto.getPassword());
         return userDto;
     }
 }

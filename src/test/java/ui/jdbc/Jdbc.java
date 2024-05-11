@@ -12,9 +12,12 @@ import static ui.data.UiTestData.TEST_USER_ENCODED_PASSWORD;
  * Using for delete/save user test data
  */
 public class Jdbc {
+
     private static final String DELETE_VERIFICATION_TOKEN_QUERY = "DELETE FROM verification_token WHERE user_id = (SELECT id FROM user_account WHERE first_name = ? AND email = ?)";
 
-    private static final String DELETE_TEST_USER_ROLE = "DELETE FROM users_roles WHERE user_id = (SELECT id FROM user_account WHERE first_name = ? AND email = ?)";private static final String DELETE_TEST_USER_QUERY = "DELETE FROM user_account WHERE first_name = ? AND email = ?";
+    private static final String DELETE_TEST_USER_ROLE = "DELETE FROM users_roles WHERE user_id = (SELECT id FROM user_account WHERE first_name = ? AND email = ?)";
+
+    private static final String DELETE_TEST_USER_QUERY = "DELETE FROM user_account WHERE first_name = ? AND email = ?";
 
     private static final String GET_LAST_USER_ID_QUERY = "SELECT max(id) FROM user_account";
 
