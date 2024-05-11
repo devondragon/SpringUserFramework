@@ -1,5 +1,6 @@
 package ui;
 
+
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -13,7 +14,7 @@ import ui.page.SuccessRegisterPage;
 
 import static ui.data.UiTestData.*;
 
-public class SpringUserFrameworkTest extends BaseTest {
+public class SpringUserFrameworkUiTest extends BaseUiTest {
 
     private static final String URI = "http://localhost:8080/";
 
@@ -59,4 +60,6 @@ public class SpringUserFrameworkTest extends BaseTest {
         String firstName = testUser.getFirstName();
         Assertions.assertTrue(welcomeMessage.contains(firstName));
     }
+
+
 }
