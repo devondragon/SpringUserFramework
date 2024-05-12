@@ -1,6 +1,5 @@
 package com.digitalsanctuary.spring.user.api;
 
-import com.digitalsanctuary.spring.user.api.data.ApiTestData;
 import com.digitalsanctuary.spring.user.api.data.RegistrationResponse;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestArgumentsHolder;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestArgumentsProvider;
@@ -31,6 +30,7 @@ public class UserApiTest extends BaseApiTest {
     @ArgumentsSource(ApiTestArgumentsProvider.class)
     //Integration tests not passing without @RequestBody, but UI tests not passing with @RequestBody
     public void registerUserAccount(ApiTestArgumentsHolder argumentsHolder) throws Exception {
+        System.out.println("---- " + argumentsHolder.getStatus());
         testUser = argumentsHolder.getUserDto();
         ResultActions action = perform(MockMvcRequestBuilders.post(URL)
                 .contentType(MediaType.APPLICATION_JSON)

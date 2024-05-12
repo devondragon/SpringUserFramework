@@ -133,7 +133,7 @@ public class UserAPI {
 	 * @return the generic response
 	 */
 	@PostMapping("/resendRegistrationToken")
-	public ResponseEntity<JSONResponse> resendRegistrationToken(final UserDto userDto, final HttpServletRequest request) {
+	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody final UserDto userDto, final HttpServletRequest request) {
 		log.debug("UserAPI.resendRegistrationToken:" + "email: {}", userDto.getEmail());
 
 		// Lookup User by email
