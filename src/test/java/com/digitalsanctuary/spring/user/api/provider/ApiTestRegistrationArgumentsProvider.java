@@ -7,20 +7,20 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 
 import java.util.stream.Stream;
 
-public class ApiTestArgumentsProvider implements ArgumentsProvider {
+public class ApiTestRegistrationArgumentsProvider implements ArgumentsProvider {
 
     @Override
     public Stream<? extends Arguments> provideArguments(ExtensionContext extensionContext) throws Exception {
         return Stream.of(
-                new ApiTestArgumentsHolder (
+                new ApiTestRegistrationArgumentsHolder(
                         ApiTestData.getUserDto(),
-                        ApiTestArgumentsHolder.UserStatus.NEW,
+                        ApiTestRegistrationArgumentsHolder.UserStatus.NEW,
                         ApiTestData.successRegistration()
                 ),
 
-                new ApiTestArgumentsHolder (
+                new ApiTestRegistrationArgumentsHolder(
                         ApiTestData.getUserDto(),
-                        ApiTestArgumentsHolder.UserStatus.EXIST,
+                        ApiTestRegistrationArgumentsHolder.UserStatus.EXIST,
                         ApiTestData.userAlreadyExist()
                 )
 

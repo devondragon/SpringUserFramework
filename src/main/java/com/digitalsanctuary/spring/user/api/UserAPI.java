@@ -133,7 +133,7 @@ public class UserAPI {
 	 * @return the generic response
 	 */
 	@PostMapping("/resendRegistrationToken")
-	public ResponseEntity<JSONResponse> resendRegistrationToken(final UserDto userDto, final HttpServletRequest request) {
+	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid final UserDto userDto, final HttpServletRequest request) {
 		log.debug("UserAPI.resendRegistrationToken:" + "email: {}", userDto.getEmail());
 
 		// Lookup User by email
@@ -204,7 +204,7 @@ public class UserAPI {
 	 * @return a generic success response, so as to not leak information about accounts existing or not.
 	 */
 	@PostMapping("/resetPassword")
-	public ResponseEntity<JSONResponse> resetPassword(final UserDto userDto, final HttpServletRequest request) {
+	public ResponseEntity<JSONResponse> resetPassword(@Valid final UserDto userDto, final HttpServletRequest request) {
 		log.debug("UserAPI.resetPassword:" + "email: {}", userDto.getEmail());
 
 		// Lookup User by email

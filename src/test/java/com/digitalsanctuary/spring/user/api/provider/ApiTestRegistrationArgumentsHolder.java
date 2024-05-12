@@ -3,7 +3,7 @@ package com.digitalsanctuary.spring.user.api.provider;
 import com.digitalsanctuary.spring.user.api.data.RegistrationResponse;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 
-public class ApiTestArgumentsHolder {
+public class ApiTestRegistrationArgumentsHolder {
 
     public enum UserStatus {
         NEW,
@@ -15,7 +15,7 @@ public class ApiTestArgumentsHolder {
     private final RegistrationResponse response;
 
 
-    public ApiTestArgumentsHolder(UserDto userDto, UserStatus status, RegistrationResponse response) {
+    public ApiTestRegistrationArgumentsHolder(UserDto userDto, UserStatus status, RegistrationResponse response) {
         this.userDto = userDto;
         this.status = status;
         this.response = response;
