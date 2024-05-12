@@ -2,10 +2,11 @@ package ui;
 
 import com.codeborne.selenide.Configuration;
 import com.codeborne.selenide.Selenide;
+import com.digitalsanctuary.spring.user.UserApplication;
+import com.digitalsanctuary.spring.user.config.TestConfig;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-
 
 public abstract class BaseUiTest {
     private Driver driver;
