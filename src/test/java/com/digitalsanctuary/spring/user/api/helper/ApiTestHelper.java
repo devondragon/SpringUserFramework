@@ -27,7 +27,7 @@ public class ApiTestHelper {
         return result.toString();
     }
 
-    public static List<String> buildParams(Object dto) {
+    private static List<String> buildParams(Object dto) {
         List<String> params = new ArrayList<>();
         Field[] fields = dto.getClass().getDeclaredFields();
         for (Field field : fields) {

@@ -43,7 +43,6 @@ public class UserApiTest extends BaseApiTest {
 
         RegistrationResponse actual = JsonUtil.readValue(action.andReturn()
                 .getResponse().getContentAsString(), RegistrationResponse.class);
-        System.out.println(actual);
         RegistrationResponse excepted = argumentsHolder.getResponse();
         Assertions.assertEquals(excepted, actual);
     }
