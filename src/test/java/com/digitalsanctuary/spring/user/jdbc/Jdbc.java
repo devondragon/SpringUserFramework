@@ -1,4 +1,4 @@
-package ui.jdbc;
+package com.digitalsanctuary.spring.user.jdbc;
 
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import java.sql.Connection;
@@ -6,7 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import static ui.data.UiTestData.TEST_USER_ENCODED_PASSWORD;
+import static com.digitalsanctuary.spring.user.ui.data.UiTestData.TEST_USER_ENCODED_PASSWORD;
 
 /**
  * Using for delete/save user test data
@@ -53,7 +53,7 @@ public class Jdbc {
 
     private static void execute(Connection connection, String query, Object[] params) throws SQLException {
         PreparedStatement statement = connection.prepareStatement(query);
-        for(int i = 0; i < params.length; i++) {
+        for(int i = 0; i < params.length; i ++) {
             Object param = params[i];
             if (param instanceof Integer) {
                 statement.setInt((i + 1), (Integer) param);

@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import ui.jdbc.Jdbc;
+import com.digitalsanctuary.spring.user.jdbc.Jdbc;
 
 import static com.digitalsanctuary.spring.user.api.helper.ApiTestHelper.buildUrlEncodedFormEntity;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -27,6 +27,12 @@ public class UserApiTest extends BaseApiTest {
         Jdbc.deleteTestUser(testUser);
     }
 
+    /**
+     *
+     * @param argumentsHolder
+     * @throws Exception
+     * testing with three param: new user data, exist user data and invalid user data
+     */
     @ParameterizedTest
     @ArgumentsSource(ApiTestRegistrationArgumentsProvider.class)
     public void registerUserAccount(ApiTestRegistrationArgumentsHolder argumentsHolder) throws Exception {
@@ -34,11 +40,15 @@ public class UserApiTest extends BaseApiTest {
         ResultActions action = perform(MockMvcRequestBuilders.post(URL)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .content(buildUrlEncodedFormEntity(testUser)));
-        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.UserStatus.NEW) {
+
+        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.NEW) {
             action.andExpect(status().isOk());
         }
-        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.UserStatus.EXIST) {
+        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.EXIST) {
             action.andExpect(status().isConflict());
+        }
+        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.INVALID) {
+            action.andExpect(status().is5xxServerError());
         }
 
         RegistrationResponse actual = JsonUtil.readValue(action.andReturn()
