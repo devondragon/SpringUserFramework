@@ -1,4 +1,4 @@
-package ui.jdbc;
+package com.digitalsanctuary.spring.user.jdbc;
 
 import java.sql.Connection;
 import java.sql.DriverManager;

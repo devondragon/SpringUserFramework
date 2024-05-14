@@ -1,4 +1,4 @@
-package ui.page;
+package com.digitalsanctuary.spring.user.ui.page;
 
 import com.codeborne.selenide.SelenideElement;
 

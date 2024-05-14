@@ -1,4 +1,4 @@
-package ui.data;
+package com.digitalsanctuary.spring.user.ui.data;
 
 import com.digitalsanctuary.spring.user.dto.UserDto;
 public class UiTestData {

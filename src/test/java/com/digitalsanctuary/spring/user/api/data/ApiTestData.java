@@ -14,6 +14,10 @@ public class ApiTestData {
         return userDto;
     }
 
+    public static UserDto getEmptyUserDto() {
+        return new UserDto();
+    }
+
     public static RegistrationResponse successRegistration() {
         return new RegistrationResponse(
                 true, 0,
@@ -28,4 +32,13 @@ public class ApiTestData {
                 new String[]{"An account already exists for the email address"}, null
         );
     }
+
+    public static RegistrationResponse systemError() {
+        return new RegistrationResponse(
+                false, 5, null,
+                new String[]{"System Error!"}, null
+        );
+    }
+
+
 }

@@ -1,18 +1,18 @@
-package ui;
+package com.digitalsanctuary.spring.user.ui;
 
 
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import ui.data.UiTestData;
-import ui.jdbc.Jdbc;
-import ui.page.LoginPage;
-import ui.page.LoginSuccessPage;
-import ui.page.RegisterPage;
-import ui.page.SuccessRegisterPage;
+import com.digitalsanctuary.spring.user.ui.data.UiTestData;
+import com.digitalsanctuary.spring.user.jdbc.Jdbc;
+import com.digitalsanctuary.spring.user.ui.page.LoginPage;
+import com.digitalsanctuary.spring.user.ui.page.LoginSuccessPage;
+import com.digitalsanctuary.spring.user.ui.page.RegisterPage;
+import com.digitalsanctuary.spring.user.ui.page.SuccessRegisterPage;
 
-import static ui.data.UiTestData.*;
+import static com.digitalsanctuary.spring.user.ui.data.UiTestData.*;
 
 public class SpringUserFrameworkUiTest extends BaseUiTest {
 
@@ -60,6 +60,5 @@ public class SpringUserFrameworkUiTest extends BaseUiTest {
         String firstName = testUser.getFirstName();
         Assertions.assertTrue(welcomeMessage.contains(firstName));
     }
-
 
 }

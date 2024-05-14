@@ -13,17 +13,22 @@ public class ApiTestRegistrationArgumentsProvider implements ArgumentsProvider {
     public Stream<? extends Arguments> provideArguments(ExtensionContext extensionContext) throws Exception {
         return Stream.of(
                 new ApiTestRegistrationArgumentsHolder(
-                        ApiTestData.getUserDto(),
-                        ApiTestRegistrationArgumentsHolder.UserStatus.NEW,
-                        ApiTestData.successRegistration()
+                        ApiTestData.getEmptyUserDto(),
+                        ApiTestRegistrationArgumentsHolder.DataStatus.INVALID,
+                        ApiTestData.systemError()
                 ),
 
                 new ApiTestRegistrationArgumentsHolder(
                         ApiTestData.getUserDto(),
-                        ApiTestRegistrationArgumentsHolder.UserStatus.EXIST,
-                        ApiTestData.userAlreadyExist()
-                )
+                        ApiTestRegistrationArgumentsHolder.DataStatus.NEW,
+                        ApiTestData.successRegistration()
+                ),
 
+                new ApiTestRegistrationArgumentsHolder(
+                    ApiTestData.getUserDto(),
+                    ApiTestRegistrationArgumentsHolder.DataStatus.EXIST,
+                    ApiTestData.userAlreadyExist()
+        )
         ).map(Arguments::of);
     }
 }

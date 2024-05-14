@@ -5,17 +5,18 @@ import com.digitalsanctuary.spring.user.dto.UserDto;
 
 public class ApiTestRegistrationArgumentsHolder {
 
-    public enum UserStatus {
+    public enum DataStatus {
         NEW,
-        EXIST
+        EXIST,
+        INVALID
     }
 
     private final UserDto userDto;
-    private final UserStatus status;
+    private final DataStatus status;
     private final RegistrationResponse response;
 
 
-    public ApiTestRegistrationArgumentsHolder(UserDto userDto, UserStatus status, RegistrationResponse response) {
+    public ApiTestRegistrationArgumentsHolder(UserDto userDto, DataStatus status, RegistrationResponse response) {
         this.userDto = userDto;
         this.status = status;
         this.response = response;
@@ -25,7 +26,7 @@ public class ApiTestRegistrationArgumentsHolder {
         return userDto;
     }
 
-    public UserStatus getStatus() {
+    public DataStatus getStatus() {
         return status;
     }
 
