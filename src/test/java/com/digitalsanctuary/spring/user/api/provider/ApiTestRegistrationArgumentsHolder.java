@@ -1,6 +1,6 @@
 package com.digitalsanctuary.spring.user.api.provider;
 
-import com.digitalsanctuary.spring.user.api.data.RegistrationResponse;
+import com.digitalsanctuary.spring.user.api.data.Response;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 
 public class ApiTestRegistrationArgumentsHolder {
@@ -13,10 +13,10 @@ public class ApiTestRegistrationArgumentsHolder {
 
     private final UserDto userDto;
     private final DataStatus status;
-    private final RegistrationResponse response;
+    private final Response response;
 
 
-    public ApiTestRegistrationArgumentsHolder(UserDto userDto, DataStatus status, RegistrationResponse response) {
+    public ApiTestRegistrationArgumentsHolder(UserDto userDto, DataStatus status, Response response) {
         this.userDto = userDto;
         this.status = status;
         this.response = response;
@@ -30,7 +30,7 @@ public class ApiTestRegistrationArgumentsHolder {
         return status;
     }
 
-    public RegistrationResponse getResponse() {
+    public Response getResponse() {
         return response;
     }
 }
