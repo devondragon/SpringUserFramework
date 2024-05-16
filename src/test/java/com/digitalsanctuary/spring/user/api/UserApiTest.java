@@ -1,12 +1,14 @@
 package com.digitalsanctuary.spring.user.api;
 
-import com.digitalsanctuary.spring.user.api.data.RegistrationResponse;
+import com.digitalsanctuary.spring.user.api.data.ApiTestData;
+import com.digitalsanctuary.spring.user.api.data.Response;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsHolder;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsProvider;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.json.JsonUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.springframework.http.MediaType;
@@ -18,9 +20,9 @@ import static com.digitalsanctuary.spring.user.api.helper.ApiTestHelper.buildUrl
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 public class UserApiTest extends BaseApiTest {
-    private static final String URL = "/user/registration";
+    private static final String URL = "/user";
 
-    private static UserDto testUser;
+    private static final UserDto testUser = ApiTestData.getUserDto();
 
     @AfterAll
     public static void deleteTestUser() {
@@ -36,10 +38,9 @@ public class UserApiTest extends BaseApiTest {
     @ParameterizedTest
     @ArgumentsSource(ApiTestRegistrationArgumentsProvider.class)
     public void registerUserAccount(ApiTestRegistrationArgumentsHolder argumentsHolder) throws Exception {
-        testUser = argumentsHolder.getUserDto();
-        ResultActions action = perform(MockMvcRequestBuilders.post(URL)
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/registration")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .content(buildUrlEncodedFormEntity(testUser)));
+                .content(buildUrlEncodedFormEntity(argumentsHolder.getUserDto())));
 
         if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.NEW) {
             action.andExpect(status().isOk());
@@ -51,10 +52,23 @@ public class UserApiTest extends BaseApiTest {
             action.andExpect(status().is5xxServerError());
         }
 
-        RegistrationResponse actual = JsonUtil.readValue(action.andReturn()
-                .getResponse().getContentAsString(), RegistrationResponse.class);
-        RegistrationResponse excepted = argumentsHolder.getResponse();
+        Response actual = JsonUtil.readValue(action.andReturn()
+                .getResponse().getContentAsString(), Response.class);
+        Response excepted = argumentsHolder.getResponse();
         Assertions.assertEquals(excepted, actual);
+    }
+
+    @Test
+    public void resetPassword() throws Exception {
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/resetPassword")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content(buildUrlEncodedFormEntity(testUser)))
+                .andExpect(status().isOk());
+
+        Response actual = JsonUtil.readValue(action.andReturn().getResponse()
+                .getContentAsString(), Response.class);
+        Response expected = ApiTestData.resetPassword();
+        Assertions.assertEquals(actual, expected);
     }
 
 }

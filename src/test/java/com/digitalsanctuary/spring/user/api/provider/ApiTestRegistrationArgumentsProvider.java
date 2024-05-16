@@ -28,7 +28,7 @@ public class ApiTestRegistrationArgumentsProvider implements ArgumentsProvider {
                     ApiTestData.getUserDto(),
                     ApiTestRegistrationArgumentsHolder.DataStatus.EXIST,
                     ApiTestData.userAlreadyExist()
-        )
+            )
         ).map(Arguments::of);
     }
 }

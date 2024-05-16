@@ -18,26 +18,31 @@ public class ApiTestData {
         return new UserDto();
     }
 
-    public static RegistrationResponse successRegistration() {
-        return new RegistrationResponse(
+    public static Response successRegistration() {
+        return new Response(
                 true, 0,
                 "/user/registration-pending-verification.html",
                 new String[]{"Registration Successful!"}, null
         );
     }
 
-    public static RegistrationResponse userAlreadyExist() {
-        return new RegistrationResponse(
+    public static Response userAlreadyExist() {
+        return new Response(
                 false, 2, null,
                 new String[]{"An account already exists for the email address"}, null
         );
     }
 
-    public static RegistrationResponse systemError() {
-        return new RegistrationResponse(
+    public static Response systemError() {
+        return new Response(
                 false, 5, null,
                 new String[]{"System Error!"}, null
         );
+    }
+
+    public static Response resetPassword() {
+        return new Response(true, null, "/user/forgot-password-pending-verification.html",
+                new String[]{"If account exists, password reset email has been sent!"}, null);
     }
 
 

@@ -4,16 +4,16 @@ package com.digitalsanctuary.spring.user.api.data;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RegistrationResponse {
+public class Response {
     private boolean success;
     private String redirectUrl;
-    private int code;
+    private Integer code;
     private String[] messages;
     private Object data;
 
-    public RegistrationResponse() {}
+    public Response() {}
 
-    public RegistrationResponse(boolean success, int code, String redirectUrl, String[] messages, Object data) {
+    public Response(boolean success, Integer code, String redirectUrl, String[] messages, Object data) {
         this.success = success;
         this.code = code;
         this.redirectUrl = redirectUrl;
@@ -37,7 +37,7 @@ public class RegistrationResponse {
         this.redirectUrl = redirectUrl;
     }
 
-    public int getCode() {
+    public Integer getCode() {
         return code;
     }
 
@@ -64,7 +64,7 @@ public class RegistrationResponse {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof RegistrationResponse response)) return false;
+        if (!(obj instanceof Response response)) return false;
         return response.success == this.success &&
                 Objects.equals(response.redirectUrl, this.redirectUrl) &&
                 response.code == this.code &&
