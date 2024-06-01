@@ -8,6 +8,8 @@ public class UiTestData {
 
     public static final String SUCCESS_SING_UP_MESSAGE = "Thank you for registering!";
 
+    public static final String SUCCESS_RESET_PASSWORD_MESSAGE = "You should receive a password reset email shortly";
+
     public static final String TEST_USER_ENCODED_PASSWORD = "$2y$10$XIRn/npMMCGt21gpU6QAbeOAUSxj/C7A793YZe.a6AEvL0LhQwkqW";
 
     public static UserDto getUserDto() {

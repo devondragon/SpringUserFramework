@@ -13,11 +13,13 @@ import static com.digitalsanctuary.spring.user.ui.data.UiTestData.TEST_USER_ENCO
  */
 public class Jdbc {
 
-    private static final String DELETE_VERIFICATION_TOKEN_QUERY = "DELETE FROM verification_token WHERE user_id = (SELECT id FROM user_account WHERE first_name = ? AND email = ?)";
+    private static final String DELETE_VERIFICATION_TOKEN_QUERY = "DELETE FROM verification_token WHERE user_id = (SELECT id FROM user_account WHERE email = ?)";
 
-    private static final String DELETE_TEST_USER_ROLE = "DELETE FROM users_roles WHERE user_id = (SELECT id FROM user_account WHERE first_name = ? AND email = ?)";
+    private static final String DELETE_TEST_USER_ROLE = "DELETE FROM users_roles WHERE user_id = (SELECT id FROM user_account WHERE email = ?)";
 
-    private static final String DELETE_TEST_USER_QUERY = "DELETE FROM user_account WHERE first_name = ? AND email = ?";
+    private static final String DELETE_TEST_PASSWORD_RESET_TOKEN = "DELETE FROM password_reset_token WHERE user_id = (SELECT id FROM user_account WHERE email = ?)";
+
+    private static final String DELETE_TEST_USER_QUERY = "DELETE FROM user_account WHERE email = ?";
 
     private static final String GET_LAST_USER_ID_QUERY = "SELECT max(id) FROM user_account";
 
@@ -26,9 +28,10 @@ public class Jdbc {
 
     public static void deleteTestUser(UserDto userDto) {
         try(Connection connection = ConnectionManager.open()) {
-            String[] params = new String[]{userDto.getFirstName(), userDto.getEmail()};
+            String[] params = new String[]{userDto.getEmail()};
             execute(connection, DELETE_VERIFICATION_TOKEN_QUERY, params);
             execute(connection, DELETE_TEST_USER_ROLE, params);
+            execute(connection, DELETE_TEST_PASSWORD_RESET_TOKEN, params);
             execute(connection, DELETE_TEST_USER_QUERY, params);
         } catch (SQLException e) {
             throw new RuntimeException(e);
