@@ -2,15 +2,12 @@ package com.digitalsanctuary.spring.user.ui;
 
 
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.ui.page.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import com.digitalsanctuary.spring.user.ui.data.UiTestData;
 import com.digitalsanctuary.spring.user.jdbc.Jdbc;
-import com.digitalsanctuary.spring.user.ui.page.LoginPage;
-import com.digitalsanctuary.spring.user.ui.page.LoginSuccessPage;
-import com.digitalsanctuary.spring.user.ui.page.RegisterPage;
-import com.digitalsanctuary.spring.user.ui.page.SuccessRegisterPage;
 
 import static com.digitalsanctuary.spring.user.ui.data.UiTestData.*;
 
@@ -61,4 +58,15 @@ public class SpringUserFrameworkUiTest extends BaseUiTest {
         Assertions.assertTrue(welcomeMessage.contains(firstName));
     }
 
+    @Test
+    public void successResetPassword() {
+        Jdbc.saveTestUser(testUser);
+        ForgotPasswordPage forgotPasswordPage = new ForgotPasswordPage(URI + "user/forgot-password.html");
+        SuccessResetPasswordPage successResetPasswordPage = forgotPasswordPage
+                .fillEmail(testUser.getEmail())
+                .clickSubmitBtn();
+        String actualMessage = successResetPasswordPage.message();
+        Assertions.assertEquals(SUCCESS_RESET_PASSWORD_MESSAGE, actualMessage);
+
+    }
 }
