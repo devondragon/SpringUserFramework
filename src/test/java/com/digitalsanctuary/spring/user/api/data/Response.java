@@ -74,7 +74,7 @@ public class Response {
 
     @Override
     public String toString() {
-        return "RegistrationResponse{" +
+        return "ApiResponse{" +
                 "success=" + success +
                 ", redirectUrl='" + redirectUrl + '\'' +
                 ", code=" + code +

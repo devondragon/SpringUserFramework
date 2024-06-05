@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.api.helper;
 
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.persistence.model.User;
 
 import java.lang.reflect.Field;
 import java.net.URLEncoder;
@@ -43,5 +44,12 @@ public class ApiTestHelper {
             }
         }
         return params;
+    }
+
+    public static User toUser(UserDto userDto) {
+        User user = new User();
+        user.setEmail(userDto.getEmail());
+        user.setPassword(userDto.getPassword());
+        return user;
     }
 }
