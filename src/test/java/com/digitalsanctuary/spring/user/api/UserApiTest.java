@@ -1,17 +1,23 @@
 package com.digitalsanctuary.spring.user.api;
 
 import com.digitalsanctuary.spring.user.api.data.ApiTestData;
+import com.digitalsanctuary.spring.user.api.data.DataStatus;
 import com.digitalsanctuary.spring.user.api.data.Response;
-import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsHolder;
+import com.digitalsanctuary.spring.user.api.helper.AssertionsHelper;
+import com.digitalsanctuary.spring.user.api.provider.ApiTestUpdateUserArgumentsProvider;
+import com.digitalsanctuary.spring.user.api.provider.holder.ApiTestArgumentsHolder;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsProvider;
 import com.digitalsanctuary.spring.user.dto.UserDto;
-import com.digitalsanctuary.spring.user.json.JsonUtil;
+import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.UserService;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import com.digitalsanctuary.spring.user.jdbc.Jdbc;
@@ -22,53 +28,75 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class UserApiTest extends BaseApiTest {
     private static final String URL = "/user";
 
-    private static final UserDto testUser = ApiTestData.getUserDto();
+    @Autowired
+    private UserService userService;
+
+    private static final UserDto baseTestUser = ApiTestData.getUserDto();
 
     @AfterAll
     public static void deleteTestUser() {
-        Jdbc.deleteTestUser(testUser);
+        Jdbc.deleteTestUser(baseTestUser);
     }
 
     /**
      *
      * @param argumentsHolder
      * @throws Exception
-     * testing with three param: new user data, exist user data and invalid user data
+     * testing with three params: new user data, exist user data and invalid user data
      */
     @ParameterizedTest
     @ArgumentsSource(ApiTestRegistrationArgumentsProvider.class)
-    public void registerUserAccount(ApiTestRegistrationArgumentsHolder argumentsHolder) throws Exception {
+    @Order(1)
+    public void registerUserAccount(ApiTestArgumentsHolder argumentsHolder) throws Exception {
         ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/registration")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .content(buildUrlEncodedFormEntity(argumentsHolder.getUserDto())));
 
-        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.NEW) {
+        if (argumentsHolder.getStatus() == DataStatus.NEW) {
             action.andExpect(status().isOk());
         }
-        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.EXIST) {
+        if (argumentsHolder.getStatus() == DataStatus.EXIST) {
             action.andExpect(status().isConflict());
         }
-        if (argumentsHolder.getStatus() == ApiTestRegistrationArgumentsHolder.DataStatus.INVALID) {
+        if (argumentsHolder.getStatus() == DataStatus.INVALID) {
             action.andExpect(status().is5xxServerError());
         }
 
-        Response actual = JsonUtil.readValue(action.andReturn()
-                .getResponse().getContentAsString(), Response.class);
+        MockHttpServletResponse actual = action.andReturn().getResponse();
         Response excepted = argumentsHolder.getResponse();
-        Assertions.assertEquals(excepted, actual);
+        AssertionsHelper.compareResponses(actual, excepted);
     }
 
     @Test
+    @Order(2)
     public void resetPassword() throws Exception {
         ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/resetPassword")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .content(buildUrlEncodedFormEntity(testUser)))
+                .content(buildUrlEncodedFormEntity(baseTestUser)))
                 .andExpect(status().isOk());
 
-        Response actual = JsonUtil.readValue(action.andReturn().getResponse()
-                .getContentAsString(), Response.class);
-        Response expected = ApiTestData.resetPassword();
-        Assertions.assertEquals(actual, expected);
+        MockHttpServletResponse actual = action.andReturn().getResponse();
+        Response excepted = ApiTestData.resetPassword();
+        AssertionsHelper.compareResponses(actual, excepted);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(ApiTestUpdateUserArgumentsProvider.class)
+    @Order(3)
+    public void updateUser(ApiTestArgumentsHolder argumentsHolder) throws Exception {
+        if(argumentsHolder.getStatus() == DataStatus.LOGGED) {
+            User user = userService.registerNewUserAccount(argumentsHolder.getUserDto());
+            userService.authWithoutPassword(user);
+        }
+
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/updateUser")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content(buildUrlEncodedFormEntity(argumentsHolder.getUserDto())))
+                .andExpect(status().isOk());
+
+        MockHttpServletResponse actual = action.andReturn().getResponse();
+        Response expected = argumentsHolder.getResponse();
+        AssertionsHelper.compareResponses(actual, expected);
     }
 
 }

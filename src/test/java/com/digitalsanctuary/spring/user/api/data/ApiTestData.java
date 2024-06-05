@@ -42,8 +42,21 @@ public class ApiTestData {
 
     public static Response resetPassword() {
         return new Response(true, null, "/user/forgot-password-pending-verification.html",
-                new String[]{"If account exists, password reset email has been sent!"}, null);
+                new String[]{"If account exists, password reset email has been sent!"}, null
+        );
     }
 
+    public static Response userNotLogged() {
+        return new Response(false, null, null,
+                new String[]{"User Not Logged In!"}, null
+        );
 
+    }
+
+    public static Response userUpdateSuccess() {
+        return new Response(true, null, null,
+                new String[]{"Your Profile Was Successfully Updated.<br /><br />"}, null
+        );
+
+    }
 }

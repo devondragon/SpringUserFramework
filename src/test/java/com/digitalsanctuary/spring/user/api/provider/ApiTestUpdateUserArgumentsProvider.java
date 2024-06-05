@@ -9,28 +9,21 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 
 import java.util.stream.Stream;
 
-public class ApiTestRegistrationArgumentsProvider implements ArgumentsProvider {
-
+public class ApiTestUpdateUserArgumentsProvider implements ArgumentsProvider
+{
     @Override
     public Stream<? extends Arguments> provideArguments(ExtensionContext extensionContext) throws Exception {
         return Stream.of(
                 new ApiTestArgumentsHolder(
-                        ApiTestData.getEmptyUserDto(),
-                        DataStatus.INVALID,
-                        ApiTestData.systemError()
+                        ApiTestData.getUserDto(),
+                        DataStatus.LOGGED,
+                        ApiTestData.userUpdateSuccess()
                 ),
-
                 new ApiTestArgumentsHolder(
                         ApiTestData.getUserDto(),
-                        DataStatus.NEW,
-                        ApiTestData.successRegistration()
-                ),
-
-                new ApiTestArgumentsHolder(
-                    ApiTestData.getUserDto(),
-                    DataStatus.EXIST,
-                    ApiTestData.userAlreadyExist()
-            )
+                        DataStatus.NOT_LOGGED,
+                        ApiTestData.userNotLogged()
+                )
         ).map(Arguments::of);
     }
 }
