@@ -1,8 +1,24 @@
 package com.digitalsanctuary.spring.user.api.data;
 
+import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
-
 public class ApiTestData {
+
+    public static final UserDto BASE_TEST_USER = getUserDto();
+
+    public static PasswordDto getPasswordDto() {
+        PasswordDto dto = new PasswordDto();
+        dto.setNewPassword("newTestApiUserPassword");
+        dto.setOldPassword("testApiUserPassword");
+        return dto;
+    }
+
+    public static PasswordDto getInvalidPasswordDto() {
+        PasswordDto dto = new PasswordDto();
+        dto.setNewPassword("newTestApiUserPassword");
+        dto.setOldPassword("invalidPassword");
+        return dto;
+    }
 
     public static UserDto getUserDto() {
         UserDto userDto = new UserDto();
@@ -57,6 +73,17 @@ public class ApiTestData {
         return new Response(true, null, null,
                 new String[]{"Your Profile Was Successfully Updated.<br /><br />"}, null
         );
+    }
 
+    public static Response passwordUpdateSuccess() {
+        return new Response(true, 0, null,
+                new String[]{"Password updated successfully"}, null
+        );
+    }
+
+    public static Response passwordUpdateFailry() {
+        return new Response(false, 1, null,
+                new String[]{"Invalid Old Password"}, null
+        );
     }
 }
