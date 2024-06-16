@@ -7,7 +7,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 
 public class AssertionsHelper {
-
     public static void compareResponses(MockHttpServletResponse servletResponse, Response excepted) throws Exception{
         Response actual = JsonUtil.readValue(servletResponse.getContentAsString(), Response.class);
         Assertions.assertEquals(actual, excepted);

@@ -221,6 +221,7 @@ public class UserService {
 	 * @return true, if successful
 	 */
 	public boolean checkIfValidOldPassword(final User user, final String oldPassword) {
+		System.out.println(user.getPassword() + " " + oldPassword);
 		return passwordEncoder.matches(oldPassword, user.getPassword());
 	}
 

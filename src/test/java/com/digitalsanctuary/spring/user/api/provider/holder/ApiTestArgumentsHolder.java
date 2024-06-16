@@ -2,17 +2,25 @@ package com.digitalsanctuary.spring.user.api.provider.holder;
 
 import com.digitalsanctuary.spring.user.api.data.DataStatus;
 import com.digitalsanctuary.spring.user.api.data.Response;
+import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 
 public class ApiTestArgumentsHolder {
 
-    private final UserDto userDto;
-    private final DataStatus status;
-    private final Response response;
+    private UserDto userDto;
+    private PasswordDto passwordDto;
+    private DataStatus status;
+    private Response response;
 
 
     public ApiTestArgumentsHolder(UserDto userDto, DataStatus status, Response response) {
         this.userDto = userDto;
+        this.status = status;
+        this.response = response;
+    }
+
+    public ApiTestArgumentsHolder(PasswordDto passwordDto, DataStatus status, Response response) {
+        this.passwordDto = passwordDto;
         this.status = status;
         this.response = response;
     }
@@ -27,5 +35,9 @@ public class ApiTestArgumentsHolder {
 
     public Response getResponse() {
         return response;
+    }
+
+    public PasswordDto getPasswordDto() {
+        return passwordDto;
     }
 }
