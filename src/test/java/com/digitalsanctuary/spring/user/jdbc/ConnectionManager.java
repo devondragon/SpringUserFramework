@@ -8,7 +8,7 @@ public class ConnectionManager {
 
     private static final String driver = "org.mariadb.jdbc.Driver";
 
-    private static final String url ="jdbc:mariadb://127.0.0.1:3306/springuser";
+    private static final String url = "jdbc:mariadb://127.0.0.1:3306/springuser";
 
     private static final String username = "springuser";
 
