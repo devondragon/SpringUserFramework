@@ -9,20 +9,17 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 
 import java.util.stream.Stream;
 
-public class ApiTesUpdatePasswordArgumentsProvider implements ArgumentsProvider {
-
+public class ApiTestDeleteAccountArgumentsProvider implements ArgumentsProvider {
     @Override
     public Stream<? extends Arguments> provideArguments(ExtensionContext extensionContext) throws Exception {
         return Stream.of(
                 new ApiTestArgumentsHolder(
-                        ApiTestData.getPasswordDto(),
-                        DataStatus.VALID,
-                        ApiTestData.passwordUpdateSuccess()
+                        DataStatus.LOGGED,
+                        ApiTestData.successDeleteAccount()
                 ),
                 new ApiTestArgumentsHolder(
-                        ApiTestData.getInvalidPasswordDto(),
-                        DataStatus.INVALID,
-                        ApiTestData.passwordUpdateFailry()
+                        DataStatus.NOT_LOGGED,
+                        ApiTestData.deleteAccountFailry()
                 )
         ).map(Arguments::of);
     }

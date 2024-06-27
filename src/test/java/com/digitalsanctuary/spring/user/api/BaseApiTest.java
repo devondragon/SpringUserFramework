@@ -36,6 +36,5 @@ public abstract class BaseApiTest {
 
     protected ResultActions perform(MockHttpServletRequestBuilder builder) throws Exception {
         return mockMvc.perform(builder);
-
     }
 }

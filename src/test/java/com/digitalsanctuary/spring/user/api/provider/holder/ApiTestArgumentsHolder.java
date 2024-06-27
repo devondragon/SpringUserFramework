@@ -9,8 +9,8 @@ public class ApiTestArgumentsHolder {
 
     private UserDto userDto;
     private PasswordDto passwordDto;
-    private DataStatus status;
-    private Response response;
+    private final DataStatus status;
+    private final Response response;
 
 
     public ApiTestArgumentsHolder(UserDto userDto, DataStatus status, Response response) {
@@ -21,6 +21,11 @@ public class ApiTestArgumentsHolder {
 
     public ApiTestArgumentsHolder(PasswordDto passwordDto, DataStatus status, Response response) {
         this.passwordDto = passwordDto;
+        this.status = status;
+        this.response = response;
+    }
+
+    public ApiTestArgumentsHolder(DataStatus status, Response response) {
         this.status = status;
         this.response = response;
     }
