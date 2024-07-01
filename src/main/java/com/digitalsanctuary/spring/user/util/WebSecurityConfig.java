@@ -225,8 +225,7 @@ public class WebSecurityConfig {
 
 	@Bean
 	public RoleHierarchy roleHierarchy() {
-		RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-		roleHierarchy.setHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
+		RoleHierarchyImpl roleHierarchy = RoleHierarchyImpl.fromHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
 		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
 		return roleHierarchy;
 	}
@@ -246,7 +245,7 @@ public class WebSecurityConfig {
 	/**
 	 * This is required to publish authentication events to the Spring event system. This allows us to listen for authentication events and perform
 	 * actions based on successful or failed authentication.
-	 * 
+	 *
 	 * @param applicationEventPublisher
 	 * @return the Spring Security default AuthenticationEventPublisher
 	 */
