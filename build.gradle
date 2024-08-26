@@ -49,7 +49,7 @@ dependencies {
     // runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.4.1'
     runtimeOnly 'org.postgresql:postgresql'
-    implementation 'org.passay:passay:1.6.4'
+    implementation 'org.passay:passay:1.6.5'
     implementation 'com.google.guava:guava:33.3.0-jre'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
