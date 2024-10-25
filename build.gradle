@@ -47,7 +47,7 @@ dependencies {
     // Other dependencies
     runtimeOnly 'org.springframework.boot:spring-boot-devtools'
     // runtimeOnly 'io.micrometer:micrometer-registry-new-relic'
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.4.1'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.0'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.passay:passay:1.6.6'
     implementation 'com.google.guava:guava:33.3.1-jre'
