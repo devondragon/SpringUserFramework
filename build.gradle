@@ -62,7 +62,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.h2database:h2:2.3.232'
-    testImplementation group: 'com.codeborne', name: 'selenide', version: '7.5.1'
+    testImplementation group: 'com.codeborne', name: 'selenide', version: '7.6.0'
     testImplementation group: 'io.github.bonigarcia', name: 'webdrivermanager', version: '5.9.2'
 
 }
