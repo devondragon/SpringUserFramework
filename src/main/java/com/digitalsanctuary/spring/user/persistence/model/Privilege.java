@@ -32,15 +32,29 @@ public class Privilege {
 	@ManyToMany(mappedBy = "privileges")
 	private Collection<Role> roles;
 
+	/**
+	 * Instantiates a new privilege.
+	 */
 	public Privilege() {
 		super();
 	}
 
+	/**
+	 * Instantiates a new privilege.
+	 *
+	 * @param name the name
+	 */
 	public Privilege(final String name) {
 		super();
 		this.name = name;
 	}
 
+	/**
+	 * Instantiates a new privilege.
+	 *
+	 * @param name the name
+	 * @param description the description
+	 */
 	public Privilege(final String name, final String description) {
 		super();
 		this.name = name;

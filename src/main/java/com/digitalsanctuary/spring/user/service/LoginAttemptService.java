@@ -26,7 +26,7 @@ public class LoginAttemptService {
 
 	/** The max failed login attempts on a given account before it is locked. A value of 0 will disable locking accounts based on failed logins. */
 	@Value("${user.security.failedLoginAttempts}")
-	private int failedLoginAttempts;
+	private int maxFailedLoginAttempts;
 
 	/**
 	 * The account lockout duration. A value less than 0 means accounts can only be unlocked by action, not duration. A value of 0 means account
@@ -60,7 +60,7 @@ public class LoginAttemptService {
 	@Transactional
 	public void loginFailed(final String email) {
 		log.debug("Login attempt failed for user: {}", email);
-		if (failedLoginAttempts > 0) {
+		if (maxFailedLoginAttempts > 0) {
 			User user = userRepository.findByEmail(email);
 			if (user != null) {
 				incrementFailedAttempts(user);
@@ -78,7 +78,7 @@ public class LoginAttemptService {
 	private void incrementFailedAttempts(User user) {
 		int currentAttempts = user.getFailedLoginAttempts();
 		user.setFailedLoginAttempts(++currentAttempts);
-		if (currentAttempts >= failedLoginAttempts) {
+		if (currentAttempts >= maxFailedLoginAttempts) {
 			user.setLocked(true);
 			user.setLockedDate(new Date());
 		}
@@ -109,9 +109,9 @@ public class LoginAttemptService {
 
 	/**
 	 * Check if user should be unlocked, and unlock the user if necessary.
-	 * 
-	 * @param user
-	 * @return
+	 *
+	 * @param user the user
+	 * @return the user
 	 */
 	public User checkIfUserShouldBeUnlocked(User user) {
 		log.debug("Checking if user should be unlocked: {}", user.getEmail());

@@ -16,15 +16,14 @@ import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-
-@Slf4j
-@RequiredArgsConstructor
-@Service
-@Transactional
 /**
  * DSUserDetailsService is an implementation of Spring Security's UserDetailsService. It is responsible for loading user-specific data during
  * authentication.
  */
+@Slf4j
+@RequiredArgsConstructor
+@Service
+@Transactional
 public class DSUserDetailsService implements UserDetailsService {
 
 	/** The user repository. */
@@ -42,7 +41,6 @@ public class DSUserDetailsService implements UserDetailsService {
 	 * @param email the email address
 	 * @return the user details object
 	 * @throws UsernameNotFoundException if no user is found with the provided email address
-	 * @throws CustomBlockedException if the request is coming from a blocked IP address
 	 */
 	@Override
 	public DSUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {

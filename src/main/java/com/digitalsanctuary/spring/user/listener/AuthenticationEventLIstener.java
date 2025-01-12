@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * This class is used to listen for authentication events and handle account lockout functionality if needed.
- * 
+ *
  * https://github.com/devondragon/SpringUserFramework/issues/29
  */
 @Slf4j
@@ -20,6 +20,11 @@ public class AuthenticationEventLIstener {
 
     final private LoginAttemptService loginAttemptService;
 
+    /**
+     * This method listens for successful authentications and handles account lockout functionality.
+     *
+     * @param success the success event
+     */
     @EventListener
     public void onSuccess(AuthenticationSuccessEvent success) {
         // Handle successful authentication, e.g. logging or auditing
@@ -28,6 +33,11 @@ public class AuthenticationEventLIstener {
         loginAttemptService.loginSucceeded(username);
     }
 
+    /**
+     * This method listens for authentication failures and handles account lockout functionality.
+     *
+     * @param failure the failure event
+     */
     @EventListener
     public void onFailure(AbstractAuthenticationFailureEvent failure) {
         // Handle unsuccessful authentication, e.g. logging or auditing

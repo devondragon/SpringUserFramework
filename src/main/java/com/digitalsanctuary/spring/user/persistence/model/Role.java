@@ -42,15 +42,29 @@ public class Role {
 
 	private String description;
 
+	/**
+	 * Instantiates a new role.
+	 */
 	public Role() {
 		super();
 	}
 
+	/**
+	 * Instantiates a new role.
+	 *
+	 * @param name the name
+	 */
 	public Role(final String name) {
 		super();
 		this.name = name;
 	}
 
+	/**
+	 * Instantiates a new role.
+	 *
+	 * @param name the name
+	 * @param description the description
+	 */
 	public Role(final String name, final String description) {
 		super();
 		this.name = name;

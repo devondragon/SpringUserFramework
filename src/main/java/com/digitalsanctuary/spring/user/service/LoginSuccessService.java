@@ -7,7 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
-import com.digitalsanctuary.spring.user.event.AuditEvent;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;

@@ -23,9 +23,6 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 - **DDL Auto (`spring.jpa.hibernate.ddl-auto`)**: Hibernate schema generation strategy, defaults to `update`.
 - **Dialect (`spring.jpa.properties.hibernate.dialect`)**: Set this to the appropriate dialect for your database, defaults to `org.hibernate.dialect.MariaDBDialect`.
 
-### Application Properties
-
-- **Name (`spring.application.name`)**: Set your application's name, defaults to `User Framework`.
 
 ## User Settings
 
@@ -47,18 +44,12 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 
 - **From Address (`spring.mail.fromAddress`)**: The email address used as the sender in outgoing emails.
 
-## Copyright
-
-- **First Year (`spring.copyrightFirstYear`)**: The starting year for the copyright notice.
 
 ## Role and Privileges
 
 - **Roles and Privileges (`spring.roles-and-privileges`)**: Map out roles to their respective privileges.
 - **Role Hierarchy (`spring.role-hierarchy`)**: Define the hierarchy and inheritance of roles.
 
-## New Relic Monitoring
-
-- **API Key and Account ID (`management.newrelic.metrics.export`)**: Required if you're integrating with New Relic for monitoring.
 
 ## Server and Session Settings
 
