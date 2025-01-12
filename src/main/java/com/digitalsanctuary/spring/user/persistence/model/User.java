@@ -18,8 +18,29 @@ import lombok.Data;
 @Table(name = "user_account")
 public class User {
 
+	/**
+	 * Enum representing the available login providers.
+	 */
 	public enum Provider {
-		LOCAL, FACEBOOK, GOOGLE, APPLE
+		/**
+		 * Local authentication, typically using a username and password stored in the application's database.
+		 */
+		LOCAL,
+
+		/**
+		 * Login using Facebook as the authentication provider.
+		 */
+		FACEBOOK,
+
+		/**
+		 * Login using Google as the authentication provider.
+		 */
+		GOOGLE,
+
+		/**
+		 * Login using Apple as the authentication provider.
+		 */
+		APPLE
 	}
 
 	/** The id. */
@@ -88,6 +109,11 @@ public class User {
 		setLastActivityDate(new Date());
 	}
 
+	/**
+	 * Gets the full name.
+	 *
+	 * @return the full name
+	 */
 	public String getFullName() {
 		return firstName + " " + lastName;
 	}

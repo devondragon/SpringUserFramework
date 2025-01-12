@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import com.digitalsanctuary.spring.user.event.AuditEvent;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -13,6 +13,9 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * The UserEmailService class provides methods for sending emails to users for various purposes, such as registration verification and password reset.
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Service

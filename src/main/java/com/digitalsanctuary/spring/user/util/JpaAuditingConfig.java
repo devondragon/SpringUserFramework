@@ -11,16 +11,34 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * Configuration class for JPA Auditing. Enables JPA Auditing and provides an implementation of AuditorAware to capture the current auditor.
+ */
 @Slf4j
 @Configuration
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
 public class JpaAuditingConfig {
+
+	/**
+	 * Provides an implementation of AuditorAware to capture the current auditor.
+	 *
+	 * @return an instance of AuditorAware
+	 */
 	@Bean
 	public AuditorAware<User> auditorProvider() {
 		return new AuditorAwareImpl();
 	}
 
+	/**
+	 * Implementation of AuditorAware to capture the current auditor.
+	 */
 	private class AuditorAwareImpl implements AuditorAware<User> {
+
+		/**
+		 * Returns the current auditor based on the authentication context.
+		 *
+		 * @return an Optional containing the current auditor, or an empty Optional if no auditor is available
+		 */
 		@Override
 		public Optional<User> getCurrentAuditor() {
 			Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

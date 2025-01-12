@@ -45,27 +45,128 @@ import lombok.extern.slf4j.Slf4j;
  *
  * @author Devon Hillard
  */
+/**
+ * Service class for managing users. Provides methods for user registration, authentication, password management, and user-related operations. This
+ * class is transactional and uses various repositories and services for its operations.
+ *
+ * <p>
+ * Dependencies:
+ * </p>
+ * <ul>
+ * <li>{@link UserRepository}</li>
+ * <li>{@link VerificationTokenRepository}</li>
+ * <li>{@link PasswordResetTokenRepository}</li>
+ * <li>{@link PasswordEncoder}</li>
+ * <li>{@link RoleRepository}</li>
+ * <li>{@link SessionRegistry}</li>
+ * <li>{@link UserEmailService}</li>
+ * <li>{@link UserVerificationService}</li>
+ * <li>{@link DSUserDetailsService}</li>
+ * </ul>
+ *
+ * <p>
+ * Configuration:
+ * </p>
+ * <ul>
+ * <li>sendRegistrationVerificationEmail: Flag to determine if a verification email should be sent upon registration.</li>
+ * </ul>
+ *
+ * <p>
+ * Enum:
+ * </p>
+ * <ul>
+ * <li>{@link TokenValidationResult}: Enum representing the result of token validation.</li>
+ * </ul>
+ *
+ * <p>
+ * Methods:
+ * </p>
+ * <ul>
+ * <li>{@link #registerNewUserAccount(UserDto)}: Registers a new user account.</li>
+ * <li>{@link #saveRegisteredUser(User)}: Saves a registered user.</li>
+ * <li>{@link #deleteUser(User)}: Deletes a user and cleans up associated tokens.</li>
+ * <li>{@link #findUserByEmail(String)}: Finds a user by email.</li>
+ * <li>{@link #getPasswordResetToken(String)}: Gets a password reset token by token string.</li>
+ * <li>{@link #getUserByPasswordResetToken(String)}: Gets a user by password reset token.</li>
+ * <li>{@link #findUserByID(long)}: Finds a user by ID.</li>
+ * <li>{@link #changeUserPassword(User, String)}: Changes the user's password.</li>
+ * <li>{@link #checkIfValidOldPassword(User, String)}: Checks if the provided old password is valid.</li>
+ * <li>{@link #validatePasswordResetToken(String)}: Validates a password reset token.</li>
+ * <li>{@link #getUsersFromSessionRegistry()}: Gets the list of users from the session registry.</li>
+ * <li>{@link #authWithoutPassword(User)}: Authenticates a user without a password.</li>
+ * </ul>
+ *
+ * <p>
+ * Private Methods:
+ * </p>
+ * <ul>
+ * <li>{@link #emailExists(String)}: Checks if an email exists in the user repository.</li>
+ * <li>{@link #getAuthorities(User)}: Generates the list of authorities for a user.</li>
+ * <li>{@link #authenticateUser(DSUserDetails, List)}: Authenticates a user by setting the authentication object in the security context.</li>
+ * <li>{@link #storeSecurityContextInSession()}: Stores the current security context in the session.</li>
+ * </ul>
+ *
+ * <p>
+ * Annotations:
+ * </p>
+ * <ul>
+ * <li>{@link Slf4j}: For logging.</li>
+ * <li>{@link Service}: Indicates that this class is a service component in Spring.</li>
+ * <li>{@link RequiredArgsConstructor}: Generates a constructor with required arguments.</li>
+ * <li>{@link Transactional}: Indicates that the class or methods should be transactional.</li>
+ * <li>{@link Value}: Injects property values.</li>
+ * </ul>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class UserService {
 
+	/**
+	 * Enum representing the result of token validation.
+	 */
 	public enum TokenValidationResult {
-		VALID("valid"), INVALID_TOKEN("invalidToken"), EXPIRED("expired");
+
+		/**
+		 * Indicates that the token is valid and can be used.
+		 */
+		VALID("valid"),
+
+		/**
+		 * Indicates that the token is invalid, either due to tampering or an unknown format.
+		 */
+		INVALID_TOKEN("invalidToken"),
+
+		/**
+		 * Indicates that the token was valid but has expired and is no longer usable.
+		 */
+		EXPIRED("expired");
 
 		private final String value;
 
+		/**
+		 * Instantiates a new token validation result.
+		 *
+		 * @param value the string representation of the token validation result.
+		 */
 		TokenValidationResult(String value) {
 			this.value = value;
 		}
 
+		/**
+		 * Gets the string representation of the token validation result.
+		 *
+		 * @return the value of the token validation result.
+		 */
 		public String getValue() {
 			return value;
 		}
 	}
 
 
+
+	/** The user role name. */
 	private static final String USER_ROLE_NAME = "ROLE_USER";
 
 	/** The user repository. */
@@ -137,6 +238,7 @@ public class UserService {
 	 * Save registered user.
 	 *
 	 * @param user the user
+	 * @return the user
 	 */
 	public User saveRegisteredUser(final User user) {
 		return userRepository.save(user);

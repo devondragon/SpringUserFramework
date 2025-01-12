@@ -31,6 +31,9 @@ public class UserPageController {
 	 * Login Page.
 	 *
 	 * @param userDetails the user details
+	 * @param session the session
+	 * @param model the model
+	 *
 	 * @return the string
 	 */
 	@GetMapping("/user/login.html")
@@ -48,6 +51,9 @@ public class UserPageController {
 	/**
 	 * Register Page.
 	 *
+	 * @param userDetails the user details
+	 * @param session the session
+	 * @param model the model
 	 * @return the string
 	 */
 	@GetMapping("/user/register.html")
@@ -75,7 +81,9 @@ public class UserPageController {
 	/**
 	 * Registration complete.
 	 *
-	 * @param userDetails
+	 * @param userDetails the user details
+	 * @param session the session
+	 * @param model the model
 	 *
 	 * @return the string
 	 */
@@ -125,6 +133,13 @@ public class UserPageController {
 		return "user/forgot-password-change";
 	}
 
+
+	/**
+	 * @param userDetails the user details
+	 * @param request the request
+	 * @param model the model
+	 * @return String
+	 */
 	@GetMapping("/user/update-user.html")
 	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request, final ModelMap model) {
 		if (userDetails != null) {
@@ -137,11 +152,21 @@ public class UserPageController {
 		return "user/update-user";
 	}
 
+	/**
+	 * Update password.
+	 *
+	 * @return the string
+	 */
 	@GetMapping("/user/update-password.html")
 	public String updatePassword() {
 		return "user/update-password";
 	}
 
+	/**
+	 * Delete account.
+	 *
+	 * @return the string
+	 */
 	@GetMapping("/user/delete-account.html")
 	public String deleteAccount() {
 		return "user/delete-account";

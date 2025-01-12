@@ -1,8 +1,7 @@
 package com.digitalsanctuary.spring.user.api;
 
 import java.util.Locale;
-import java.util.Optional;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
@@ -10,17 +9,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.*;
-import com.digitalsanctuary.spring.user.dto.PasswordDto;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.UserDto;
-import com.digitalsanctuary.spring.user.event.AuditEvent;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
-import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
@@ -29,308 +30,134 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserAPI is the Controller for the REST API endpoints for the user management functionality. By default these endpoints are defined under the
- * "/user" prefix.
+ * REST controller for managing user-related operations. This class handles user registration, account deletion, and other user-related endpoints.
  */
 @Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
+
 	private final UserService userService;
 	private final UserEmailService userEmailService;
 	private final MessageSource messages;
 	private final ApplicationEventPublisher eventPublisher;
 
-	// URIs configured in application.properties
-	/** The registration pending URI. */
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
 
-	/** The registration success URI. */
 	@Value("${user.security.registrationSuccessURI}")
 	private String registrationSuccessURI;
 
-	/** The registration new verification URI. */
-	@Value("${user.security.registrationNewVerificationURI}")
-	private String registrationNewVerificationURI;
-
-	/** The forgot password pending URI. */
 	@Value("${user.security.forgotPasswordPendingURI}")
 	private String forgotPasswordPendingURI;
-
-	/** The forgot password change URI. */
-	@Value("${user.security.forgotPasswordChangeURI}")
-	private String forgotPasswordChangeURI;
 
 	@Value("${user.actuallyDeleteAccount:false}")
 	private boolean actuallyDeleteAccount;
 
-
 	/**
-	 * Register a new user account.
+	 * Registers a new user account.
 	 *
-	 * @param userDto the userDTO object is used for passing the form data in
-	 * @param request the request
-	 * @return A JSONResponse. In addition to success status, message, and code in the response body, this method also returns a 200 status on
-	 *         success, a 409 status if the email address is already in use, and a 502 if there is an error.
+	 * @param userDto the user data transfer object containing user details
+	 * @param request the HTTP servlet request
+	 * @return a ResponseEntity containing a JSONResponse with the registration result
 	 */
 	@PostMapping("/registration")
-	public ResponseEntity<JSONResponse> registerUserAccount(@Valid final UserDto userDto, final HttpServletRequest request) {
-		log.debug("Registering user account with information: {}", userDto);
-
-		User registeredUser = null;
+	public ResponseEntity<JSONResponse> registerUserAccount(@Valid @RequestBody UserDto userDto, HttpServletRequest request) {
 		try {
-			registeredUser = userService.registerNewUserAccount(userDto);
+			validateUserDto(userDto);
+			User registeredUser = userService.registerNewUserAccount(userDto);
+			publishRegistrationEvent(registeredUser, request);
+			logAuditEvent("Registration", "Success", "Registration Successful", registeredUser, request);
 
-			eventPublisher.publishEvent(OnRegistrationCompleteEvent.builder().user(registeredUser).locale(request.getLocale())
-					.appUrl(UserUtils.getAppUrl(request)).build());
+			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
 
-			AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(registeredUser).sessionId(request.getSession().getId())
-					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration")
-					.actionStatus("Success").message("Registration Successful").build();
-			eventPublisher.publishEvent(registrationAuditEvent);
-		} catch (UserAlreadyExistException uaee) {
-			log.warn("UserAPI.registerUserAccount:" + "UserAlreadyExistException on registration with email: {}!", userDto.getEmail());
-			AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(registeredUser).sessionId(request.getSession().getId())
-					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration")
-					.actionStatus("Failure").message("User Already Exists").build();
-
-			eventPublisher.publishEvent(registrationAuditEvent);
-
-			return new ResponseEntity<JSONResponse>(
-					JSONResponse.builder().success(false).code(02).message("An account already exists for the email address").build(),
-					HttpStatus.CONFLICT);
-		} catch (Exception e) {
-			log.error("UserAPI.registerUserAccount:" + "Exception!", e);
-			AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(registeredUser).sessionId(request.getSession().getId())
-					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration")
-					.actionStatus("Failure").message(e.getMessage()).build();
-
-			eventPublisher.publishEvent(registrationAuditEvent);
-
-			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).redirectUrl(null).code(05).message("System Error!").build(),
-					HttpStatus.INTERNAL_SERVER_ERROR);
+			return buildSuccessResponse("Registration Successful!", nextURL);
+		} catch (UserAlreadyExistException ex) {
+			log.warn("User already exists with email: {}", userDto.getEmail());
+			logAuditEvent("Registration", "Failure", "User Already Exists", null, request);
+			return buildErrorResponse("An account already exists for the email address", 2, HttpStatus.CONFLICT);
+		} catch (Exception ex) {
+			log.error("Unexpected error during registration.", ex);
+			logAuditEvent("Registration", "Failure", ex.getMessage(), null, request);
+			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
-
-		// If there were no exceptions then the registration was a success!
-		String nextURL = registrationPendingURI;
-		if (registeredUser.isEnabled()) {
-			log.debug("UserAPI.registerUserAccount:" + "User is already enabled, skipping email verification and auto-logging them in.");
-			nextURL = registrationSuccessURI;
-			// Auto-login the user after registration (this is a UX choice, which is why it is in the controller)
-			userService.authWithoutPassword(registeredUser);
-		}
-		return new ResponseEntity<JSONResponse>(
-				JSONResponse.builder().success(true).redirectUrl(nextURL).code(0).message("Registration Successful!").build(), HttpStatus.OK);
 	}
 
 	/**
-	 * Re-send registration verification token email.
+	 * Resends the registration token. This is used when the user did not receive the initial registration email.
 	 *
-	 * @param userDto the userDTO for passing in the email address from the form
-	 * @param request the request
-	 * @return the generic response
+	 * @param userDto the user data transfer object containing user details
+	 * @param request the HTTP servlet request
+	 * @return a ResponseEntity containing a JSONResponse with the registration result
 	 */
 	@PostMapping("/resendRegistrationToken")
-	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid final UserDto userDto, final HttpServletRequest request) {
-		log.debug("UserAPI.resendRegistrationToken:" + "email: {}", userDto.getEmail());
-
-		// Lookup User by email
+	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody UserDto userDto, HttpServletRequest request) {
 		User user = userService.findUserByEmail(userDto.getEmail());
-		log.debug("UserAPI.resendRegistrationToken:" + "user: {}", user);
-		// If user exists
 		if (user != null) {
-			// If user is enabled
 			if (user.isEnabled()) {
-				log.debug("UserAPI.resendRegistrationToken:" + "user is already enabled.");
-				// Send response with message and recommendation to login/forgot password
-				return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).code(1).message("Account is already verified.").build(),
-						HttpStatus.CONFLICT);
-			} else {
-				// Else send new token email
-				log.debug("UserAPI.resendRegistrationToken:" + "sending a new verification token email.");
-				String appUrl = UserUtils.getAppUrl(request);
-				userEmailService.sendRegistrationVerificationEmail(user, appUrl);
-				// Return happy path response
-				AuditEvent resendRegTokenAuditEvent = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
-						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Resend Reg Token")
-						.actionStatus("Success").message("Success").build();
-
-				eventPublisher.publishEvent(resendRegTokenAuditEvent);
-				return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(registrationPendingURI).code(0)
-						.message("Verification Email Resent Successfully!").build(), HttpStatus.OK);
+				return buildErrorResponse("Account is already verified.", 1, HttpStatus.CONFLICT);
 			}
+			userEmailService.sendRegistrationVerificationEmail(user, UserUtils.getAppUrl(request));
+			logAuditEvent("Resend Reg Token", "Success", "Verification Email Resent", user, request);
+			return buildSuccessResponse("Verification Email Resent Successfully!", registrationPendingURI);
 		}
-		// Return generic error response (don't leak too much info)
-		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).code(2).message("System Error!").build(),
-				HttpStatus.INTERNAL_SERVER_ERROR);
+		return buildErrorResponse("System Error!", 2, HttpStatus.INTERNAL_SERVER_ERROR);
 	}
 
+	/**
+	 * Updates the user's password. This is used when the user is logged in and wants to change their password.
+	 *
+	 * @param userDetails the authenticated user details
+	 * @param userDto the user data transfer object containing user details
+	 * @param request the HTTP servlet request
+	 * @param locale the locale
+	 * @return a ResponseEntity containing a JSONResponse with the password update result
+	 */
 	@PostMapping("/updateUser")
-	public ResponseEntity<JSONResponse> updateUserAccount(@AuthenticationPrincipal DSUserDetails userDetails, @Valid final UserDto userDto,
-			final HttpServletRequest request, final Locale locale) {
-		log.debug("UserAPI.updateUserAccount:" + "called with userDetails: {} and  userDto: {}", userDetails, userDto);
-		// If the userDetails is not available, or if the user is not logged in, log an error and return a failure.
-		if (userDetails == null || SecurityContextHolder.getContext().getAuthentication() == null
-				|| !SecurityContextHolder.getContext().getAuthentication().isAuthenticated()) {
-			log.error("UserAPI.updateUserAccount:" + "updateUser called without logged in user state!");
-			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).message("User Not Logged In!").build(), HttpStatus.OK);
-		}
-
+	public ResponseEntity<JSONResponse> updateUserAccount(@AuthenticationPrincipal DSUserDetails userDetails, @Valid @RequestBody UserDto userDto,
+			HttpServletRequest request, Locale locale) {
+		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
-
 		user.setFirstName(userDto.getFirstName());
 		user.setLastName(userDto.getLastName());
 		userService.saveRegisteredUser(user);
 
-		AuditEvent userUpdateAuditEvent = AuditEvent.builder().source(this).user(userDetails.getUser()).sessionId(request.getSession().getId())
-				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("ProfileUpdate").actionStatus("Success")
-				.message("Success").build();
+		logAuditEvent("ProfileUpdate", "Success", "User profile updated", user, request);
 
-		eventPublisher.publishEvent(userUpdateAuditEvent);
-
-
-		return new ResponseEntity<JSONResponse>(
-				JSONResponse.builder().success(true).message(messages.getMessage("message.updateUserSuccess", null, locale) + "<br /><br />").build(),
-				HttpStatus.OK);
+		return buildSuccessResponse(messages.getMessage("message.update-user.success", null, locale), null);
 	}
 
 	/**
-	 * Start of the forgot password flow. This API takes in an email address and, if the user exists, will send a password reset token email to them.
+	 * This is used when the user has forgotten their password and wants to reset their password. This will send an email to the user with a link to
+	 * reset their password.
 	 *
-	 * @param userDto the userDTO for passing in the email address from the form
-	 * @param request the request
-	 * @return a generic success response, so as to not leak information about accounts existing or not.
+	 * @param userDto the user data transfer object containing user details
+	 * @param request the HTTP servlet request
+	 * @return a ResponseEntity containing a JSONResponse with the password reset email send result
 	 */
 	@PostMapping("/resetPassword")
-	public ResponseEntity<JSONResponse> resetPassword(@Valid final UserDto userDto, final HttpServletRequest request) {
-		log.debug("UserAPI.resetPassword:" + "email: {}", userDto.getEmail());
-
-		// Lookup User by email
+	public ResponseEntity<JSONResponse> resetPassword(@Valid @RequestBody UserDto userDto, HttpServletRequest request) {
 		User user = userService.findUserByEmail(userDto.getEmail());
-		log.debug("UserAPI.resendRegistrationToken:" + "user: {}", user);
-
 		if (user != null) {
-			String appUrl = UserUtils.getAppUrl(request);
-			userEmailService.sendForgotPasswordVerificationEmail(user, appUrl);
-
-			AuditEvent resetPasswordAuditEvent =
-					AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
-							.userAgent(request.getHeader("User-Agent")).action("Reset Password").actionStatus("Success").message("Success").build();
-
-			eventPublisher.publishEvent(resetPasswordAuditEvent);
-
-		} else {
-			AuditEvent resetPasswordAuditEvent = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
-					.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Reset Password")
-					.actionStatus("Failure").message("Invalid EMail Submitted").extraData("Email submitted: " + userDto.getEmail()).build();
-			eventPublisher.publishEvent(resetPasswordAuditEvent);
+			userEmailService.sendForgotPasswordVerificationEmail(user, UserUtils.getAppUrl(request));
+			logAuditEvent("Reset Password", "Success", "Password reset email sent", user, request);
 		}
-
-		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).redirectUrl(forgotPasswordPendingURI)
-				.message("If account exists, password reset email has been sent!").build(), HttpStatus.OK);
+		return buildSuccessResponse("If account exists, password reset email has been sent!", forgotPasswordPendingURI);
 	}
 
 	/**
-	 * Saves a new password from a password reset flow based on a password reset token.
+	 * Deletes the user's account. This is used when the user wants to delete their account. This will either delete the account or disable it based
+	 * on the configuration of the actuallyDeleteAccount property. After the account is disabled or deleted, the user will be logged out.
 	 *
-	 * @param locale the locale
-	 * @param passwordDto the password dto
-	 * @param request the request
-	 * @return the generic response
-	 */
-	@PostMapping("/savePassword")
-	public ResponseEntity<JSONResponse> savePassword(@Valid PasswordDto passwordDto, final HttpServletRequest request, final Locale locale) {
-		log.debug("UserAPI.savePassword:" + "called with passwordDto: {}", passwordDto);
-
-		final TokenValidationResult validationResult = userService.validatePasswordResetToken(passwordDto.getToken());
-		log.debug("UserAPI.savePassword:" + "result: {}", validationResult);
-		if (validationResult == TokenValidationResult.VALID) {
-			Optional<User> user = userService.getUserByPasswordResetToken(passwordDto.getToken());
-			if (user.isPresent()) {
-				userService.changeUserPassword(user.get(), passwordDto.getNewPassword());
-				log.debug("UserAPI.savePassword:" + "password updated!");
-
-				AuditEvent savePasswordAuditEvent = AuditEvent.builder().source(this).user(user.get()).sessionId(request.getSession().getId())
-						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Reset Save Password")
-						.actionStatus("Success").message("Success").build();
-				eventPublisher.publishEvent(savePasswordAuditEvent);
-
-				// In this case we are returning a success, with multiple messages designed to be displayed on-page,
-				// instead of a redirect URL like most of the other calls.
-				return new ResponseEntity<JSONResponse>(
-						JSONResponse.builder().success(true).message(messages.getMessage("message.resetPasswordSuccess", null, locale))
-								.message("<a href='/user/login.html'>Login</a>").build(),
-						HttpStatus.OK);
-			} else {
-				log.debug("UserAPI.savePassword:" + "user could not be found!");
-				return new ResponseEntity<JSONResponse>(
-						JSONResponse.builder().success(false).code(1).message(messages.getMessage("message.error", null, locale)).build(),
-						HttpStatus.OK);
-			}
-		} else {
-			return new ResponseEntity<JSONResponse>(
-					JSONResponse.builder().success(false).code(2).message(messages.getMessage("message.error", null, locale)).build(), HttpStatus.OK);
-		}
-	}
-
-
-	/**
-	 * Updates a user's password.
-	 *
-	 * @param locale the locale
-	 * @param passwordDto the password dto
-	 * @return the generic response
-	 */
-	// Change user password
-	@PostMapping("/updatePassword")
-	public ResponseEntity<JSONResponse> changeUserPassword(@AuthenticationPrincipal DSUserDetails userDetails, final Locale locale,
-			@Valid PasswordDto passwordDto, final HttpServletRequest request) {
-		if (userDetails == null || userDetails.getUser() == null) {
-			log.error("UserAPI.changeUserPassword:" + "changeUserPassword called with null userDetails or user.");
-			return new ResponseEntity<JSONResponse>(
-					JSONResponse.builder().success(false).code(2).message(messages.getMessage("message.error", null, locale)).build(),
-					HttpStatus.INTERNAL_SERVER_ERROR);
-		}
-		final User user = userDetails.getUser();
-		// Check to see if the provided old password matches the current password
-		if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
-			return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(false).code(1).message("Invalid Old Password").build(),
-					HttpStatus.UNAUTHORIZED);
-
-		}
-		userService.changeUserPassword(user, passwordDto.getNewPassword());
-
-		AuditEvent updatePasswordAuditEvent =
-				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
-						.userAgent(request.getHeader("User-Agent")).action("Update Save Password").actionStatus("Success").message("Success").build();
-
-		eventPublisher.publishEvent(updatePasswordAuditEvent);
-
-		return new ResponseEntity<JSONResponse>(
-				JSONResponse.builder().success(true).code(0).message(messages.getMessage("message.updatePasswordSuccess", null, locale)).build(),
-				HttpStatus.OK);
-	}
-
-	/**
-	 * Deletes the current user's account.
-	 *
-	 * @param locale the locale
-	 * @param request the request
-	 * @return the generic response
+	 * @param userDetails the authenticated user details
+	 * @param request the HTTP servlet request
+	 * @return a ResponseEntity containing a JSONResponse with the account deletion result
 	 */
 	@DeleteMapping("/deleteAccount")
-	public ResponseEntity<JSONResponse> deleteAccount(@AuthenticationPrincipal DSUserDetails userDetails, final Locale locale,
-			final HttpServletRequest request) {
-
-		if (userDetails == null || userDetails.getUser() == null) {
-			log.error("UserAPI.deleteAccount:" + "deleteAccount called with null userDetails or user.");
-			return new ResponseEntity<JSONResponse>(
-					JSONResponse.builder().success(false).code(2).message(messages.getMessage("message.error", null, locale)).build(),
-					HttpStatus.INTERNAL_SERVER_ERROR);
-		}
-		final User user = userDetails.getUser();
+	public ResponseEntity<JSONResponse> deleteAccount(@AuthenticationPrincipal DSUserDetails userDetails, HttpServletRequest request) {
+		validateAuthenticatedUser(userDetails);
+		User user = userDetails.getUser();
 
 		if (actuallyDeleteAccount) {
 			userService.deleteUser(user);
@@ -338,13 +165,119 @@ public class UserAPI {
 			user.setEnabled(false);
 			userService.saveRegisteredUser(user);
 		}
+		logoutUser(request);
+
+		return buildSuccessResponse("Account Deleted", null);
+	}
+
+	// Helper Methods
+	/**
+	 * Validates the user data transfer object.
+	 *
+	 * @param userDto the user data transfer object
+	 */
+	private void validateUserDto(UserDto userDto) {
+		if (isNullOrEmpty(userDto.getEmail())) {
+			throw new IllegalArgumentException("Email is required.");
+		}
+		if (isNullOrEmpty(userDto.getPassword())) {
+			throw new IllegalArgumentException("Password is required.");
+		}
+	}
+
+	/**
+	 * Validates the authenticated user.
+	 *
+	 * @param userDetails the authenticated user details
+	 */
+	private void validateAuthenticatedUser(DSUserDetails userDetails) {
+		if (userDetails == null || userDetails.getUser() == null) {
+			throw new SecurityException("User not logged in.");
+		}
+	}
+
+	/**
+	 * Handles the auto login of the user after registration.
+	 *
+	 * @param user the registered user
+	 * @return the URI to redirect to after registration
+	 */
+	private String handleAutoLogin(User user) {
+		userService.authWithoutPassword(user);
+		return registrationSuccessURI;
+	}
+
+	/**
+	 * Logs out the user.
+	 *
+	 * @param request the HTTP servlet request
+	 */
+	private void logoutUser(HttpServletRequest request) {
 		try {
 			SecurityContextHolder.clearContext();
 			request.logout();
 		} catch (ServletException e) {
-			log.warn("UserAPI.deleteAccount:" + "Exception on logout!", e);
+			log.warn("Logout failed during account deletion.", e);
 		}
+	}
 
-		return new ResponseEntity<JSONResponse>(JSONResponse.builder().success(true).message("Account Deleted").build(), HttpStatus.OK);
+	/**
+	 * Publishes a registration event.
+	 *
+	 * @param user the registered user
+	 * @param request the HTTP servlet request
+	 */
+	private void publishRegistrationEvent(User user, HttpServletRequest request) {
+		String appUrl = request.getContextPath();
+		eventPublisher.publishEvent(new OnRegistrationCompleteEvent(user, request.getLocale(), appUrl));
+	}
+
+	/**
+	 * Logs an audit event.
+	 *
+	 * @param action the action performed
+	 * @param status the status of the action
+	 * @param message the message describing the action
+	 * @param user the user involved in the action
+	 * @param request the HTTP servlet request
+	 */
+	private void logAuditEvent(String action, String status, String message, User user, HttpServletRequest request) {
+		AuditEvent event =
+				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
+						.userAgent(request.getHeader("User-Agent")).action(action).actionStatus(status).message(message).build();
+		eventPublisher.publishEvent(event);
+	}
+
+	/**
+	 * Checks if a string is null or empty.
+	 *
+	 * @param value
+	 * @return true if the string is null or empty, false otherwise
+	 */
+	private boolean isNullOrEmpty(String value) {
+		return value == null || value.isEmpty();
+	}
+
+	/**
+	 * Builds an error response.
+	 *
+	 * @param message
+	 * @param code
+	 * @param status
+	 * @return a ResponseEntity containing a JSONResponse with the error response
+	 */
+	private ResponseEntity<JSONResponse> buildErrorResponse(String message, int code, HttpStatus status) {
+		return ResponseEntity.status(status).body(JSONResponse.builder().success(false).code(code).message(message).build());
+	}
+
+	/**
+	 * Builds a success response.
+	 *
+	 * @param message
+	 * @param redirectUrl
+	 * @return a ResponseEntity containing a JSONResponse with the success response
+	 */
+	private ResponseEntity<JSONResponse> buildSuccessResponse(String message, String redirectUrl) {
+		return ResponseEntity.ok(JSONResponse.builder().success(true).code(0).message(message).redirectUrl(redirectUrl).build());
 	}
 }

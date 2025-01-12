@@ -7,7 +7,6 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
-import com.digitalsanctuary.spring.user.exceptions.OAuth2AuthenticationProcessingException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
  * @see org.springframework.security.core.userdetails.User
  * @see com.digitalsanctuary.spring.user.persistence.model.User
  * @see com.digitalsanctuary.spring.user.persistence.repository.UserRepository
- * @see com.digitalsanctuary.spring.user.exceptions.OAuth2AuthenticationProcessingException
  */
 @Slf4j
 @Service
@@ -52,8 +50,6 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @param registrationId The registration ID for the OAuth2 provider.
      * @param oAuth2User The OAuth2User object containing information about the authenticated user.
      * @return A User object representing the authenticated user.
-     * @throws OAuth2AuthenticationProcessingException If the user is signed up with a different OAuth2 provider account than the one they are
-     *         currently using to log in.
      */
     public User handleOAuthLoginSuccess(String registrationId, OAuth2User oAuth2User) {
         User user = null;
@@ -148,8 +144,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
     /**
      * Retrieves user information from a Facebook OAuth2User object.
      *
-     * @param principal
-     * @return
+     * @param principal The OAuth2User object containing information about the authenticated user.
+     * @return A User object representing the authenticated user.
      */
     public User getUserFromFacebookOAuth2User(OAuth2User principal) {
         log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal);

@@ -10,7 +10,7 @@ import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
-import com.digitalsanctuary.spring.user.event.AuditEvent;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
@@ -58,6 +58,7 @@ public class UserActionController {
 	/**
 	 * Validate a forgot password token link from an email, and if valid, show the change password page.
 	 *
+	 * @param request the request
 	 * @param model the model
 	 * @param token the token
 	 * @return the model and view
@@ -113,7 +114,7 @@ public class UserActionController {
 				eventPublisher.publishEvent(registrationAuditEvent);
 			}
 
-			model.addAttribute("message", messages.getMessage("message.accountVerified", null, locale));
+			model.addAttribute("message", messages.getMessage("message.account.verified", null, locale));
 			log.debug("UserAPI.confirmRegistration: account verified and user logged in!");
 			String redirectString = "redirect:" + registrationSuccessURI;
 			return new ModelAndView(redirectString, model);

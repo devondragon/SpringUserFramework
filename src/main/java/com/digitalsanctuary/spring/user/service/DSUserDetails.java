@@ -47,6 +47,7 @@ public class DSUserDetails implements UserDetails, OAuth2User {
 	/** The granted authorities. */
 	private final Collection<? extends GrantedAuthority> grantedAuthorities;
 
+	/** The attributes. */
 	private Map<String, Object> attributes;
 
 	/**
