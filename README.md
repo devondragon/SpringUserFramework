@@ -14,6 +14,8 @@
 
 # SpringUserFramework
 
+
+
 SpringUserFramework is a Java Spring Boot User Management Framework designed to simplify the implementation of user management features in your SpringBoot web application. It is built on top of [Spring Security](https://spring.io/projects/spring-security) and provides out-of-the-box support for registration, login, logout, and forgot password flows. It also supports SSO with Google and Facebook.
 
 The framework includes basic example pages that are unstyled, allowing for seamless integration into your application.
