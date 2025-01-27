@@ -21,7 +21,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserActionController handles non-API, non-Page requests like token validation links from emails.
+ * The UserActionController handles non-API, non-Page requests like token
+ * validation links from emails.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -56,20 +57,23 @@ public class UserActionController {
 	private String forgotPasswordChangeURI;
 
 	/**
-	 * Validate a forgot password token link from an email, and if valid, show the change password page.
+	 * Validate a forgot password token link from an email, and if valid, show the
+	 * change password page.
 	 *
 	 * @param request the request
-	 * @param model the model
-	 * @param token the token
+	 * @param model   the model
+	 * @param token   the token
 	 * @return the model and view
 	 */
-	@GetMapping("/user/changePassword")
-	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model, @RequestParam("token") final String token) {
+	@GetMapping("${user.security.changePasswordURI:/user/changePassword}")
+	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model,
+			@RequestParam("token") final String token) {
 		log.debug("UserAPI.showChangePasswordPage: called with token: {}", token);
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
 		log.debug("UserAPI.showChangePasswordPage:" + "result: {}", result);
 		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
-				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("showChangePasswordPage")
+				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent"))
+				.action("showChangePasswordPage")
 				.actionStatus("Success").message("Requested. Result:" + result).build();
 
 		eventPublisher.publishEvent(changePasswordAuditEvent);
@@ -85,15 +89,16 @@ public class UserActionController {
 	}
 
 	/**
-	 * Validate a forgot password token link from an email, and if valid, show the registration success page.
+	 * Validate a forgot password token link from an email, and if valid, show the
+	 * registration success page.
 	 *
 	 * @param request the request
-	 * @param model the model
-	 * @param token the token
+	 * @param model   the model
+	 * @param token   the token
 	 * @return the model and view
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 */
-	@GetMapping("/user/registrationConfirm")
+	@GetMapping("${user.security.registrationConfirmURI:/user/registrationConfirm}")
 	public ModelAndView confirmRegistration(final HttpServletRequest request, final ModelMap model,
 			@RequestParam("token") final String token) throws UnsupportedEncodingException {
 		log.debug("UserAPI.confirmRegistration: called with token: {}", token);
@@ -107,8 +112,10 @@ public class UserActionController {
 				userService.authWithoutPassword(user);
 				userVerificationService.deleteVerificationToken(token);
 
-				AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
-						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent")).action("Registration Confirmation")
+				AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user)
+						.sessionId(request.getSession().getId())
+						.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent"))
+						.action("Registration Confirmation")
 						.actionStatus("Success").message("Registration Confirmed. User logged in.").build();
 
 				eventPublisher.publishEvent(registrationAuditEvent);
