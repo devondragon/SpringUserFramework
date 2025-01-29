@@ -11,6 +11,11 @@
       "description": "A description for 'user.registration.google-enabled'"
     },
     {
+      "name": "user.registration.keycloak-enabled",
+      "type": "java.lang.String",
+      "description": "A description for 'user.registration.keycloak-enabled'"
+    },
+    {
       "name": "user.registration.send-verification-email",
       "type": "java.lang.String",
       "description": "A description for 'user.registration.send-verification-email'"

@@ -57,6 +57,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             user = getUserFromGoogleOAuth2User(oAuth2User);
         } else if (registrationId.equalsIgnoreCase("facebook")) {
             user = getUserFromFacebookOAuth2User(oAuth2User);
+        } else if (registrationId.equalsIgnoreCase("keycloak")) {
+            user = getUserFromKeycloakOAuth2User(oAuth2User);
         } else {
             log.error("Sorry! Login with " + registrationId + " is not supported yet.");
             throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
@@ -138,6 +140,28 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         user.setFirstName(principal.getAttribute("given_name"));
         user.setLastName(principal.getAttribute("family_name"));
         user.setProvider(User.Provider.GOOGLE);
+        return user;
+    }
+
+    /**
+     *
+     * Retrieves user information from a Keycloak OAuth2User object.
+     *
+     * @param principal The OAuth2User object containing information about the authenticated user.
+     * @return A User object representing the authenticated user.
+     */
+    public User getUserFromKeycloakOAuth2User(OAuth2User principal) {
+        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal);
+        if (principal == null) {
+            return null;
+        }
+        log.debug("Principal attributes: {}", principal.getAttributes());
+        User user = new User();
+        user.setEmail(principal.getAttribute("email"));
+        user.setFirstName(principal.getAttribute("firstName"));
+        user.setLastName(principal.getAttribute("lastName"));
+        user.setId(principal.getAttribute("lastName"));
+        user.setProvider(User.Provider.KEYCLOAK);
         return user;
     }
 
