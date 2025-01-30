@@ -151,7 +151,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @return A User object representing the authenticated user.
      */
     public User getUserFromKeycloakOAuth2User(OAuth2User principal) {
-        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal);
+        log.debug("Getting user info from Keycloak OAuth2 provider with principal: {}", principal);
         if (principal == null) {
             return null;
         }
