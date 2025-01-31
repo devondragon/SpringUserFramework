@@ -9,6 +9,7 @@
     - [Mail Sending (SMTP)](#mail-sending-smtp)
     - [SSO OAuth2 with Google and Facebook](#sso-oauth2-with-google-and-facebook)
   - [Overriding Spring Security Messages](#overriding-spring-security-messages)
+  - [Developing or Contributing](#developing-or-contributing)
   - [Notes](#notes)
 
 
@@ -131,6 +132,11 @@ For public OAuth you will need a public hostname and HTTPS enabled.  You can use
 
 You may want to override the default Spring Security user facing messages.  You can do this in your messages.properties file, by adding any of the message keys from Spring Security (found here: [Spring Security Messages](https://github.com/spring-projects/spring-security/blob/main/core/src/main/resources/org/springframework/security/messages.properties)) and providing your own values.
 
+
+
+## Developing or Contributing
+
+If you would like to contribute to this project by working on a GitHub Issue, please ask for the Issue to be assigned to you, and then follow the steps in the [Developer Guilde](DEVELOP.md).
 
 
 ## Notes
