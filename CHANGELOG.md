@@ -1,3 +1,15 @@
+## [3.0.1] - 2025-02-01
+### Features
+- The controller path mappings are now configurable.
+
+### Fixes
+- Fixed the bug where the schema.sql file was in a location that caused it to be automatically executed, it has now been migrated from the resources to the db-scripts directory.
+
+### Breaking Changes
+- Upgraded Gradle wrapper to version 8.12 and the project has been converted to a Maven library, check the updated documentation for details.
+- Updated to a new version: '3.0.1-SNAPSHOT'. This may introduce changes that are incompatible with previous versions.
+- Version 3.0.0 was a major release with unspecified breaking changes (see CHANGELOG for version 3.0.0 for more details).
+
 ## [3.0.0] - 2025-01-12
 ### Features
 - Converted project from a simple framework to a Maven library with a separate demo app (#136).
