@@ -91,7 +91,7 @@ If you set your JPA Hibernate ddl-auto property to "create" it will create the t
 If you are not using automatic schema updates or Flyway, you can set up your database manually using the provided `schema.sql` file:
 
 ```bash
-mysql -u username -p database_name < src/main/resources/schema.sql
+mysql -u username -p database_name < db-scripts/mariadb-schema.sql
 ```
 
 Flyway support will be coming soon. This will allow you to automatically update your database schema as you deploy new versions of your application.
