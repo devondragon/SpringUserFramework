@@ -54,7 +54,7 @@ The framework provides support for the following features:
 This Framework is now available as a library on Maven Central.  You can add it to your Gradle project by adding the following dependency to your `build.gradle` file:
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.0.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.0.1'
 ```
 
 Or to your Maven project by adding it to your `pom.xml` file:
@@ -63,7 +63,7 @@ Or to your Maven project by adding it to your `pom.xml` file:
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
 </dependency>
 ```
 
@@ -91,7 +91,7 @@ If you set your JPA Hibernate ddl-auto property to "create" it will create the t
 If you are not using automatic schema updates or Flyway, you can set up your database manually using the provided `schema.sql` file:
 
 ```bash
-mysql -u username -p database_name < src/main/resources/schema.sql
+mysql -u username -p database_name < db-scripts/mariadb-schema.sql
 ```
 
 Flyway support will be coming soon. This will allow you to automatically update your database schema as you deploy new versions of your application.
