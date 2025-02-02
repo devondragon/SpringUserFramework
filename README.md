@@ -54,7 +54,7 @@ The framework provides support for the following features:
 This Framework is now available as a library on Maven Central.  You can add it to your Gradle project by adding the following dependency to your `build.gradle` file:
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.0.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.0.1'
 ```
 
 Or to your Maven project by adding it to your `pom.xml` file:
@@ -63,7 +63,7 @@ Or to your Maven project by adding it to your `pom.xml` file:
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
 </dependency>
 ```
 
