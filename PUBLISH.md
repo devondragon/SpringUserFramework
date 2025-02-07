@@ -31,4 +31,9 @@ gradle publishMavenCentral
 ```
 
 
+## Create a new Release and Publish to Maven Central
+
+```shell
+gradle release
+```
 

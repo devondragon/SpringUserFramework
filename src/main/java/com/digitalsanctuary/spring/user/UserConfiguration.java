@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Configuration
 @EnableAsync
 @EnableScheduling
+@EnableMethodSecurity
 @ComponentScan(basePackages = "com.digitalsanctuary.spring.user")
 @Import(UserAutoConfigurationRegistrar.class)
 public class UserConfiguration {
