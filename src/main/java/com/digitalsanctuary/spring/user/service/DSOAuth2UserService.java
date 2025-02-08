@@ -158,8 +158,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         log.debug("Principal attributes: {}", principal.getAttributes());
         User user = new User();
         user.setEmail(principal.getAttribute("email"));
-        user.setFirstName(principal.getAttribute("firstName"));
-        user.setLastName(principal.getAttribute("lastName"));
+        user.setFirstName(principal.getAttribute("given_name"));
+        user.setLastName(principal.getAttribute("family_name"));
         user.setProvider(User.Provider.KEYCLOAK);
         return user;
     }
