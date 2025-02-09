@@ -57,7 +57,6 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             user = getUserFromGoogleOAuth2User(oAuth2User);
         } else if (registrationId.equalsIgnoreCase("facebook")) {
             user = getUserFromFacebookOAuth2User(oAuth2User);
-        } else if (registrationId.equalsIgnoreCase("keycloak")) {
         } else {
             log.error("Sorry! Login with " + registrationId + " is not supported yet.");
             throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
