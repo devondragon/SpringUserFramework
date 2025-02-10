@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -113,6 +115,7 @@ public class WebSecurityConfig {
 	private final LogoutSuccessService logoutSuccessService;
 	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
+	private final DSOidcUserService dsOidcUserService;
 
 	/**
 	 *
@@ -183,7 +186,10 @@ public class WebSecurityConfig {
 					request.getSession().setAttribute("error.message", exception.getMessage());
 					response.sendRedirect(loginPageURI);
 					// handler.onAuthenticationFailure(request, response, exception);
-				}).userInfoEndpoint(userInfo -> userInfo.userService(dsOAuth2UserService)));
+				}).userInfoEndpoint(userInfo -> {
+					userInfo.userService(dsOAuth2UserService);
+					userInfo.oidcUserService(dsOidcUserService);
+				}));
 	}
 
 	// Commenting this out to try adding /error to the unprotected URIs list instead
