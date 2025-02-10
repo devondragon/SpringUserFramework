@@ -27,6 +27,9 @@ public class UserPageController {
 	@Value("${user.registration.googleEnabled}")
 	private boolean googleEnabled;
 
+	@Value("${user.registration.keycloakEnabled}")
+	private boolean keycloakEnabled;
+
 	/**
 	 * Login Page.
 	 *
@@ -36,7 +39,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/login.html")
+	@GetMapping("${user.security.loginPageURI:/user/login.html}")
 	public String login(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
 		log.debug("UserPageController.login:" + "userDetails: {}", userDetails);
 		if (session != null && session.getAttribute("error.message") != null) {
@@ -45,6 +48,7 @@ public class UserPageController {
 		}
 		model.addAttribute("googleEnabled", googleEnabled);
 		model.addAttribute("facebookEnabled", facebookEnabled);
+		model.addAttribute("keycloakEnabled", keycloakEnabled);
 		return "user/login";
 	}
 
@@ -56,7 +60,7 @@ public class UserPageController {
 	 * @param model the model
 	 * @return the string
 	 */
-	@GetMapping("/user/register.html")
+	@GetMapping("${user.security.registrationURI:/user/register.html}")
 	public String register(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
 		log.debug("UserPageController.register:" + "userDetails: {}", userDetails);
 		if (session != null && session.getAttribute("error.message") != null) {
@@ -65,6 +69,7 @@ public class UserPageController {
 		}
 		model.addAttribute("googleEnabled", googleEnabled);
 		model.addAttribute("facebookEnabled", facebookEnabled);
+		model.addAttribute("keycloakEnabled", keycloakEnabled);
 		return "user/register";
 	}
 
@@ -73,7 +78,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/registration-pending-verification.html")
+	@GetMapping("${user.security.registrationPendingURI:/user/registration-pending-verification.html}")
 	public String registrationPending() {
 		return "user/registration-pending-verification";
 	}
@@ -87,8 +92,9 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/registration-complete.html")
-	public String registrationComplete(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
+	@GetMapping("${user.security.registrationSuccessURI:/user/registration-complete.html}")
+	public String registrationComplete(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session,
+			ModelMap model) {
 		log.debug("UserPageController.registrationComplete:" + "userDetails: {}", userDetails);
 		return "user/registration-complete";
 	}
@@ -98,7 +104,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/request-new-verification-email.html")
+	@GetMapping("${user.security.registrationNewVerificationURI:/user/request-new-verification-email.html}")
 	public String requestNewVerificationEMail() {
 		return "user/request-new-verification-email";
 	}
@@ -108,7 +114,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/forgot-password.html")
+	@GetMapping("${user.security.forgotPasswordURI:/user/forgot-password.html}")
 	public String forgotPassword() {
 		return "user/forgot-password";
 	}
@@ -118,7 +124,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/forgot-password-pending-verification.html")
+	@GetMapping("${user.security.forgotPasswordPendingURI:/user/forgot-password-pending-verification.html}")
 	public String forgotPasswordPendingVerification() {
 		return "user/forgot-password-pending-verification";
 	}
@@ -128,7 +134,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/forgot-password-change.html")
+	@GetMapping("${user.security.forgotPasswordChangeURI:/user/forgot-password-change.html}")
 	public String forgotPasswordChange() {
 		return "user/forgot-password-change";
 	}
@@ -140,8 +146,9 @@ public class UserPageController {
 	 * @param model the model
 	 * @return String
 	 */
-	@GetMapping("/user/update-user.html")
-	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request, final ModelMap model) {
+	@GetMapping("${user.security.updateUserURI:/user/update-user.html}")
+	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request,
+			final ModelMap model) {
 		if (userDetails != null) {
 			User user = userDetails.getUser();
 			UserDto userDto = new UserDto();
@@ -157,7 +164,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/update-password.html")
+	@GetMapping("${user.security.updatePasswordURI:/user/update-password.html}")
 	public String updatePassword() {
 		return "user/update-password";
 	}
@@ -167,7 +174,7 @@ public class UserPageController {
 	 *
 	 * @return the string
 	 */
-	@GetMapping("/user/delete-account.html")
+	@GetMapping("${user.security.deleteAccountURI:/user/delete-account.html}")
 	public String deleteAccount() {
 		return "user/delete-account";
 	}

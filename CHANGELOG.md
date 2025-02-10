@@ -1,3 +1,12 @@
+## [3.0.1] - 2025-02-01
+### Features
+- The controller path mappings are now configurable.
+
+### Fixes
+- Fixed the bug where the schema.sql file was in a location that caused it to be automatically executed, it has now been migrated from the resources to the db-scripts directory.
+
+
+
 ## [3.0.0] - 2025-01-12
 ### Features
 - Converted project from a simple framework to a Maven library with a separate demo app (#136).

@@ -41,6 +41,7 @@ The framework provides support for the following features:
 - Database-backed user store using Spring JPA.
 - SSO support for Google
 - SSO support for Facebook
+- SSO support for Keycloak
 - Configuration options to control anonymous access, whitelist URIs, and protect specific URIs requiring a logged-in user session.
 - CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
 - Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
@@ -54,7 +55,7 @@ The framework provides support for the following features:
 This Framework is now available as a library on Maven Central.  You can add it to your Gradle project by adding the following dependency to your `build.gradle` file:
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.0.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.0.1'
 ```
 
 Or to your Maven project by adding it to your `pom.xml` file:
@@ -63,7 +64,7 @@ Or to your Maven project by adding it to your `pom.xml` file:
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
 </dependency>
 ```
 
@@ -91,7 +92,7 @@ If you set your JPA Hibernate ddl-auto property to "create" it will create the t
 If you are not using automatic schema updates or Flyway, you can set up your database manually using the provided `schema.sql` file:
 
 ```bash
-mysql -u username -p database_name < src/main/resources/schema.sql
+mysql -u username -p database_name < db-scripts/mariadb-schema.sql
 ```
 
 Flyway support will be coming soon. This will allow you to automatically update your database schema as you deploy new versions of your application.
@@ -102,7 +103,7 @@ The framework sends emails for verification links, forgot password flow, etc... 
 
 
 ### SSO OAuth2 with Google and Facebook
-The framework supports SSO OAuth2 with Google and Facebook.  To enable this you need to configure the client id and secret for each provider.  This is done in the application.yml (or application.properties) file using the [Spring Security OAuth2 properties](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/core.html). You can see the example configuration in the Demo Project's `application.yml` file.
+The framework supports SSO OAuth2 with Google, Facebook and Keycloak.  To enable this you need to configure the client id and secret for each provider.  This is done in the application.yml (or application.properties) file using the [Spring Security OAuth2 properties](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/core.html). You can see the example configuration in the Demo Project's `application.yml` file.
 
 Here is a quick example for your reference:
 
@@ -120,9 +121,13 @@ spring:
             client-id: YOUR_FACEBOOK_CLIENT_ID
             client-secret: YOUR_FACEBOOK_CLIENT_SECRET
             redirect-uri: "{baseUrl}/login/oauth2/code/facebook"
+          keycloak:
+            client-id: YOUR_KEYCLOAK_CLIENT_ID
+            client-secret: YOUR_KEYCLOAK_CLIENT_SECRET
+            redirect-uri: "{baseUrl}/login/oauth2/code/keycloak"
 ```
 
-For public OAuth you will need a public hostname and HTTPS enabled.  You can use ngrok or Cloudflare tunnels to create a public hostname and tunnel to your local machine during development.  You can then use the ngrok hostname in your Google and Facebook developer console configuration.
+For public OAuth you will need a public hostname and HTTPS enabled.  You can use ngrok or Cloudflare tunnels to create a public hostname and tunnel to your local machine during development.  You can then use the ngrok hostname in your Google, Facebook and Keycloak developer console configuration.
 
 
 
