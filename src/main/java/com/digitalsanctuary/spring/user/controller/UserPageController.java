@@ -27,12 +27,15 @@ public class UserPageController {
 	@Value("${user.registration.googleEnabled}")
 	private boolean googleEnabled;
 
+	@Value("${user.registration.keycloakEnabled}")
+	private boolean keycloakEnabled;
+
 	/**
 	 * Login Page.
 	 *
 	 * @param userDetails the user details
-	 * @param session     the session
-	 * @param model       the model
+	 * @param session the session
+	 * @param model the model
 	 *
 	 * @return the string
 	 */
@@ -45,6 +48,7 @@ public class UserPageController {
 		}
 		model.addAttribute("googleEnabled", googleEnabled);
 		model.addAttribute("facebookEnabled", facebookEnabled);
+		model.addAttribute("keycloakEnabled", keycloakEnabled);
 		return "user/login";
 	}
 
@@ -52,8 +56,8 @@ public class UserPageController {
 	 * Register Page.
 	 *
 	 * @param userDetails the user details
-	 * @param session     the session
-	 * @param model       the model
+	 * @param session the session
+	 * @param model the model
 	 * @return the string
 	 */
 	@GetMapping("${user.security.registrationURI:/user/register.html}")
@@ -65,6 +69,7 @@ public class UserPageController {
 		}
 		model.addAttribute("googleEnabled", googleEnabled);
 		model.addAttribute("facebookEnabled", facebookEnabled);
+		model.addAttribute("keycloakEnabled", keycloakEnabled);
 		return "user/register";
 	}
 
@@ -82,8 +87,8 @@ public class UserPageController {
 	 * Registration complete.
 	 *
 	 * @param userDetails the user details
-	 * @param session     the session
-	 * @param model       the model
+	 * @param session the session
+	 * @param model the model
 	 *
 	 * @return the string
 	 */
@@ -134,10 +139,11 @@ public class UserPageController {
 		return "user/forgot-password-change";
 	}
 
+
 	/**
 	 * @param userDetails the user details
-	 * @param request     the request
-	 * @param model       the model
+	 * @param request the request
+	 * @param model the model
 	 * @return String
 	 */
 	@GetMapping("${user.security.updateUserURI:/user/update-user.html}")
