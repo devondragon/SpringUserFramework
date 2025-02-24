@@ -41,6 +41,7 @@ The framework provides support for the following features:
 - Database-backed user store using Spring JPA.
 - SSO support for Google
 - SSO support for Facebook
+- SSO support for Keycloak
 - Configuration options to control anonymous access, whitelist URIs, and protect specific URIs requiring a logged-in user session.
 - CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
 - Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
@@ -102,7 +103,7 @@ The framework sends emails for verification links, forgot password flow, etc... 
 
 
 ### SSO OAuth2 with Google and Facebook
-The framework supports SSO OAuth2 with Google and Facebook.  To enable this you need to configure the client id and secret for each provider.  This is done in the application.yml (or application.properties) file using the [Spring Security OAuth2 properties](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/core.html). You can see the example configuration in the Demo Project's `application.yml` file.
+The framework supports SSO OAuth2 with Google, Facebook and Keycloak.  To enable this you need to configure the client id and secret for each provider.  This is done in the application.yml (or application.properties) file using the [Spring Security OAuth2 properties](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/core.html). You can see the example configuration in the Demo Project's `application.yml` file.
 
 Here is a quick example for your reference:
 
@@ -120,9 +121,13 @@ spring:
             client-id: YOUR_FACEBOOK_CLIENT_ID
             client-secret: YOUR_FACEBOOK_CLIENT_SECRET
             redirect-uri: "{baseUrl}/login/oauth2/code/facebook"
+          keycloak:
+            client-id: YOUR_KEYCLOAK_CLIENT_ID
+            client-secret: YOUR_KEYCLOAK_CLIENT_SECRET
+            redirect-uri: "{baseUrl}/login/oauth2/code/keycloak"
 ```
 
-For public OAuth you will need a public hostname and HTTPS enabled.  You can use ngrok or Cloudflare tunnels to create a public hostname and tunnel to your local machine during development.  You can then use the ngrok hostname in your Google and Facebook developer console configuration.
+For public OAuth you will need a public hostname and HTTPS enabled.  You can use ngrok or Cloudflare tunnels to create a public hostname and tunnel to your local machine during development.  You can then use the ngrok hostname in your Google, Facebook and Keycloak developer console configuration.
 
 
 

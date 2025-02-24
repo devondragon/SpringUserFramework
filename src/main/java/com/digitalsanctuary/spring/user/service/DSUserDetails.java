@@ -4,8 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+
+import lombok.Builder;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import lombok.ToString;
@@ -36,7 +41,7 @@ import lombok.ToString;
  * }</pre>
  */
 @ToString
-public class DSUserDetails implements UserDetails, OAuth2User {
+public class DSUserDetails implements UserDetails, OAuth2User, OidcUser {
 
 	/** The Constant serialVersionUID. */
 	private static final long serialVersionUID = 5286810064622508389L;
@@ -49,6 +54,12 @@ public class DSUserDetails implements UserDetails, OAuth2User {
 
 	/** The attributes. */
 	private Map<String, Object> attributes;
+
+	/** The Oidc user properties. */
+	private OidcUserInfo oidcUserInfo;
+
+	/** The Oidc user token. */
+	private OidcIdToken oidcIdToken;
 
 	/**
 	 * Instantiates a new DS user details.
@@ -69,6 +80,34 @@ public class DSUserDetails implements UserDetails, OAuth2User {
 	 */
 	public DSUserDetails(User user) {
 		this(user, null);
+	}
+
+	/**
+	 * Instantiates a new DS user details.
+	 *
+	 * @param user the user
+	 * @param oidcUserInfo  containing claims about the user
+	 * @param oidcIdToken  containing claims about the user
+	 * @param grantedAuthorities the granted authorities (optional, default = empty list)
+	 */
+	@Builder
+	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken, Collection<? extends GrantedAuthority> grantedAuthorities) {
+		this.user = user;
+		this.oidcUserInfo = oidcUserInfo;
+		this.oidcIdToken = oidcIdToken;
+		this.grantedAuthorities = grantedAuthorities != null ? grantedAuthorities : new ArrayList<>();
+	}
+
+	/**
+	 * Instantiates a new DS user details.
+	 *
+	 * @param user the user
+	 * @param oidcUserInfo  containing claims about the user
+	 * @param oidcIdToken  containing claims about the user
+	 */
+	@Builder
+	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken) {
+		this(user, oidcUserInfo, oidcIdToken, null);
 	}
 
 	/**
@@ -160,4 +199,18 @@ public class DSUserDetails implements UserDetails, OAuth2User {
 		return user.getFullName();
 	}
 
+	@Override
+	public Map<String, Object> getClaims() {
+		return oidcUserInfo.getClaims();
+	}
+
+	@Override
+	public OidcUserInfo getUserInfo() {
+		return oidcUserInfo;
+	}
+
+	@Override
+	public OidcIdToken getIdToken() {
+		return oidcIdToken;
+	}
 }

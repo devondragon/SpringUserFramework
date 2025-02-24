@@ -40,7 +40,12 @@ public class User {
 		/**
 		 * Login using Apple as the authentication provider.
 		 */
-		APPLE
+		APPLE,
+
+		/**
+		 * Login using Keycloak as the authentication provider.
+		 */
+		KEYCLOAK
 	}
 
 	/** The id. */
