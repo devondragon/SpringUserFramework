@@ -1,3 +1,18 @@
+## [3.1.1] - 2025-02-24
+### Features
+- **Version Update to Develop Branch**: The project version has been incremented to `3.1.1-SNAPSHOT`. This is a preparatory step for future developments, ensuring that ongoing changes do not interfere with the stable release version. This change was made in the `gradle.properties` file. ([commit d24ae77c](#))
+
+### Fixes
+- **Dependency Updates**: The dependencies have been updated to ensure compatibility and incorporate the latest security and performance enhancements:
+  - Spring Boot has been upgraded from version `3.4.1` to `3.4.3`.
+  - The plugin `com.github.ben-manes.versions` has been updated from `0.51.0` to `0.52.0`.
+  These updates were applied within the `build.gradle` file, reflecting changes in both the plugins and extension configurations. ([commit a498695e](#), [commit fb7aeb6](#))
+
+### Other Changes
+- **Merged Dependency Update**: As part of maintaining the project's core dependencies, the PR that updated Spring Boot and related plugins was successfully merged, finalizing these changes into the mainline development branch. This ensures all team members and CI/CD pipelines use the latest verified configurations. ([commit a498695e](#))
+
+There were no breaking changes, refactorings, documentation updates, or test-related changes in this update cycle. The focus was on maintaining a secure, compatible, and up-to-date codebase.
+
 ## [3.1.0] - 2025-02-24
 # Changelog
 
