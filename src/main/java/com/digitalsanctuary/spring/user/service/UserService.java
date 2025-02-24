@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,8 +21,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
-import com.digitalsanctuary.spring.user.persistence.model.Privilege;
-import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
@@ -101,8 +98,7 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  * <ul>
  * <li>{@link #emailExists(String)}: Checks if an email exists in the user repository.</li>
- * <li>{@link #getAuthorities(User)}: Generates the list of authorities for a user.</li>
- * <li>{@link #authenticateUser(DSUserDetails, List)}: Authenticates a user by setting the authentication object in the security context.</li>
+ * <li>{@link #authenticateUser(DSUserDetails, Collection)}: Authenticates a user by setting the authentication object in the security context.</li>
  * <li>{@link #storeSecurityContextInSession()}: Stores the current security context in the session.</li>
  * </ul>
  *
@@ -192,6 +188,8 @@ public class UserService {
 
 	/** The user verification service. */
 	public final UserVerificationService userVerificationService;
+
+	private final AuthorityService authorityService;
 
 	/** The user details service. */
 	private final DSUserDetailsService dsUserDetailsService;
@@ -323,7 +321,8 @@ public class UserService {
 	 * @return true, if successful
 	 */
 	public boolean checkIfValidOldPassword(final User user, final String oldPassword) {
-		System.out.println(user.getPassword() + " " + oldPassword);
+		// Removed System.out.println, using log.debug for minimal output (avoid logging passwords in production)
+		log.debug("Verifying old password for user: {}", user.getEmail());
 		return passwordEncoder.matches(oldPassword, user.getPassword());
 	}
 
@@ -334,7 +333,7 @@ public class UserService {
 	 * @return true, if the email address is already in the user repository
 	 */
 	private boolean emailExists(final String email) {
-		return userRepository.findByEmail(email) != null;
+		return userRepository.findByEmail(email.toLowerCase()) != null;
 	}
 
 	/**
@@ -395,7 +394,7 @@ public class UserService {
 		}
 
 		// Generate authorities from user roles and privileges
-		List<GrantedAuthority> authorities = getAuthorities(user);
+		Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(user);
 
 		// Authenticate user
 		authenticateUser(userDetails, authorities);
@@ -407,25 +406,12 @@ public class UserService {
 	}
 
 	/**
-	 * Generates the list of authorities for the given user from their roles and privileges.
-	 *
-	 * @param user The user whose authorities to generate.
-	 * @return The list of authorities for the user.
-	 */
-
-	private List<GrantedAuthority> getAuthorities(User user) {
-		List<Privilege> privileges =
-				user.getRoles().stream().map(Role::getPrivileges).flatMap(Collection::stream).distinct().collect(Collectors.toList());
-		return privileges.stream().map(p -> new SimpleGrantedAuthority(p.getName())).collect(Collectors.toList());
-	}
-
-	/**
 	 * Authenticates the user by creating an authentication object and setting it in the security context.
 	 *
 	 * @param userDetails The user details.
 	 * @param authorities The list of authorities for the user.
 	 */
-	private void authenticateUser(DSUserDetails userDetails, List<GrantedAuthority> authorities) {
+	private void authenticateUser(DSUserDetails userDetails, Collection<? extends GrantedAuthority> authorities) {
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 	}
@@ -447,5 +433,7 @@ public class UserService {
 		// Store the security context in the session
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
+
+
 
 }
