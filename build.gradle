@@ -1,7 +1,7 @@
 plugins {
-    id 'org.springframework.boot' version '3.4.1'
+    id 'org.springframework.boot' version '3.4.3'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'com.github.ben-manes.versions' version '0.51.0'
+    id 'com.github.ben-manes.versions' version '0.52.0'
     id 'java-library'
     id 'maven-publish'
     id 'signing'
@@ -18,7 +18,7 @@ group = 'com.digitalsanctuary.springuser'
 description = 'Spring User Framework'
 
 ext {
-    springBootVersion = '3.4.1'
+    springBootVersion = '3.4.3'
     lombokVersion = '1.18.36'
 }
 
