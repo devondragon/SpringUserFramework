@@ -44,6 +44,10 @@ public class UserServiceTest {
     public UserVerificationService userVerificationService;
     @Mock
     private DSUserDetailsService dsUserDetailsService;
+
+    @Mock
+    private AuthorityService authorityService;
+
     private UserService userService;
     private User testUser;
     private UserDto testUserDto;
@@ -65,11 +69,8 @@ public class UserServiceTest {
         testUserDto.setPassword("testPassword");
         testUserDto.setRole(1);
 
-        userService = new UserService(
-                userRepository, tokenRepository, passwordTokenRepository,
-                passwordEncoder, roleRepository, sessionRegistry,
-                userEmailService, userVerificationService, dsUserDetailsService
-        );
+        userService = new UserService(userRepository, tokenRepository, passwordTokenRepository, passwordEncoder, roleRepository, sessionRegistry,
+                userEmailService, userVerificationService, authorityService, dsUserDetailsService);
     }
 
     @Test
