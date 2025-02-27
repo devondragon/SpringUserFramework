@@ -89,13 +89,13 @@ public class UserActionController {
 	}
 
 	/**
-	 * Validate a forgot password token link from an email, and if valid, show the
-	 * registration success page.
+	 * Validates a registration token received from an email link, and if valid,
+	 * confirms the user's registration and redirects to the registration success page.
 	 *
-	 * @param request the request
-	 * @param model   the model
-	 * @param token   the token
-	 * @return the model and view
+	 * @param request the HTTP request
+	 * @param model   the model map
+	 * @param token   the verification token to validate
+	 * @return the model and view for redirection
 	 * @throws UnsupportedEncodingException the unsupported encoding exception
 	 */
 	@GetMapping("${user.security.registrationConfirmURI:/user/registrationConfirm}")
