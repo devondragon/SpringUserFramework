@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
+import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
@@ -144,6 +146,40 @@ public class UserAPI {
 			logAuditEvent("Reset Password", "Success", "Password reset email sent", user, request);
 		}
 		return buildSuccessResponse("If account exists, password reset email has been sent!", forgotPasswordPendingURI);
+	}
+
+	/**
+	 * Updates the user's password. This is used when the user is logged in and wants to change their password.
+	 *
+	 * @param userDetails the authenticated user details
+	 * @param passwordDto the password data transfer object containing the old and new passwords
+	 * @param request the HTTP servlet request
+	 * @param locale the locale
+	 * @return a ResponseEntity containing a JSONResponse with the password update result
+	 */
+	@PostMapping("/updatePassword")
+	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails, 
+			@Valid @RequestBody PasswordDto passwordDto, HttpServletRequest request, Locale locale) {
+		validateAuthenticatedUser(userDetails);
+		User user = userDetails.getUser();
+		
+		try {
+			if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
+				throw new InvalidOldPasswordException("Invalid old password");
+			}
+			
+			userService.changeUserPassword(user, passwordDto.getNewPassword());
+			logAuditEvent("PasswordUpdate", "Success", "User password updated", user, request);
+			
+			return buildSuccessResponse(messages.getMessage("message.update-password.success", null, locale), null);
+		} catch (InvalidOldPasswordException ex) {
+			logAuditEvent("PasswordUpdate", "Failure", "Invalid old password", user, request);
+			return buildErrorResponse(messages.getMessage("message.update-password.invalid-old", null, locale), 1, HttpStatus.BAD_REQUEST);
+		} catch (Exception ex) {
+			log.error("Unexpected error during password update.", ex);
+			logAuditEvent("PasswordUpdate", "Failure", ex.getMessage(), user, request);
+			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	/**
