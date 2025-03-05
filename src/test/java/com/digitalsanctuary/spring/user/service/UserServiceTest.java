@@ -104,25 +104,24 @@ public class UserServiceTest {
         Assertions.assertTrue(userService.checkIfValidOldPassword(testUser, testUser.getPassword()));
     }
     
-    /* Temporarily disabled until OAuth2 dependency issue is resolved
-    @Test
-    void checkIfValidOldPassword_returnFalseIfInvalid() {
-        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
-        Assertions.assertFalse(userService.checkIfValidOldPassword(testUser, "wrongPassword"));
-    }
-    
-    @Test
-    void changeUserPassword_encodesAndSavesNewPassword() {
-        String newPassword = "newTestPassword";
-        String encodedPassword = "encodedNewPassword";
-        
-        when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-        
-        userService.changeUserPassword(testUser, newPassword);
-        
-        Assertions.assertEquals(encodedPassword, testUser.getPassword());
-    }
-    */
+    // Tests temporarily disabled until OAuth2 dependency issue is resolved
+//    @Test
+//    void checkIfValidOldPassword_returnFalseIfInvalid() {
+//        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+//        Assertions.assertFalse(userService.checkIfValidOldPassword(testUser, "wrongPassword"));
+//    }
+//
+//    @Test
+//    void changeUserPassword_encodesAndSavesNewPassword() {
+//        String newPassword = "newTestPassword";
+//        String encodedPassword = "encodedNewPassword";
+//
+//        when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
+//        when(userRepository.save(any(User.class))).thenReturn(testUser);
+//
+//        userService.changeUserPassword(testUser, newPassword);
+//
+//        Assertions.assertEquals(encodedPassword, testUser.getPassword());
+//    }
 
 }
