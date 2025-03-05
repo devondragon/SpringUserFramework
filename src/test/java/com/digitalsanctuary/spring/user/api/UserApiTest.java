@@ -17,7 +17,9 @@ import com.digitalsanctuary.spring.user.api.data.DataStatus;
 import com.digitalsanctuary.spring.user.api.data.Response;
 import com.digitalsanctuary.spring.user.api.helper.AssertionsHelper;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsProvider;
+import com.digitalsanctuary.spring.user.api.provider.ApiTestUpdatePasswordArgumentsProvider;
 import com.digitalsanctuary.spring.user.api.provider.holder.ApiTestArgumentsHolder;
+import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.jdbc.Jdbc;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -73,6 +75,37 @@ public class UserApiTest extends BaseApiTest {
         MockHttpServletResponse actual = action.andReturn().getResponse();
         Response excepted = ApiTestData.resetPassword();
         AssertionsHelper.compareResponses(actual, excepted);
+    }
+
+    /**
+     * Tests the update password functionality with valid and invalid password combinations.
+     * 
+     * @param argumentsHolder Contains test data for password updates (valid/invalid scenarios)
+     * @throws Exception if any error occurs during test execution
+     */
+    @ParameterizedTest
+    @ArgumentsSource(ApiTestUpdatePasswordArgumentsProvider.class)
+    @Order(3)
+    public void updatePassword(ApiTestArgumentsHolder argumentsHolder) throws Exception {
+        // Register and login test user first
+        login(baseTestUser);
+        
+        PasswordDto passwordDto = argumentsHolder.getPasswordDto();
+        
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/updatePassword")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content(buildUrlEncodedFormEntity(passwordDto)));
+
+        if (argumentsHolder.getStatus() == DataStatus.VALID) {
+            action.andExpect(status().isOk());
+        }
+        if (argumentsHolder.getStatus() == DataStatus.INVALID) {
+            action.andExpect(status().isBadRequest());
+        }
+
+        MockHttpServletResponse actual = action.andReturn().getResponse();
+        Response expected = argumentsHolder.getResponse();
+        AssertionsHelper.compareResponses(actual, expected);
     }
 
 

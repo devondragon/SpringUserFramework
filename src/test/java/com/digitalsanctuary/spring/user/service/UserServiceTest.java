@@ -101,5 +101,24 @@ public class UserServiceTest {
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
         Assertions.assertTrue(userService.checkIfValidOldPassword(testUser, testUser.getPassword()));
     }
+    
+    @Test
+    void checkIfValidOldPassword_returnFalseIfInvalid() {
+        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+        Assertions.assertFalse(userService.checkIfValidOldPassword(testUser, "wrongPassword"));
+    }
+    
+    @Test
+    void changeUserPassword_encodesAndSavesNewPassword() {
+        String newPassword = "newTestPassword";
+        String encodedPassword = "encodedNewPassword";
+        
+        when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        
+        userService.changeUserPassword(testUser, newPassword);
+        
+        Assertions.assertEquals(encodedPassword, testUser.getPassword());
+    }
 
 }
