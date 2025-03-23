@@ -64,7 +64,7 @@ CREATE TABLE `user_account` (
   `last_name` VARCHAR(255) DEFAULT NULL,
   `locked` BIT(1) NOT NULL,
   `password` VARCHAR(60) DEFAULT NULL,
-  `provider` ENUM('LOCAL','FACEBOOK','GOOGLE','APPLE') DEFAULT NULL,
+  `provider` ENUM('LOCAL','FACEBOOK','GOOGLE','APPLE','KEYCLOAK') DEFAULT NULL,
   `registration_date` DATETIME(6) DEFAULT NULL,
   `failed_login_attempts` INT(11) NOT NULL,
   `locked_date` DATETIME(6) DEFAULT NULL,
