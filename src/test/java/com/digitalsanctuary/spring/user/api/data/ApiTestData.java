@@ -73,13 +73,13 @@ public class ApiTestData {
     }
     public static Response passwordUpdateSuccess() {
         return new Response(true, 0, null,
-                new String[]{"Password updated successfully"}, null
+                new String[]{"Your password has been successfully updated."}, null
         );
     }
 
     public static Response passwordUpdateFailry() {
         return new Response(false, 1, null,
-                new String[]{"Invalid Old Password"}, null
+                new String[]{"The old password is incorrect."}, null
         );
     }
     public static Response successDeleteAccount() {

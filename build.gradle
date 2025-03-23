@@ -1,11 +1,11 @@
 plugins {
-    id 'org.springframework.boot' version '3.4.1'
+    id 'org.springframework.boot' version '3.4.3'
     id 'io.spring.dependency-management' version '1.1.7'
-    id 'com.github.ben-manes.versions' version '0.51.0'
+    id 'com.github.ben-manes.versions' version '0.52.0'
     id 'java-library'
     id 'maven-publish'
     id 'signing'
-    id 'com.vanniktech.maven.publish' version '0.30.0'
+    id 'com.vanniktech.maven.publish' version '0.31.0'
     id 'net.researchgate.release' version '3.1.0'
 }
 
@@ -18,7 +18,7 @@ group = 'com.digitalsanctuary.springuser'
 description = 'Spring User Framework'
 
 ext {
-    springBootVersion = '3.4.1'
+    springBootVersion = '3.4.3'
     lombokVersion = '1.18.36'
 }
 
@@ -47,7 +47,7 @@ dependencies {
 
     // Other dependencies
     runtimeOnly 'org.springframework.boot:spring-boot-devtools'
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.1'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.2'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.passay:passay:1.6.6'
     implementation 'com.google.guava:guava:33.4.0-jre'
@@ -79,6 +79,8 @@ test {
 	useJUnitPlatform()
 	  testLogging {
         events "PASSED", "FAILED", "SKIPPED"
+        exceptionFormat "full"
+        showStandardStreams true
     }
 }
 

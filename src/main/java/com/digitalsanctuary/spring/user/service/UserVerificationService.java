@@ -43,20 +43,21 @@ public class UserVerificationService {
     }
 
     /**
-     * Gets the verification token.
+     * Gets the verification token by its string value.
      *
-     * @param VerificationToken the verification token
-     * @return the verification token
+     * @param verificationToken the verification token string
+     * @return the verification token entity
      */
-    public VerificationToken getVerificationToken(final String VerificationToken) {
-        return tokenRepository.findByToken(VerificationToken);
+    public VerificationToken getVerificationToken(final String verificationToken) {
+        return tokenRepository.findByToken(verificationToken);
     }
 
     /**
-     * Generate new verification token.
+     * Generates a new verification token to replace an existing one.
+     * Useful for extending verification periods or re-sending verification emails.
      *
-     * @param existingVerificationToken the existing verification token
-     * @return the verification token
+     * @param existingVerificationToken the existing verification token string to replace
+     * @return the updated verification token entity with a new token value
      */
     public VerificationToken generateNewVerificationToken(final String existingVerificationToken) {
         VerificationToken vToken = tokenRepository.findByToken(existingVerificationToken);
@@ -77,10 +78,10 @@ public class UserVerificationService {
     }
 
     /**
-     * Validate verification token.
+     * Validates a user verification token.
      *
-     * @param token the token
-     * @return the string
+     * @param token the token to validate
+     * @return the token validation result (VALID, INVALID_TOKEN, or EXPIRED)
      */
     public UserService.TokenValidationResult validateVerificationToken(String token) {
         final VerificationToken verificationToken = tokenRepository.findByToken(token);

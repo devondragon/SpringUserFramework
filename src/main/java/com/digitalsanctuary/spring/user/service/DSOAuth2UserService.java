@@ -1,5 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
+import java.util.Arrays;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
@@ -7,7 +9,10 @@ import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,11 +39,25 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
     /** The user repository. */
     private final UserRepository userRepository;
+
+    /** The role repository. */
+    private final RoleRepository roleRepository;
+
+    private final LoginHelperService loginHelperService;
+
+
+
+    /** The Event Publisher. */
+    private final ApplicationEventPublisher eventPublisher;
+
+    /** The user role name. */
+    private static final String USER_ROLE_NAME = "ROLE_USER";
 
     DefaultOAuth2UserService defaultOAuth2UserService = new DefaultOAuth2UserService();
 
@@ -68,7 +87,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
                     "Sorry! An error occurred while processing your login request.");
         }
         log.debug("handleOAuthLoginSuccess: looking up user with email: {}", user.getEmail());
-        User existingUser = userRepository.findByEmail(user.getEmail());
+        User existingUser = userRepository.findByEmail(user.getEmail().toLowerCase());
         log.debug("handleOAuthLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
             log.debug("handleOAuthLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());
@@ -97,12 +116,17 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @param user The User object representing the authenticated user.
      * @return A User object representing the newly registered user.
      */
+    @Transactional
     private User registerNewOAuthUser(String registrationId, User user) {
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
-        // user.setRoles(Collections.singletonList(roleRepository.findByName(RoleName.ROLE_USER)));
+        user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
         // We will trust OAuth2 providers to provide us with a verified email address.
         user.setEnabled(true);
+        AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user).action("OAuth2 Registration Success").actionStatus("Success")
+                .message("Registration Confirmed. User logged in.").build();
+
+        eventPublisher.publishEvent(registrationAuditEvent);
         return userRepository.save(user);
     }
 
@@ -184,8 +208,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.debug("registrationId: " + registrationId);
         User dbUser = handleOAuthLoginSuccess(registrationId, user);
-        DSUserDetails dsUserDetails = new DSUserDetails(dbUser);
-        return dsUserDetails;
+        DSUserDetails userDetails = loginHelperService.userLoginHelper(dbUser);
+        return userDetails;
     }
 
 }

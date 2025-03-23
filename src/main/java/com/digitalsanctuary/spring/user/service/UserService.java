@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,8 +21,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
-import com.digitalsanctuary.spring.user.persistence.model.Privilege;
-import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
@@ -37,17 +34,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Service class for managing users. It includes methods for user authentication, registration, deletion, password management, role assignment, and
- * related operations. This class also interacts with the user repository and session registry to perform its tasks.
+ * Service class for managing users. Provides methods for user registration, authentication, password management, and user-related operations. This
+ * class is transactional and uses various repositories and services for its operations.
  *
  * <p>
  * This class is transactional, meaning that any failure causes the entire operation to roll back to the previous state.
- *
- * @author Devon Hillard
- */
-/**
- * Service class for managing users. Provides methods for user registration, authentication, password management, and user-related operations. This
- * class is transactional and uses various repositories and services for its operations.
+ * </p>
  *
  * <p>
  * Dependencies:
@@ -101,8 +93,7 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  * <ul>
  * <li>{@link #emailExists(String)}: Checks if an email exists in the user repository.</li>
- * <li>{@link #getAuthorities(User)}: Generates the list of authorities for a user.</li>
- * <li>{@link #authenticateUser(DSUserDetails, List)}: Authenticates a user by setting the authentication object in the security context.</li>
+ * <li>{@link #authenticateUser(DSUserDetails, Collection)}: Authenticates a user by setting the authentication object in the security context.</li>
  * <li>{@link #storeSecurityContextInSession()}: Stores the current security context in the session.</li>
  * </ul>
  *
@@ -116,6 +107,8 @@ import lombok.extern.slf4j.Slf4j;
  * <li>{@link Transactional}: Indicates that the class or methods should be transactional.</li>
  * <li>{@link Value}: Injects property values.</li>
  * </ul>
+ *
+ * @author Devon Hillard
  */
 @Slf4j
 @Service
@@ -193,6 +186,8 @@ public class UserService {
 	/** The user verification service. */
 	public final UserVerificationService userVerificationService;
 
+	private final AuthorityService authorityService;
+
 	/** The user details service. */
 	private final DSUserDetailsService dsUserDetailsService;
 
@@ -201,10 +196,13 @@ public class UserService {
 	private boolean sendRegistrationVerificationEmail;
 
 	/**
-	 * Register new user account.
+	 * Registers a new user account with the provided user data.
+	 * If the email already exists, throws a UserAlreadyExistException.
+	 * If sendRegistrationVerificationEmail is false, the user is enabled immediately.
 	 *
-	 * @param newUserDto the new user dto
-	 * @return the user
+	 * @param newUserDto the data transfer object containing the user registration information
+	 * @return the newly created user entity
+	 * @throws UserAlreadyExistException if an account with the same email already exists
 	 */
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
@@ -323,7 +321,8 @@ public class UserService {
 	 * @return true, if successful
 	 */
 	public boolean checkIfValidOldPassword(final User user, final String oldPassword) {
-		System.out.println(user.getPassword() + " " + oldPassword);
+		// Removed System.out.println, using log.debug for minimal output (avoid logging passwords in production)
+		log.debug("Verifying old password for user: {}", user.getEmail());
 		return passwordEncoder.matches(oldPassword, user.getPassword());
 	}
 
@@ -334,7 +333,7 @@ public class UserService {
 	 * @return true, if the email address is already in the user repository
 	 */
 	private boolean emailExists(final String email) {
-		return userRepository.findByEmail(email) != null;
+		return userRepository.findByEmail(email.toLowerCase()) != null;
 	}
 
 	/**
@@ -372,12 +371,15 @@ public class UserService {
 	}
 
 	/**
-	 * Authenticates the given user without a password. The user is authenticated by loading their details, generating their authorities from their
-	 * roles and privileges, and storing these details in the security context and session. This is a potentially dangerous method to call, as it will
-	 * authenticate the user without requiring a password!!! We are using it here to allow us to authenticate a user after they have registered,
-	 * without requiring them to log in again.
+	 * Authenticates the given user without requiring a password. This method loads the user's details,
+	 * generates their authorities from their roles and privileges, and stores these details in the
+	 * security context and session.
+	 * 
+	 * <p><strong>SECURITY WARNING:</strong> This is a potentially dangerous method as it authenticates
+	 * a user without password verification. This method should only be used in specific controlled scenarios,
+	 * such as after successful email verification or OAuth authentication.</p>
 	 *
-	 * @param user The user to authenticate.
+	 * @param user The user to authenticate without password verification
 	 */
 	public void authWithoutPassword(User user) {
 		log.debug("UserService.authWithoutPassword: authenticating user: {}", user);
@@ -395,7 +397,7 @@ public class UserService {
 		}
 
 		// Generate authorities from user roles and privileges
-		List<GrantedAuthority> authorities = getAuthorities(user);
+		Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(user);
 
 		// Authenticate user
 		authenticateUser(userDetails, authorities);
@@ -407,25 +409,12 @@ public class UserService {
 	}
 
 	/**
-	 * Generates the list of authorities for the given user from their roles and privileges.
-	 *
-	 * @param user The user whose authorities to generate.
-	 * @return The list of authorities for the user.
-	 */
-
-	private List<GrantedAuthority> getAuthorities(User user) {
-		List<Privilege> privileges =
-				user.getRoles().stream().map(Role::getPrivileges).flatMap(Collection::stream).distinct().collect(Collectors.toList());
-		return privileges.stream().map(p -> new SimpleGrantedAuthority(p.getName())).collect(Collectors.toList());
-	}
-
-	/**
 	 * Authenticates the user by creating an authentication object and setting it in the security context.
 	 *
 	 * @param userDetails The user details.
 	 * @param authorities The list of authorities for the user.
 	 */
-	private void authenticateUser(DSUserDetails userDetails, List<GrantedAuthority> authorities) {
+	private void authenticateUser(DSUserDetails userDetails, Collection<? extends GrantedAuthority> authorities) {
 		Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 	}
@@ -447,5 +436,7 @@ public class UserService {
 		// Store the security context in the session
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
+
+
 
 }
