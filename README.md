@@ -30,8 +30,10 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [Authentication](#authentication)
     - [Local Authentication](#local-authentication)
     - [OAuth2/SSO](#oauth2sso)
+      - [**SSO OIDC with Keycloak**](#sso-oidc-with-keycloak)
   - [Extensibility](#extensibility)
     - [Custom User Profiles](#custom-user-profiles)
+    - [SSO OAuth2 with Google and Facebook](#sso-oauth2-with-google-and-facebook)
   - [Examples](#examples)
   - [Reference Documentation](#reference-documentation)
   - [License](#license)
@@ -39,19 +41,18 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 ## Features
 
 - **User Registration and Authentication**
-The framework provides support for the following features:
-- Registration, with optional email verification.
-- Login and logout functionality.
-- Forgot password flow.
-- Database-backed user store using Spring JPA.
-- SSO support for Google
-- SSO support for Facebook
-- SSO support for Keycloak
-- Configuration options to control anonymous access, whitelist URIs, and protect specific URIs requiring a logged-in user session.
-- CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
-- Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
-- Role and Privilege setup service to define roles, associated privileges, and role inheritance hierarchy using `application.yml`.
-- Configurable Account Lockout after too many failed login attempts
+  - Registration, with optional email verification.
+  - Login and logout functionality.
+  - Forgot password flow.
+  - Database-backed user store using Spring JPA.
+  - SSO support for Google
+  - SSO support for Facebook
+  - SSO support for Keycloak
+  - Configuration options to control anonymous access, whitelist URIs, and protect specific URIs requiring a logged-in user session.
+  - CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
+  - Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
+  - Role and Privilege setup service to define roles, associated privileges, and role inheritance hierarchy using `application.yml`.
+  - Configurable Account Lockout after too many failed login attempts
 
 - **Advanced Security**
   - Role and privilege-based authorization
@@ -80,14 +81,14 @@ The framework provides support for the following features:
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.1.1</version>
+    <version>3.2.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.1.1'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.2.0'
 ```
 
 ## Quick Start
@@ -244,6 +245,7 @@ Support for social login providers:
 - Google
 - Facebook
 - Apple
+- Keycloak
 - Custom providers
 
 Configuration example:
@@ -270,6 +272,36 @@ spring:
 ```
 For public OAuth you will need a public hostname and HTTPS enabled.  You can use ngrok or Cloudflare tunnels to create a public hostname and tunnel to your local machine during development.  You can then use the ngrok hostname in your Google, Facebook and Keycloak developer console configuration.
 
+
+#### **SSO OIDC with Keycloak**
+To enable SSO:
+1. Create OIDC client in Keycloak admin console.
+2. Update your `application-docker-keycloak.yml`:
+   ```yaml
+   spring:
+     security:
+       oauth2:
+         client:
+            registration:
+              keycloak:
+                client-id: ${DS_SPRING_USER_KEYCLOAK_CLIENT_ID} # Keycloak client ID for OAuth2
+                client-secret: ${DS_SPRING_USER_KEYCLOAK_CLIENT_SECRET} # Keycloak client secret for OAuth2
+                authorization-grant-type: authorization_code # Authorization grant type for OAuth2
+                scope:
+                  - email # Request email scope for OAuth2
+                  - profile # Request profile scope for OAuth2
+                  - openid # Request oidc scope for OAuth2
+                client-name: Keycloak # Name of the OAuth2 client
+                provider: keycloak
+            provider:
+              keycloak: # https://www.keycloak.org/securing-apps/oidc-layers
+                issuer-uri: ${DS_SPRING_USER_KEYCLOAK_PROVIDER_ISSUER_URI}
+                authorization-uri: ${DS_SPRING_USER_KEYCLOAK_PROVIDER_AUTHORIZATION_URI}
+                token-uri: ${DS_SPRING_USER_KEYCLOAK_PROVIDER_TOKEN_URI}
+                user-info-uri: ${DS_SPRING_USER_KEYCLOAK_PROVIDER_USER_INFO_URI}
+                user-name-attribute: preferred_username # https://www.keycloak.org/docs-api/latest/rest-api/index.html#UserRepresentation
+                jwk-set-uri: ${DS_SPRING_USER_KEYCLOAK_PROVIDER_JWK_SET_URI}
+   ```
 
 ## Extensibility
 
