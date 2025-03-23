@@ -1,5 +1,5 @@
 plugins {
-    id 'org.springframework.boot' version '3.4.3'
+    id 'org.springframework.boot' version '3.4.4'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.github.ben-manes.versions' version '0.52.0'
     id 'java-library'
@@ -18,7 +18,7 @@ group = 'com.digitalsanctuary.springuser'
 description = 'Spring User Framework'
 
 ext {
-    springBootVersion = '3.4.3'
+    springBootVersion = '3.4.4'
     lombokVersion = '1.18.36'
 }
 
@@ -50,7 +50,7 @@ dependencies {
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.2'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.passay:passay:1.6.6'
-    implementation 'com.google.guava:guava:33.4.0-jre'
+    implementation 'com.google.guava:guava:33.4.5-jre'
     compileOnly 'org.springframework.boot:spring-boot-starter-actuator'
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
 
