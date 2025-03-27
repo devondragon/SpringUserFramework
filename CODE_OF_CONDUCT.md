@@ -38,8 +38,7 @@ Examples include using an official project email address, posting via an officia
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at **devon@digitalsanctuary.com*.
-
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at **devon@digitalsanctuary.com**.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All project maintainers are obligated to respect the privacy and security of the reporter of any incident.
