@@ -111,6 +111,31 @@ git push origin your-feature-branch
 ```
 
 
+
+## Unit Tests and Test Coverage
+
+All contributions to `SpringUserFramework` **must include appropriate unit tests**. This ensures that the library remains stable, reliable, and maintainable as it grows.
+
+### Requirements
+
+- **All new features** must include unit tests that thoroughly cover the new functionality.
+- **Bug fixes** should include tests that demonstrate the issue and confirm the fix.
+- If you are **modifying existing code**, you should update or expand the relevant tests to reflect those changes.
+- **All tests must pass** before a pull request will be considered for merging.
+
+### Running Tests Locally
+
+Before submitting a PR, run the full test suite to ensure your changes do not introduce regressions:
+
+```bash
+./gradlew test
+```
+
+If you are using an IDE like VSCode or IntelliJ, you can also run the tests from the IDE directly.
+
+We may add code coverage reporting tools in the future to help enforce this, but for now, maintainers will review tests as part of the code review process.
+
+
 ## Submitting a Pull Request
 
 Once your changes are pushed to your fork, submit a pull request (PR) to the original repository:
@@ -122,6 +147,71 @@ Once your changes are pushed to your fork, submit a pull request (PR) to the ori
 5. Click "Create pull request."
 
 Your PR will be reviewed by the maintainers. Please be responsive to feedback and willing to make adjustments as needed.
+
+
+## Contributing to the Demo Frontend
+
+If your change involves a **frontend component**, or if it requires a user interface to **showcase or test the functionality** (such as login flows, authentication UIs, or session behavior), you'll also need to contribute to the companion frontend project:  
+👉 [**SpringUserFrameworkDemoApp**](https://github.com/devondragon/SpringUserFrameworkDemoApp)
+
+This project is a lightweight web application used to **demonstrate and test** features of the `SpringUserFramework` library.
+
+### What You Need to Do
+
+1. **Fork the `SpringUserFrameworkDemoApp` repository** as well.
+2. Make changes or add test pages in the demo app to support or demonstrate your backend work.
+3. Submit a separate pull request to the `SpringUserFrameworkDemoApp` repository.
+4. Reference your demo app PR in your main `SpringUserFramework` pull request description, so reviewers can test your changes end-to-end.
+
+Keeping the demo app up to date with relevant examples helps others understand how to use the library and ensures that all features are properly tested in a real-world scenario.
+
+
+
+## Testing Local Changes with the Demo App
+
+Since `SpringUserFramework` is a **library**, the best way to test your changes is by using the companion project:  
+👉 [**SpringUserFrameworkDemoApp**](https://github.com/devondragon/SpringUserFrameworkDemoApp)
+
+This demo app allows you to see how the library behaves in a real application context.
+
+### How to Test Your Changes Locally
+
+To test updates to the library before submitting a pull request, follow these steps:
+
+1. **Install Maven (if not already installed)**  
+   You'll need Maven installed locally because Gradle publishes the library into your **local Maven cache**.
+
+2. **Build and publish the library locally**  
+   In your fork of `SpringUserFramework`, run:
+
+   ```bash
+   ./gradlew publishToMavenLocal
+   ```
+
+   This will compile the project and publish it as a `.jar` file with a `-SNAPSHOT` version into your local Maven cache (usually located at `~/.m2/repository`).
+
+3. **Update the demo app to use your local library**  
+   In your fork of [`SpringUserFrameworkDemoApp`](https://github.com/devondragon/SpringUserFrameworkDemoApp):
+
+   - Open `build.gradle`.
+   - Update the library dependency to match the `SNAPSHOT` version defined in the `gradle.properties` file from your local library project.
+
+   Example:
+   ```groovy
+   implementation 'com.yourgroupid:spring-user-framework:1.2.3-SNAPSHOT'
+   ```
+
+4. **Build and run the demo app**  
+   Use your IDE or run from the command line:
+
+   ```bash
+   ./gradlew bootRun
+   ```
+
+   The demo app should now load and use your locally built version of the library. This allows you to interactively test your changes before pushing them upstream.
+
+> 💡 Make sure not to commit any version changes to `build.gradle` or `gradle.properties` as the project maintainer is the only one to update versions.
+
 
 ## Code Style and Standards
 
