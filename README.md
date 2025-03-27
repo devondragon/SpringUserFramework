@@ -35,6 +35,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Custom User Profiles](#custom-user-profiles)
     - [SSO OAuth2 with Google and Facebook](#sso-oauth2-with-google-and-facebook)
   - [Examples](#examples)
+  - [Contributing](#contributing)
   - [Reference Documentation](#reference-documentation)
   - [License](#license)
 
