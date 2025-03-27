@@ -1,7 +1,3 @@
-Certainly! Below is a comprehensive `CONTRIBUTING.md` guide tailored for your GitHub project, [SpringUserFramework](https://github.com/devondragon/SpringUserFramework/). This guide outlines the preferred workflow for addressing issues and submitting pull requests (PRs), ensuring a smooth collaboration process.
-
----
-
 # Contributing to SpringUserFramework
 
 Thank you for considering contributing to SpringUserFramework! We appreciate your time and effort in improving our project. The following guidelines will help you navigate the contribution process.
@@ -146,4 +142,3 @@ Ensure that your changes do not break existing tests and include new tests as ap
 ```
 
 
- 
