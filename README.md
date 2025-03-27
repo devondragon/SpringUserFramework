@@ -35,6 +35,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Custom User Profiles](#custom-user-profiles)
     - [SSO OAuth2 with Google and Facebook](#sso-oauth2-with-google-and-facebook)
   - [Examples](#examples)
+  - [Contributing](#contributing)
   - [Reference Documentation](#reference-documentation)
   - [License](#license)
 
@@ -335,6 +336,12 @@ The framework supports SSO OAuth2 with Google, Facebook and Keycloak.  To enable
 ## Examples
 
 For complete working examples, check out the [Spring User Framework Demo Application](https://github.com/devondragon/SpringUserFrameworkDemoApp).
+
+
+## Contributing
+
+We welcome contributions of all kinds! If you'd like to help improve SpringUserFramework, please read our [Contributing Guide](CONTRIBUTING.md) for details on how to get started, report issues, and submit pull requests. Let's build something great together!
+
 
 ## Reference Documentation
 
