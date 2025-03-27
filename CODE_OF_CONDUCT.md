@@ -38,7 +38,7 @@ Examples include using an official project email address, posting via an officia
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at **[your email address or GitHub contact form]**.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at **devon@digitalsanctuary.com*.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
