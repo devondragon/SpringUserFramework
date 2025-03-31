@@ -47,7 +47,7 @@ dependencies {
 
     // Other dependencies
     runtimeOnly 'org.springframework.boot:spring-boot-devtools'
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.2'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.passay:passay:1.6.6'
     implementation 'com.google.guava:guava:33.4.5-jre'
