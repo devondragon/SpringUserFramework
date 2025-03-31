@@ -1,12 +1,17 @@
 package com.digitalsanctuary.spring.user.api.data;
 
+import com.digitalsanctuary.spring.user.dto.LockAccountDto;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+
+import java.util.Collections;
 
 public class ApiTestData {
 
     public static final UserDto BASE_TEST_USER = getUserDto();
+    public static final UserDto BASE_ADMIN_USER = getAdminUserDto();
     public static final DSUserDetails DEFAULT_DETAILS = new DSUserDetails(null, null);
 
     public static PasswordDto getPasswordDto() {
@@ -34,6 +39,32 @@ public class ApiTestData {
     }
     public static UserDto getEmptyUserDto() {
         return new UserDto();
+    }
+    public static UserDto getAdminUserDto() {
+        UserDto userDto = new UserDto();
+        userDto.setFirstName("testApiAdmin");
+        userDto.setLastName("userApiTest");
+        userDto.setEmail("testApiAdmin@bk.com");
+        userDto.setPassword("testApiAdminPassword");
+        userDto.setMatchingPassword(userDto.getPassword());
+        userDto.setRole(2);
+        return userDto;
+    }
+
+    public static LockAccountDto getLockAccountDto() {
+        LockAccountDto lockAccountDto = new LockAccountDto();
+        lockAccountDto.setEmail("testApiUser@bk.com");
+        return lockAccountDto;
+    }
+
+    public static LockAccountDto getEmptyLockAccountDto() {
+      return new LockAccountDto();
+    }
+
+    public static LockAccountDto getLockAccountDtoForMissingUser() {
+        LockAccountDto lockAccountDto = new LockAccountDto();
+        lockAccountDto.setEmail("testRandom@bk.com");
+        return lockAccountDto;
     }
 
     public static Response successRegistration() {
@@ -90,6 +121,21 @@ public class ApiTestData {
     public static Response deleteAccountFailry() {
         return new Response(false, 2, null,
                 new String[]{"Error Occurred"}, null
+        );
+    }
+    public static Response successLockAccount() {
+        return new Response(true, null, null,
+                new String[]{"Account Locked"}, null
+        );
+    }
+    public static Response lockAccountFailry() {
+        return new Response(false, null, null,
+                new String[]{"User not found"}, null
+        );
+    }
+    public static Response invalidBodyLockAccountFailry() {
+        return new Response(false, 1, null,
+                new String[]{"Email is required"}, null
         );
     }
 }

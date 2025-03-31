@@ -6,5 +6,6 @@ public enum DataStatus {
     INVALID,
     VALID,
     LOGGED,
-    NOT_LOGGED
+    NOT_LOGGED,
+    NOT_FOUND
 }

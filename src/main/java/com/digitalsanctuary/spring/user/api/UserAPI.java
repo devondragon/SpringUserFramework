@@ -1,6 +1,8 @@
 package com.digitalsanctuary.spring.user.api;
 
 import java.util.Locale;
+
+import com.digitalsanctuary.spring.user.util.ResponseUtil;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,6 +32,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.digitalsanctuary.spring.user.util.ResponseUtil.buildErrorResponse;
+import static com.digitalsanctuary.spring.user.util.ResponseUtil.buildSuccessResponse;
 
 /**
  * REST controller for managing user-related operations. This class handles user registration, account deletion, and other user-related endpoints.
@@ -292,28 +297,5 @@ public class UserAPI {
 	 */
 	private boolean isNullOrEmpty(String value) {
 		return value == null || value.isEmpty();
-	}
-
-	/**
-	 * Builds an error response.
-	 *
-	 * @param message
-	 * @param code
-	 * @param status
-	 * @return a ResponseEntity containing a JSONResponse with the error response
-	 */
-	private ResponseEntity<JSONResponse> buildErrorResponse(String message, int code, HttpStatus status) {
-		return ResponseEntity.status(status).body(JSONResponse.builder().success(false).code(code).message(message).build());
-	}
-
-	/**
-	 * Builds a success response.
-	 *
-	 * @param message
-	 * @param redirectUrl
-	 * @return a ResponseEntity containing a JSONResponse with the success response
-	 */
-	private ResponseEntity<JSONResponse> buildSuccessResponse(String message, String redirectUrl) {
-		return ResponseEntity.ok(JSONResponse.builder().success(true).code(0).message(message).redirectUrl(redirectUrl).build());
 	}
 }

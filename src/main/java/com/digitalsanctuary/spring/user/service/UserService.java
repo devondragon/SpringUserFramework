@@ -409,6 +409,25 @@ public class UserService {
 	}
 
 	/**
+	 * Toggle user's lock status. Lock if the user is not locked and unlock if user is locked.
+	 *
+	 * @param email The email of the user.
+	 */
+	public void toggleLockStatus(String email) {
+		log.debug("UserService.toggleLockStatus: toggling lock status for: {}", email);
+		User user = userRepository.findByEmail(email);
+		if (user == null) {
+			log.error("UserService.toggleLockStatus: user not found: {}", email);
+			throw new UsernameNotFoundException("User not found: " + email);
+		}
+
+		user.setLocked(!user.isLocked());
+		user.setLockedDate(user.isLocked() ? new java.util.Date() : null);
+		userRepository.save(user);
+		log.debug("UserService.toggleLockStatus: user account lock status toggled: {}", email);
+	}
+
+	/**
 	 * Authenticates the user by creating an authentication object and setting it in the security context.
 	 *
 	 * @param userDetails The user details.
@@ -436,7 +455,4 @@ public class UserService {
 		// Store the security context in the session
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
-
-
-
 }
