@@ -35,22 +35,40 @@ public class AdminApi {
      * @param lockAccountDto the DTO containing the email of the user to be locked
      * @return a ResponseEntity containing a JSONResponse stating that user account has been locked
      * */
-    @PostMapping("/toggleLockStatus")
+    @PostMapping("/lockAccount")
     @PreAuthorize("hasAuthority('ADMIN_PRIVILEGE')")
-    public ResponseEntity<JSONResponse> toggleLockStatus(@Valid @RequestBody LockAccountDto lockAccountDto) {
-        log.info("AdminApi.toggleLockStatus: called with email: {}", lockAccountDto.getEmail());
+    public ResponseEntity<JSONResponse> lockAccount(@Valid @RequestBody LockAccountDto lockAccountDto) {
+        log.info("AdminApi.lockAccount: called with email: {}", lockAccountDto.getEmail());
         try {
             validateDto(lockAccountDto);
-            userService.toggleLockStatus(lockAccountDto.getEmail());
+            userService.lockAccount(lockAccountDto.getEmail());
             return buildSuccessResponse("User account locked successfully", null);
-        } catch(UsernameNotFoundException e) {
-            log.warn("AdminApi.toggleLockStatus: user not found: {}", lockAccountDto.getEmail());
+        } catch (UsernameNotFoundException e) {
+            log.warn("AdminApi.lockAccount: user not found: {}", lockAccountDto.getEmail());
             return buildErrorResponse("User not found", 2, HttpStatus.NOT_FOUND);
         } catch (IllegalArgumentException e) {
-            log.warn("AdminApi.toggleLockStatus: invalid argument: {}", e.getMessage());
+            log.warn("AdminApi.lockAccount: invalid argument: {}", e.getMessage());
             return buildErrorResponse(e.getMessage(), 1, HttpStatus.BAD_REQUEST);
         }
     }
+
+    @PostMapping("/unlockAccount")
+    @PreAuthorize("hasAuthority('ADMIN_PRIVILEGE')")
+    public ResponseEntity<JSONResponse> unlockAccount(@Valid @RequestBody LockAccountDto lockAccountDto) {
+        log.info("AdminApi.unlockAccount: called with email: {}", lockAccountDto.getEmail());
+        try {
+            validateDto(lockAccountDto);
+            userService.unlockAccount(lockAccountDto.getEmail());
+            return buildSuccessResponse("User account unlocked successfully", null);
+        } catch (UsernameNotFoundException e) {
+            log.warn("AdminApi.unlockAccount: user not found: {}", lockAccountDto.getEmail());
+            return buildErrorResponse("User not found", 2, HttpStatus.NOT_FOUND);
+        } catch (IllegalArgumentException e) {
+            log.warn("AdminApi.unlockAccount: invalid argument: {}", e.getMessage());
+            return buildErrorResponse(e.getMessage(), 1, HttpStatus.BAD_REQUEST);
+        }
+    }
+
 
     private void validateDto(LockAccountDto dto) {
         if(dto.getEmail() == null || dto.getEmail().isEmpty()) {

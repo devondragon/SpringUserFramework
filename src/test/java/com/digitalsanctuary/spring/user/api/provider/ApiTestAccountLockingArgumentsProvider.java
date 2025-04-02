@@ -9,7 +9,7 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 
 import java.util.stream.Stream;
 
-public class ApiTestLockAccountArgumentsProvider implements ArgumentsProvider {
+public class ApiTestAccountLockingArgumentsProvider implements ArgumentsProvider {
   @Override
   public Stream<? extends Arguments> provideArguments(ExtensionContext context) throws Exception {
     return Stream.of(

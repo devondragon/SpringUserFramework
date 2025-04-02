@@ -409,23 +409,53 @@ public class UserService {
 	}
 
 	/**
-	 * Toggle user's lock status. Lock if the user is not locked and unlock if user is locked.
+	 * Locks a user's account.
 	 *
 	 * @param email The email of the user.
 	 */
-	public void toggleLockStatus(String email) {
-		log.debug("UserService.toggleLockStatus: toggling lock status for: {}", email);
+	public void lockAccount(String email) {
+		log.debug("UserService.lockAccount: locking user account for: {}", email);
 		User user = userRepository.findByEmail(email);
 		if (user == null) {
-			log.error("UserService.toggleLockStatus: user not found: {}", email);
+			log.error("UserService.lockAccount: user not found: {}", email);
 			throw new UsernameNotFoundException("User not found: " + email);
 		}
 
-		user.setLocked(!user.isLocked());
-		user.setLockedDate(user.isLocked() ? new java.util.Date() : null);
+		if (user.isLocked()) {
+			log.warn("UserService.lockAccount: user is already locked: {}", email);
+			return;
+		}
+
+		user.setLocked(true);
+		user.setLockedDate(new java.util.Date());
 		userRepository.save(user);
-		log.debug("UserService.toggleLockStatus: user account lock status toggled: {}", email);
+		log.info("UserService.lockAccount: user account locked: {}", email);
 	}
+
+	/**
+	 * Unlocks a user's account.
+	 *
+	 * @param email The email of the user.
+	 */
+	public void unlockAccount(String email) {
+		log.debug("UserService.unlockAccount: unlocking user account for: {}", email);
+		User user = userRepository.findByEmail(email);
+		if (user == null) {
+			log.error("UserService.unlockAccount: user not found: {}", email);
+			throw new UsernameNotFoundException("User not found: " + email);
+		}
+
+		if (!user.isLocked()) {
+			log.warn("UserService.unlockAccount: user is already unlocked: {}", email);
+			return;
+		}
+
+		user.setLocked(false);
+		user.setLockedDate(null);
+		userRepository.save(user);
+		log.info("UserService.unlockAccount: user account unlocked: {}", email);
+	}
+
 
 	/**
 	 * Authenticates the user by creating an authentication object and setting it in the security context.
