@@ -54,7 +54,7 @@ public class AdminApiTest extends BaseApiTest {
     @ParameterizedTest
     @ArgumentsSource(ApiTestAccountLockingArgumentsProvider.class)
     public void unlockUserAccount(ApiTestArgumentsHolder argumentsHolder) throws Exception {
-        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/unlock")
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/unlockAccount")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(String.valueOf(argumentsHolder.getLockAccountDto())));
 
