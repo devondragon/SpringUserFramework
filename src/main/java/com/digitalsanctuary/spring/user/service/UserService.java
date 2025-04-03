@@ -409,6 +409,55 @@ public class UserService {
 	}
 
 	/**
+	 * Locks a user's account.
+	 *
+	 * @param email The email of the user.
+	 */
+	public void lockAccount(String email) {
+		log.debug("UserService.lockAccount: locking user account for: {}", email);
+		User user = userRepository.findByEmail(email);
+		if (user == null) {
+			log.error("UserService.lockAccount: user not found: {}", email);
+			throw new UsernameNotFoundException("User not found: " + email);
+		}
+
+		if (user.isLocked()) {
+			log.warn("UserService.lockAccount: user is already locked: {}", email);
+			return;
+		}
+
+		user.setLocked(true);
+		user.setLockedDate(new java.util.Date());
+		userRepository.save(user);
+		log.info("UserService.lockAccount: user account locked: {}", email);
+	}
+
+	/**
+	 * Unlocks a user's account.
+	 *
+	 * @param email The email of the user.
+	 */
+	public void unlockAccount(String email) {
+		log.debug("UserService.unlockAccount: unlocking user account for: {}", email);
+		User user = userRepository.findByEmail(email);
+		if (user == null) {
+			log.error("UserService.unlockAccount: user not found: {}", email);
+			throw new UsernameNotFoundException("User not found: " + email);
+		}
+
+		if (!user.isLocked()) {
+			log.warn("UserService.unlockAccount: user is already unlocked: {}", email);
+			return;
+		}
+
+		user.setLocked(false);
+		user.setLockedDate(null);
+		userRepository.save(user);
+		log.info("UserService.unlockAccount: user account unlocked: {}", email);
+	}
+
+
+	/**
 	 * Authenticates the user by creating an authentication object and setting it in the security context.
 	 *
 	 * @param userDetails The user details.
@@ -436,7 +485,4 @@ public class UserService {
 		// Store the security context in the session
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
-
-
-
 }

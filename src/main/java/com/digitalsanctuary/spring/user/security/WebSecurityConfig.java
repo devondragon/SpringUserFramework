@@ -116,6 +116,7 @@ public class WebSecurityConfig {
 	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
+	private final CustomAuthenticationFailureHandler customAuthenticationFailureHandler;
 
 	/**
 	 *
@@ -133,7 +134,7 @@ public class WebSecurityConfig {
 		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
 		http.formLogin(
-				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll())
+				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).failureHandler(customAuthenticationFailureHandler).permitAll())
 				.rememberMe(withDefaults());
 
 		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
