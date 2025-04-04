@@ -3,10 +3,7 @@ package com.digitalsanctuary.spring.user.api.data;
 import com.digitalsanctuary.spring.user.dto.LockAccountDto;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
-import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
-
-import java.util.Collections;
 
 public class ApiTestData {
 

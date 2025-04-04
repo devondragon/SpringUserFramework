@@ -1,9 +1,8 @@
 package com.digitalsanctuary.spring.user.api;
 
+import static com.digitalsanctuary.spring.user.util.ResponseUtil.buildErrorResponse;
+import static com.digitalsanctuary.spring.user.util.ResponseUtil.buildSuccessResponse;
 import java.util.Locale;
-
-import com.digitalsanctuary.spring.user.util.ResponseUtil;
-import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
@@ -30,11 +29,9 @@ import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
-import static com.digitalsanctuary.spring.user.util.ResponseUtil.buildErrorResponse;
-import static com.digitalsanctuary.spring.user.util.ResponseUtil.buildSuccessResponse;
 
 /**
  * REST controller for managing user-related operations. This class handles user registration, account deletion, and other user-related endpoints.
@@ -163,19 +160,19 @@ public class UserAPI {
 	 * @return a ResponseEntity containing a JSONResponse with the password update result
 	 */
 	@PostMapping("/updatePassword")
-	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails, 
+	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails,
 			@Valid @RequestBody PasswordDto passwordDto, HttpServletRequest request, Locale locale) {
 		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
-		
+
 		try {
 			if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
 				throw new InvalidOldPasswordException("Invalid old password");
 			}
-			
+
 			userService.changeUserPassword(user, passwordDto.getNewPassword());
 			logAuditEvent("PasswordUpdate", "Success", "User password updated", user, request);
-			
+
 			return buildSuccessResponse(messages.getMessage("message.update-password.success", null, locale), null);
 		} catch (InvalidOldPasswordException ex) {
 			logAuditEvent("PasswordUpdate", "Failure", "Invalid old password", user, request);
