@@ -1,6 +1,5 @@
 package com.digitalsanctuary.spring.user.api;
 
-import static com.digitalsanctuary.spring.user.api.helper.ApiTestHelper.buildUrlEncodedFormEntity;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Disabled;
@@ -11,6 +10,7 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import com.digitalsanctuary.spring.user.api.data.ApiTestData;
@@ -20,18 +20,22 @@ import com.digitalsanctuary.spring.user.api.helper.AssertionsHelper;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsProvider;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestUpdatePasswordArgumentsProvider;
 import com.digitalsanctuary.spring.user.api.provider.holder.ApiTestArgumentsHolder;
-import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.jdbc.Jdbc;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-@Disabled("Temporarily disabled due to OAuth2 dependency issues")
+@ActiveProfiles("test")
+// @Disabled("Temporarily disabled due to OAuth2 dependency issues")
 public class UserApiTest extends BaseApiTest {
     private static final String URL = "/user";
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private static final UserDto baseTestUser = ApiTestData.BASE_TEST_USER;
 
@@ -48,10 +52,9 @@ public class UserApiTest extends BaseApiTest {
     @ParameterizedTest
     @ArgumentsSource(ApiTestRegistrationArgumentsProvider.class)
     @Order(1)
-    // correctly run separately
     public void registerUserAccount(ApiTestArgumentsHolder argumentsHolder) throws Exception {
-        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/registration").contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .content(buildUrlEncodedFormEntity(argumentsHolder.getUserDto())));
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/registration").contentType(MediaType.APPLICATION_JSON) // Changed to JSON
+                .content(objectMapper.writeValueAsString(argumentsHolder.getUserDto()))); // Serialize to JSON
 
         if (argumentsHolder.getStatus() == DataStatus.NEW) {
             action.andExpect(status().isOk());
@@ -71,46 +74,43 @@ public class UserApiTest extends BaseApiTest {
     @Test
     @Order(2)
     public void resetPassword() throws Exception {
-        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/resetPassword").contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .content(buildUrlEncodedFormEntity(baseTestUser))).andExpect(status().isOk());
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/resetPassword").contentType(MediaType.APPLICATION_JSON) // Changed to JSON
+                .content(objectMapper.writeValueAsString(baseTestUser))) // Serialize to JSON
+                        .andExpect(status().isOk());
 
         MockHttpServletResponse actual = action.andReturn().getResponse();
         Response excepted = ApiTestData.resetPassword();
         AssertionsHelper.compareResponses(actual, excepted);
     }
 
-    // Tests temporarily disabled until OAuth2 dependency issue is resolved
-//    /**
-//     * Tests the update password functionality with valid and invalid password combinations.
-//     *
-//     * @param argumentsHolder Contains test data for password updates (valid/invalid scenarios)
-//     * @throws Exception if any error occurs during test execution
-//     */
-//    @ParameterizedTest
-//    @ArgumentsSource(ApiTestUpdatePasswordArgumentsProvider.class)
-//    @Order(3)
-//    public void updatePassword(ApiTestArgumentsHolder argumentsHolder) throws Exception {
-//        // Register and login test user first
-//        login(baseTestUser);
-//
-//        PasswordDto passwordDto = argumentsHolder.getPasswordDto();
-//
-//        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/updatePassword")
-//                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-//                .content(buildUrlEncodedFormEntity(passwordDto)));
-//
-//        if (argumentsHolder.getStatus() == DataStatus.VALID) {
-//            action.andExpect(status().isOk());
-//        }
-//        if (argumentsHolder.getStatus() == DataStatus.INVALID) {
-//            action.andExpect(status().isBadRequest());
-//        }
-//
-//        MockHttpServletResponse actual = action.andReturn().getResponse();
-//        Response expected = argumentsHolder.getResponse();
-//        AssertionsHelper.compareResponses(actual, expected);
-//    }
+    /**
+     * Tests the update password functionality with valid and invalid password combinations.
+     *
+     * @param argumentsHolder Contains test data for password updates (valid/invalid scenarios)
+     * @throws Exception if any error occurs during test execution
+     */
+    @ParameterizedTest
+    @ArgumentsSource(ApiTestUpdatePasswordArgumentsProvider.class)
+    @Order(3)
+    @Disabled("Temporarily disabled due to error")
+    public void updatePassword(ApiTestArgumentsHolder argumentsHolder) throws Exception {
+        // Register and login test user first
+        login(baseTestUser);
 
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/updatePassword").contentType(MediaType.APPLICATION_JSON) // Changed to JSON
+                .content(objectMapper.writeValueAsString(argumentsHolder.getPasswordDto()))); // Serialize to JSON
+
+        if (argumentsHolder.getStatus() == DataStatus.VALID) {
+            action.andExpect(status().isOk());
+        }
+        if (argumentsHolder.getStatus() == DataStatus.INVALID) {
+            action.andExpect(status().isBadRequest());
+        }
+
+        MockHttpServletResponse actual = action.andReturn().getResponse();
+        Response expected = argumentsHolder.getResponse();
+        AssertionsHelper.compareResponses(actual, expected);
+    }
 
     protected void login(UserDto userDto) {
         User user;
@@ -119,6 +119,4 @@ public class UserApiTest extends BaseApiTest {
         }
         userService.authWithoutPassword(user);
     }
-
-
 }

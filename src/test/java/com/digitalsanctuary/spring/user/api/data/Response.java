@@ -7,7 +7,7 @@ import java.util.Objects;
 public class Response {
     private boolean success;
     private String redirectUrl;
-    private Integer code;
+    private Integer code = 0;
     private String[] messages;
     private Object data;
 
@@ -15,7 +15,7 @@ public class Response {
 
     public Response(boolean success, Integer code, String redirectUrl, String[] messages, Object data) {
         this.success = success;
-        this.code = code;
+        this.code = code == null ? 0 : code;
         this.redirectUrl = redirectUrl;
         this.messages = messages;
         this.data = data;
@@ -63,23 +63,17 @@ public class Response {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (!(obj instanceof Response response)) return false;
-        return response.success == this.success &&
-                Objects.equals(response.redirectUrl, this.redirectUrl) &&
-                response.code == this.code &&
-                Arrays.equals(response.messages, this.messages) &&
-                Objects.equals(response.data, this.data);
+        if (this == obj)
+            return true;
+        if (!(obj instanceof Response response))
+            return false;
+        return response.success == this.success && Objects.equals(response.redirectUrl, this.redirectUrl) && response.code == this.code
+                && Arrays.equals(response.messages, this.messages) && Objects.equals(response.data, this.data);
     }
 
     @Override
     public String toString() {
-        return "ApiResponse{" +
-                "success=" + success +
-                ", redirectUrl='" + redirectUrl + '\'' +
-                ", code=" + code +
-                ", messages=" + Arrays.toString(messages) +
-                ", data=" + data +
-                '}';
+        return "ApiResponse{" + "success=" + success + ", redirectUrl='" + redirectUrl + '\'' + ", code=" + code + ", messages="
+                + Arrays.toString(messages) + ", data=" + data + '}';
     }
 }

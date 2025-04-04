@@ -1,5 +1,17 @@
 package com.digitalsanctuary.spring.user.service;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import java.util.Collections;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
@@ -8,23 +20,10 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.Collections;
-
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@Disabled("Temporarily disabled due to OAuth2 dependency issues")
+@ActiveProfiles("test")
+// @Disabled("Temporarily disabled due to OAuth2 dependency issues")
 public class UserServiceTest {
 
     private static final String USER_ROLE_NAME = "ROLE_USER";
@@ -103,25 +102,25 @@ public class UserServiceTest {
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
         Assertions.assertTrue(userService.checkIfValidOldPassword(testUser, testUser.getPassword()));
     }
-    
+
     // Tests temporarily disabled until OAuth2 dependency issue is resolved
-//    @Test
-//    void checkIfValidOldPassword_returnFalseIfInvalid() {
-//        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
-//        Assertions.assertFalse(userService.checkIfValidOldPassword(testUser, "wrongPassword"));
-//    }
-//
-//    @Test
-//    void changeUserPassword_encodesAndSavesNewPassword() {
-//        String newPassword = "newTestPassword";
-//        String encodedPassword = "encodedNewPassword";
-//
-//        when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
-//        when(userRepository.save(any(User.class))).thenReturn(testUser);
-//
-//        userService.changeUserPassword(testUser, newPassword);
-//
-//        Assertions.assertEquals(encodedPassword, testUser.getPassword());
-//    }
+    // @Test
+    // void checkIfValidOldPassword_returnFalseIfInvalid() {
+    // when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+    // Assertions.assertFalse(userService.checkIfValidOldPassword(testUser, "wrongPassword"));
+    // }
+    //
+    // @Test
+    // void changeUserPassword_encodesAndSavesNewPassword() {
+    // String newPassword = "newTestPassword";
+    // String encodedPassword = "encodedNewPassword";
+    //
+    // when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
+    // when(userRepository.save(any(User.class))).thenReturn(testUser);
+    //
+    // userService.changeUserPassword(testUser, newPassword);
+    //
+    // Assertions.assertEquals(encodedPassword, testUser.getPassword());
+    // }
 
 }

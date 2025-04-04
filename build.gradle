@@ -69,6 +69,15 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'com.h2database:h2:2.3.232'
+    testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    testImplementation 'org.springframework.security:spring-security-oauth2-core:5.8.0'
+    testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    testImplementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.3.RELEASE'
+    testImplementation 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:3.4.0'
+    testImplementation 'org.springframework.boot:spring-boot-starter-mail'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    testImplementation 'jakarta.validation:jakarta.validation-api:3.1.1'
 }
 
 tasks.named('bootJar') {

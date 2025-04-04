@@ -1,5 +1,14 @@
 package com.digitalsanctuary.spring.user.api;
 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import com.digitalsanctuary.spring.user.api.data.ApiTestData;
 import com.digitalsanctuary.spring.user.api.data.DataStatus;
 import com.digitalsanctuary.spring.user.api.data.Response;
@@ -8,18 +17,9 @@ import com.digitalsanctuary.spring.user.api.provider.ApiTestAccountLockingArgume
 import com.digitalsanctuary.spring.user.api.provider.holder.ApiTestArgumentsHolder;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.jdbc.Jdbc;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-// Disabling the test cases for now because of java.lang.NoClassDefFoundError: org/springframework/security/oauth2/core/user/OAuth2User
-//@Disabled("Temporarily disabled due to OAuth2 dependency issues")
+@ActiveProfiles("test")
+// @Disabled("Temporarily disabled due to dependency issues")
 public class AdminApiTest extends BaseApiTest {
     private static final String URL = "/admin";
     private static final UserDto baseAdminUser = ApiTestData.BASE_ADMIN_USER;
@@ -38,8 +38,8 @@ public class AdminApiTest extends BaseApiTest {
      */
     @ParameterizedTest
     @ArgumentsSource(ApiTestAccountLockingArgumentsProvider.class)
-    public void toggleLockStatusOfUser(ApiTestArgumentsHolder argumentsHolder) throws Exception {
-        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/lockAccount").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+    public void lockUserAccount(ApiTestArgumentsHolder argumentsHolder) throws Exception {
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/lockAccount").contentType(MediaType.APPLICATION_JSON)
                 .content(String.valueOf(argumentsHolder.getLockAccountDto())));
 
         verifyResponse(action, argumentsHolder);
@@ -54,8 +54,7 @@ public class AdminApiTest extends BaseApiTest {
     @ParameterizedTest
     @ArgumentsSource(ApiTestAccountLockingArgumentsProvider.class)
     public void unlockUserAccount(ApiTestArgumentsHolder argumentsHolder) throws Exception {
-        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/unlockAccount")
-                .contentType(MediaType.APPLICATION_JSON)
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/unlockAccount").contentType(MediaType.APPLICATION_JSON)
                 .content(String.valueOf(argumentsHolder.getLockAccountDto())));
 
         verifyResponse(action, argumentsHolder);
