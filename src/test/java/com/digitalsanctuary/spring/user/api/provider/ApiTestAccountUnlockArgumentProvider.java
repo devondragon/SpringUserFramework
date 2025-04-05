@@ -9,14 +9,14 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 
 import java.util.stream.Stream;
 
-public class ApiTestAccountLockingArgumentsProvider implements ArgumentsProvider {
+public class ApiTestAccountUnlockArgumentProvider implements ArgumentsProvider {
   @Override
   public Stream<? extends Arguments> provideArguments(ExtensionContext context) throws Exception {
     return Stream.of(
             new ApiTestArgumentsHolder(
                     ApiTestData.getLockAccountDto(),
                     DataStatus.VALID,
-                    ApiTestData.successLockAccount()
+                    ApiTestData.successUnlockAccount()
             ),
 
             new ApiTestArgumentsHolder(
