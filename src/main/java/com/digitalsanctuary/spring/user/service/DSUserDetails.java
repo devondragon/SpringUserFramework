@@ -4,15 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-
-import lombok.Builder;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import lombok.Builder;
 import lombok.ToString;
 
 /**
@@ -41,7 +39,7 @@ import lombok.ToString;
  * }</pre>
  */
 @ToString
-public class DSUserDetails implements UserDetails, OAuth2User, OidcUser {
+public class DSUserDetails implements UserDetails, OidcUser {
 
 	/** The Constant serialVersionUID. */
 	private static final long serialVersionUID = 5286810064622508389L;
@@ -86,8 +84,8 @@ public class DSUserDetails implements UserDetails, OAuth2User, OidcUser {
 	 * Instantiates a new DS user details.
 	 *
 	 * @param user the user
-	 * @param oidcUserInfo  containing claims about the user
-	 * @param oidcIdToken  containing claims about the user
+	 * @param oidcUserInfo containing claims about the user
+	 * @param oidcIdToken containing claims about the user
 	 * @param grantedAuthorities the granted authorities (optional, default = empty list)
 	 */
 	@Builder
@@ -102,8 +100,8 @@ public class DSUserDetails implements UserDetails, OAuth2User, OidcUser {
 	 * Instantiates a new DS user details.
 	 *
 	 * @param user the user
-	 * @param oidcUserInfo  containing claims about the user
-	 * @param oidcIdToken  containing claims about the user
+	 * @param oidcUserInfo containing claims about the user
+	 * @param oidcIdToken containing claims about the user
 	 */
 	@Builder
 	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken) {

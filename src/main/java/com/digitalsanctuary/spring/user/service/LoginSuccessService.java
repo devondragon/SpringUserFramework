@@ -45,6 +45,17 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 																																	ServletException {
 		log.debug("LoginSuccessService.onAuthenticationSuccess()");
 		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
+
+		// Enhanced logging to check request attributes
+		log.debug("Request URI: {}", request.getRequestURI());
+		log.debug("Request URL: {}", request.getRequestURL());
+		log.debug("Request query string: {}", request.getQueryString());
+		log.debug("Session ID: {}", request.getSession().getId());
+
+		// Log saved request if present
+		Object savedRequest = request.getSession().getAttribute("SPRING_SECURITY_SAVED_REQUEST");
+		log.debug("Saved request in session: {}", savedRequest);
+
 		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
@@ -59,22 +70,53 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			}
 		}
 
+		// Create audit event
 		AuditEvent loginAuditEvent =
 				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
 						.userAgent(request.getHeader("User-Agent")).action("Login").actionStatus("Success").message("Success").build();
 
-		eventPublisher.publishEvent(loginAuditEvent);
-
-		String targetUrl = super.determineTargetUrl(request, response);
-		if (StringUtils.isEmptyOrWhitespace(targetUrl) || StringUtils.equals(targetUrl, "/")) {
-			targetUrl = loginSuccessUri;
-			this.setDefaultTargetUrl(targetUrl);
-
-			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
-			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "defaultTargetParam: {}", this.getTargetUrlParameter());
+		// Publish audit event in a try-catch to prevent redirection issues
+		try {
+			eventPublisher.publishEvent(loginAuditEvent);
+		} catch (Exception e) {
+			log.error("Error publishing login audit event", e);
+			// Continue with the login flow even if audit logging fails
 		}
 
+		// Get and set the target URL with enhanced logging
+		String targetUrl = super.determineTargetUrl(request, response);
+		log.debug("Initial targetUrl from super.determineTargetUrl: {}", targetUrl);
+
+		if (StringUtils.isEmptyOrWhitespace(targetUrl) || StringUtils.equals(targetUrl, "/")) {
+			targetUrl = loginSuccessUri;
+			log.debug("Using configured loginSuccessUri: {}", loginSuccessUri);
+			this.setDefaultTargetUrl(targetUrl);
+			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
+		} else {
+			log.debug("Using existing targetUrl: {}", targetUrl);
+		}
+
+		// Set the alwaysUseDefaultTargetUrl to ensure our target URL is always used
+		this.setAlwaysUseDefaultTargetUrl(true);
+		log.debug("AlwaysUseDefaultTargetUrl set to: {}", this.isAlwaysUseDefaultTargetUrl());
+
+		// Check if there's a redirect URL in the request parameters (common in OAuth2 flows)
+		String continueParam = request.getParameter("continue");
+		if (continueParam != null) {
+			log.debug("Found 'continue' parameter in request: {}", continueParam);
+		}
+
+		// Extra logging to track redirection
+		log.debug("LoginSuccessService.onAuthenticationSuccess: Proceeding with redirection to {}", this.getDefaultTargetUrl());
+
+		// Log the SavedRequest state
+		log.debug("SavedRequest state before calling super.onAuthenticationSuccess: {}",
+				request.getSession().getAttribute("SPRING_SECURITY_SAVED_REQUEST"));
+
 		super.onAuthenticationSuccess(request, response, authentication);
+
+		// This won't execute if the super method redirects, but might help with debugging
+		log.debug("After super.onAuthenticationSuccess - if you see this, no redirect happened");
 	}
 
 }
