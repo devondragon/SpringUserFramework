@@ -120,14 +120,18 @@ public class ApiTestData {
     }
 
     public static Response successLockAccount() {
-        return new Response(true, null, null, new String[] {"Account Locked"}, null);
+        return new Response(true, null, null, new String[] {"User account locked successfully"}, null);
     }
 
     public static Response lockAccountFailry() {
-        return new Response(false, null, null, new String[] {"User not found"}, null);
+        return new Response(false, 2, null, new String[] {"User not found"}, null);
     }
 
     public static Response invalidBodyLockAccountFailry() {
         return new Response(false, 1, null, new String[] {"Email is required"}, null);
+    }
+
+    public static Response successUnlockAccount() {
+        return new Response(true, null, null, new String[] {"User account unlocked successfully"}, null);
     }
 }
