@@ -44,7 +44,8 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																																	ServletException {
 		log.debug("LoginSuccessService.onAuthenticationSuccess()");
-		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
+		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with request: {}", request);
+		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentication: {}", authentication);
 
 		// Enhanced logging to check request attributes
 		log.debug("Request URI: {}", request.getRequestURI());
