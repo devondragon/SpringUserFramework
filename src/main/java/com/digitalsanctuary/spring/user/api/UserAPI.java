@@ -54,8 +54,7 @@ public class UserAPI {
 	@Value("${user.security.forgotPasswordPendingURI}")
 	private String forgotPasswordPendingURI;
 
-	@Value("${user.actuallyDeleteAccount:false}")
-	private boolean actuallyDeleteAccount;
+
 
 	/**
 	 * Registers a new user account.
@@ -158,19 +157,19 @@ public class UserAPI {
 	 * @return a ResponseEntity containing a JSONResponse with the password update result
 	 */
 	@PostMapping("/updatePassword")
-	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails, 
+	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails,
 			@Valid @RequestBody PasswordDto passwordDto, HttpServletRequest request, Locale locale) {
 		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
-		
+
 		try {
 			if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
 				throw new InvalidOldPasswordException("Invalid old password");
 			}
-			
+
 			userService.changeUserPassword(user, passwordDto.getNewPassword());
 			logAuditEvent("PasswordUpdate", "Success", "User password updated", user, request);
-			
+
 			return buildSuccessResponse(messages.getMessage("message.update-password.success", null, locale), null);
 		} catch (InvalidOldPasswordException ex) {
 			logAuditEvent("PasswordUpdate", "Failure", "Invalid old password", user, request);
@@ -194,15 +193,9 @@ public class UserAPI {
 	public ResponseEntity<JSONResponse> deleteAccount(@AuthenticationPrincipal DSUserDetails userDetails, HttpServletRequest request) {
 		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
-
-		if (actuallyDeleteAccount) {
-			userService.deleteUser(user);
-		} else {
-			user.setEnabled(false);
-			userService.saveRegisteredUser(user);
-		}
+		userService.deleteOrDisableUser(user);
+		logAuditEvent("AccountDelete", "Success", "User account deleted", user, request);
 		logoutUser(request);
-
 		return buildSuccessResponse("Account Deleted", null);
 	}
 

@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.profile;
 import java.time.LocalDateTime;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import jakarta.persistence.Column;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MappedSuperclass;
@@ -47,7 +48,7 @@ public abstract class BaseUserProfile {
      */
     @OneToOne
     @MapsId
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", foreignKey = @ForeignKey(name = "fk_user"))
     private User user;
 
     /**
@@ -64,5 +65,5 @@ public abstract class BaseUserProfile {
     @Column(name = "preferred_locale")
     private String locale;
 
-    // Note: Getters and setters are provided by Lombok @Data annotation
+
 }

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -76,7 +78,7 @@ import lombok.extern.slf4j.Slf4j;
  * <ul>
  * <li>{@link #registerNewUserAccount(UserDto)}: Registers a new user account.</li>
  * <li>{@link #saveRegisteredUser(User)}: Saves a registered user.</li>
- * <li>{@link #deleteUser(User)}: Deletes a user and cleans up associated tokens.</li>
+ * <li>{@link #deleteOrDisableUser(User)}: Deletes a user and cleans up associated tokens.</li>
  * <li>{@link #findUserByEmail(String)}: Finds a user by email.</li>
  * <li>{@link #getPasswordResetToken(String)}: Gets a password reset token by token string.</li>
  * <li>{@link #getUserByPasswordResetToken(String)}: Gets a user by password reset token.</li>
@@ -191,14 +193,18 @@ public class UserService {
 	/** The user details service. */
 	private final DSUserDetailsService dsUserDetailsService;
 
+	private final ApplicationEventPublisher eventPublisher;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
 
+	@Value("${user.actuallyDeleteAccount:false}")
+	private boolean actuallyDeleteAccount;
+
 	/**
-	 * Registers a new user account with the provided user data.
-	 * If the email already exists, throws a UserAlreadyExistException.
-	 * If sendRegistrationVerificationEmail is false, the user is enabled immediately.
+	 * Registers a new user account with the provided user data. If the email already exists, throws a UserAlreadyExistException. If
+	 * sendRegistrationVerificationEmail is false, the user is enabled immediately.
 	 *
 	 * @param newUserDto the data transfer object containing the user registration information
 	 * @return the newly created user entity
@@ -243,24 +249,44 @@ public class UserService {
 	}
 
 	/**
-	 * Delete user.
+	 * Delete user and clean up associated tokens. If actuallyDeleteAccount is true, the user is deleted from the database. Otherwise, the user is
+	 * disabled.
 	 *
-	 * @param user the user
+	 * Transactional method to ensure that the operation is atomic. If any part of the operation fails, the entire transaction is rolled back. This
+	 * includes the Event to allow the consuming application to handle data cleanup as needed before the User is deleted.
+	 *
+	 * @param user the user to delete or disable
 	 */
-	public void deleteUser(final User user) {
-		// Clean up any Tokens associated with this user
-		final VerificationToken verificationToken = tokenRepository.findByUser(user);
-		if (verificationToken != null) {
-			tokenRepository.delete(verificationToken);
-		}
+	@Transactional
+	public void deleteOrDisableUser(final User user) {
+		log.debug("UserService.deleteOrDisableUser: called with user: {}", user);
+		if (actuallyDeleteAccount) {
+			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user);
+			// Publish the UserPreDeleteEvent before deleting the user
+			// This allows any listeners to perform actions before the user is deleted
+			log.debug("Publishing UserPreDeleteEvent");
+			eventPublisher.publishEvent(new UserPreDeleteEvent(this, user));
 
-		final PasswordResetToken passwordToken = passwordTokenRepository.findByUser(user);
-		if (passwordToken != null) {
-			passwordTokenRepository.delete(passwordToken);
+			// Clean up any Tokens associated with this user
+			final VerificationToken verificationToken = tokenRepository.findByUser(user);
+			if (verificationToken != null) {
+				tokenRepository.delete(verificationToken);
+			}
+
+			final PasswordResetToken passwordToken = passwordTokenRepository.findByUser(user);
+			if (passwordToken != null) {
+				passwordTokenRepository.delete(passwordToken);
+			}
+			// Delete the user
+			userRepository.delete(user);
+		} else {
+			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user);
+			user.setEnabled(false);
+			userRepository.save(user);
+			log.debug("UserService.deleteOrDisableUser: user {} has been disabled", user.getEmail());
 		}
-		// Delete the user
-		userRepository.delete(user);
 	}
+
 
 	/**
 	 * Find user by email.
@@ -371,13 +397,13 @@ public class UserService {
 	}
 
 	/**
-	 * Authenticates the given user without requiring a password. This method loads the user's details,
-	 * generates their authorities from their roles and privileges, and stores these details in the
-	 * security context and session.
-	 * 
-	 * <p><strong>SECURITY WARNING:</strong> This is a potentially dangerous method as it authenticates
-	 * a user without password verification. This method should only be used in specific controlled scenarios,
-	 * such as after successful email verification or OAuth authentication.</p>
+	 * Authenticates the given user without requiring a password. This method loads the user's details, generates their authorities from their roles
+	 * and privileges, and stores these details in the security context and session.
+	 *
+	 * <p>
+	 * <strong>SECURITY WARNING:</strong> This is a potentially dangerous method as it authenticates a user without password verification. This method
+	 * should only be used in specific controlled scenarios, such as after successful email verification or OAuth authentication.
+	 * </p>
 	 *
 	 * @param user The user to authenticate without password verification
 	 */

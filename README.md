@@ -33,6 +33,8 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
       - [**SSO OIDC with Keycloak**](#sso-oidc-with-keycloak)
   - [Extensibility](#extensibility)
     - [Custom User Profiles](#custom-user-profiles)
+    - [Handling User Account Deletion and Profile Cleanup](#handling-user-account-deletion-and-profile-cleanup)
+      - [Enabling Actual Deletion](#enabling-actual-deletion)
     - [SSO OAuth2 with Google and Facebook](#sso-oauth2-with-google-and-facebook)
   - [Examples](#examples)
   - [Contributing](#contributing)
@@ -327,6 +329,81 @@ public class CustomUserProfileService implements UserProfileService<CustomUserPr
 }
 ```
 Read more in the [Profile Guide](PROFILE.md).
+
+### Handling User Account Deletion and Profile Cleanup
+By default, when a user account is "deleted" through the framework's services or APIs, the account is marked as disabled (`enabled=false`) rather than being physically removed from the database. This is controlled by the `user.actuallyDeleteAccount` configuration property, which defaults to `false`.
+
+#### Enabling Actual Deletion
+
+If you require user accounts to be physically deleted from the database, set the following property in your `application.properties` or `application.yml`:
+
+```properties
+user.actuallyDeleteAccount=true
+```
+
+Cleaning Up Related Data (e.g., User Profiles)
+When user.actuallyDeleteAccount is set to true, the framework needs a way to ensure that related data, such as application-specific user profiles extending BaseUserProfile, is also cleaned up to avoid orphaned data or foreign key constraint violations.
+
+To facilitate this in a decoupled manner, the framework publishes a UserPreDeleteEvent immediately before the User entity is deleted from the database. This event is published within the same transaction as the user deletion.
+
+Consuming applications that have extended BaseUserProfile (or have other user-related data) should listen for this event and perform the necessary cleanup operations.
+
+Event Class: com.digitalsanctuary.spring.user.event.UserPreDeleteEvent Event Data: Contains the User entity that is about to be deleted (event.getUser()).
+
+Example Event Listener:
+
+Here's an example of how a consuming application can implement an event listener to delete its specific user profile (DemoUserProfile in this case) when a user is deleted:
+
+```java
+package com.digitalsanctuary.spring.demo.user.profile;
+
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
+
+/**
+ * Listener for user profile deletion events. This class listens for UserPreDeleteEvent and deletes the associated DemoUserProfile. It is assumed that
+ * the DemoUserProfile is mapped to the User entity with a one-to-one relationship.
+ */
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class UserProfileDeletionListener {
+    private final DemoUserProfileRepository demoUserProfileRepository;
+    // Inject other repositories if needed (e.g., EventRegistrationRepository)
+
+    @EventListener
+    @Transactional // Joins the transaction started by UserService.deleteUserAccount
+    public void handleUserPreDelete(UserPreDeleteEvent event) {
+        Long userId = event.getUser().getId();
+        log.info("Received UserPreDeleteEvent for userId: {}. Deleting associated DemoUserProfile...", userId);
+
+        // Option 1: Delete profile directly (if no further cascades needed from profile)
+        // Since DemoUserProfile uses @MapsId, its ID is the same as the User's ID
+        demoUserProfileRepository.findById(userId).ifPresent(profile -> {
+            log.debug("Found DemoUserProfile for userId: {}. Deleting...", userId);
+            // If DemoUserProfile itself has relationships needing cleanup (like EventRegistrations)
+            // that aren't handled by CascadeType.REMOVE or orphanRemoval=true,
+            // handle them here *before* deleting the profile.
+            // Example: eventRegistrationRepository.deleteByUserProfile(profile);
+            demoUserProfileRepository.delete(profile);
+            log.debug("DemoUserProfile deleted for userId: {}", userId);
+        });
+
+        // Option 2: If DemoUserProfile has CascadeType.REMOVE/orphanRemoval=true
+        // on its collections (like eventRegistrations), deleting the profile might be enough.
+        // demoUserProfileRepository.deleteById(userId);
+
+        log.info("Finished processing UserPreDeleteEvent for userId: {}", userId);
+    }
+}
+```
+
+By implementing such a listener, your application ensures data integrity when the actual user account deletion feature is enabled, without requiring the core framework library to have knowledge of your specific profile entities. If you leave user.actuallyDeleteAccount as false, this event is not published, and no listener implementation is required for profile cleanup
+
 
 
 ### SSO OAuth2 with Google and Facebook
