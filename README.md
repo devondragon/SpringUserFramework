@@ -84,14 +84,14 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.2.0</version>
+    <version>3.2.1</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.2.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.2.1'
 ```
 
 ## Quick Start
