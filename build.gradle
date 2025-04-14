@@ -50,7 +50,7 @@ dependencies {
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.passay:passay:1.6.6'
-    implementation 'com.google.guava:guava:33.4.6-jre'
+    implementation 'com.google.guava:guava:33.4.7-jre'
     compileOnly 'org.springframework.boot:spring-boot-starter-actuator'
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
 
