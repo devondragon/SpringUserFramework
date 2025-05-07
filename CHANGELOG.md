@@ -1,3 +1,40 @@
+## [3.2.2] - 2025-05-07
+### Changelog
+
+#### Features
+- **Bump ds-spring-user-framework to 3.2.2**  
+  Updated the ds-spring-user-framework version in the `README.md` to 3.2.2. This ensures that users who follow documentation instructions use the latest features and enhancements of the framework.
+
+- **Dependency Updates: Guava**
+  - Updated the Google Guava library from version `33.4.6-jre` to `33.4.8-jre` in `build.gradle`, reflecting two incremental updates. These semver-patch updates likely contain bug fixes or performance improvements without introducing new features or breaking changes.
+
+#### Fixes
+- **Conditional Logging Fix in FileAuditLogFlushScheduler**  
+  Resolved an issue where the `FileAuditLogFlushScheduler` component continued to log events despite logEvents being disabled. The previous configuration used `@ConditionalOnProperty`, which was adjusted to `@ConditionalOnExpression` for better control. This change ensures that logging adheres to the intended configuration settings.
+
+#### Breaking Changes
+- None identified in this update cycle.
+
+#### Refactoring
+- **Improved Conditional Annotation Flexibility**  
+  The `FileAuditLogFlushScheduler` was refactored to use `@ConditionalOnExpression` instead of `@ConditionalOnProperty`. This change provides more flexibility in how conditions for the component's activation are defined, allowing more dynamic configuration based on properties.
+
+#### Documentation
+- **Updated Version References in README**  
+  Made explicit updates to version numbers in `README.md` to reflect the latest versions of the libraries, guiding users toward using the most up-to-date and secure versions.
+
+#### Testing
+- No specific changes related to testing documented.
+
+#### Other Changes
+- **Spring Boot Version Bump**  
+  Updated multiple Spring Boot-related dependencies from `3.4.4` to `3.4.5` in `build.gradle` as a part of regular maintenance. These updates include `spring-boot-starter-web`, `spring-boot-configuration-processor`, and `spring-boot-starter-test` among others. This reflects minor version changes which may contain minor improvements or bug fixes without disrupting existing functionalities.
+
+- **Version Management and Version Updates**  
+  Made necessary changes to version management files like `gradle.properties` to transition from `3.2.1` to `3.2.2-SNAPSHOT`, indicating ongoing development work post the latest release. This snapshot designation is typically used for builds that are still under development.
+  
+This changelog captures nuanced improvements and ensures that developers and users of the project are aware of the recent enhancements and bugfixes, to maintain alignment with the latest codebase optimizations.
+
 ## [3.2.1] - 2025-04-13
 # Changelog
 
