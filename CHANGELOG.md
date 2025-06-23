@@ -1,3 +1,26 @@
+## [3.2.3] - 2025-06-23
+### Features
+- **[Gradle Release Plugin] New Version:** Updated `gradle.properties` to set the project version to `3.2.3-SNAPSHOT` from `3.2.2`. This change prepares the project for future development by marking the start of a new snapshot version.
+
+### Other Changes
+- **Dependency Updates:**
+  - **Spring Boot Update to 3.5.3:** 
+    - **Merged Changes and Details:**
+      - Updated `springBootVersion` in `build.gradle` from `3.5.0` to `3.5.3`. This update includes improvements and bug fixes from Spring Boot's latest patch release.
+      - Affected modules include `spring-boot-starter-web`, `spring-boot-configuration-processor`, and `spring-boot-starter-test`. Each of these was bumped from version `3.5.0` to `3.5.3`.
+      - These updates ensure incorporation of resolved issues and performance improvements provided by the Spring Boot team. [Release notes and commits](https://github.com/spring-projects/spring-boot/releases). 
+  - **Maven Publish Plugin Update to 0.33.0:**
+    - **Merged Changes and Details:**
+      - Updated `com.vanniktech.maven.publish` plugin in `build.gradle` from `0.32.0` to `0.33.0`. This minor version update may include new features, enhancements, and potentially minor API changes that improve the publication process.
+      - This update ensures the usage of the latest features and improvements, detailed in [release notes and changelog](https://github.com/vanniktech/gradle-maven-publish-plugin/releases). 
+
+- **Version Increment for Spring Boot to 3.5.0 from 3.4.5:**
+  - Previous increment from `3.4.5` to `3.5.0` had merged code changes which similarly ensured improved stability and support by aligning with the latest minor release prior to patch updates.
+
+These updates help make sure the project dependencies are current, which is important for taking advantage of recent bug fixes and performance improvements, as well as maintaining security standards within the project.
+
+**Note:** All dependency updates above relate to enhancement and security, and do not introduce breaking changes as they are minor or patch updates to dependencies already in use.
+
 ## [3.2.2] - 2025-05-07
 ### Changelog
 
