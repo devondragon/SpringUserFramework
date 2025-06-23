@@ -18,7 +18,7 @@ group = 'com.digitalsanctuary.springuser'
 description = 'Spring User Framework'
 
 ext {
-    springBootVersion = '3.5.0'
+    springBootVersion = '3.5.3'
     lombokVersion = '1.18.38'
 }
 
