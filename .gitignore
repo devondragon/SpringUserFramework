@@ -136,3 +136,6 @@ application-local.yml
 /java_pid23168.hprof
 /project_concatenated.txt
 /repomix-output.txt
+
+# Claude configuration
+.claude/
