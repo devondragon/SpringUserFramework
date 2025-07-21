@@ -9,7 +9,6 @@ plugins {
     id 'net.researchgate.release' version '3.1.0'
 }
 
-import com.vanniktech.maven.publish.SonatypeHost
 import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 
@@ -134,7 +133,7 @@ tasks.test {
 // Maven Central Publishing Tasks
 mavenPublishing {
   configure(new JavaLibrary(new JavadocJar.Javadoc(), true))
-  publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+  // publishToMavenCentral() is now configured via gradle.properties
   signAllPublications()
   coordinates("com.digitalsanctuary", "ds-spring-user-framework", project.version)
 
