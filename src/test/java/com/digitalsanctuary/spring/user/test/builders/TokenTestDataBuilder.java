@@ -31,7 +31,7 @@ public class TokenTestDataBuilder {
      * Builder for VerificationToken entities.
      */
     public static class VerificationTokenBuilder {
-        private static long idCounter = 1L;
+        private static final AtomicLong idCounter = new AtomicLong(1);
         
         private Long id;
         private String token;
