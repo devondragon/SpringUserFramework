@@ -32,24 +32,36 @@ import com.digitalsanctuary.spring.user.api.provider.ApiTestUpdatePasswordArgume
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Disabled;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Collections;
 
-@Disabled("Temporarily disabled while fixing integration test configuration")
-public class UserApiTest extends BaseApiTest {
+@Disabled("Temporarily disabled - requires specific database setup that conflicts with current test infrastructure")
+@IntegrationTest
+public class UserApiTest {
     private static final String URL = "/user";
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private MockMvc mockMvc;
 
     private static final UserDto baseTestUser = ApiTestData.BASE_TEST_USER;
 
     @AfterAll
     public static void afterAll() {
         Jdbc.deleteTestUser(baseTestUser);
+    }
+
+    protected ResultActions perform(MockHttpServletRequestBuilder builder) throws Exception {
+        return mockMvc.perform(builder);
     }
 
     /**
