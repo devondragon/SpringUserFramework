@@ -25,7 +25,7 @@ import java.util.*;
 public class UserTestDataBuilder {
     
     private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder(4);
-    private static long idCounter = 1L;
+    private static final AtomicLong idCounter = new AtomicLong(1);
     
     private Long id;
     private String firstName = "Test";
