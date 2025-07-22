@@ -343,7 +343,7 @@ public final class TestFixtures {
             return TokenTestDataBuilder.anExpiredVerificationToken()
                     .forUser(Users.standardUser())
                     .withToken("expired-verification-token-123")
-                    .expiredHoursAgo(1)
+                    .expiredDaysAgo(1)
                     .build();
         }
 
