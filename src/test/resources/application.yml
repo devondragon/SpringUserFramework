@@ -1,0 +1,41 @@
+# Test configuration to ensure H2 uses proper dialect
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+        globally_quoted_identifiers: true
+  profiles:
+    active: test
+  main:
+    allow-bean-definition-overriding: true
+
+# User framework configuration
+user:
+  loginAttemptService:
+    maxAttempts: 3
+  tokenService:
+    expirationInMinutes: 60
+  roles:
+    default: ROLE_USER
+  audit:
+    enabled: false
+  security:
+    defaultAction: deny
+    unprotectedURIs: /,/index.html,/css/*,/js/*,/img/*,/register.html,/user/registration
+    loginPageURI: /login.html
+    loginActionURI: /login
+    loginSuccessURI: /
+    logoutActionURI: /logout
+    logoutSuccessURI: /login?logout
+    accessDeniedURI: /403

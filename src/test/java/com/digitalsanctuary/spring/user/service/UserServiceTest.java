@@ -1,18 +1,20 @@
 package com.digitalsanctuary.spring.user.service;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import java.util.Collections;
-import org.junit.jupiter.api.Assertions;
+import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
@@ -21,9 +23,12 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
+import com.digitalsanctuary.spring.user.test.builders.RoleTestDataBuilder;
+import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
+import org.springframework.test.util.ReflectionTestUtils;
 
-@ExtendWith(MockitoExtension.class)
-@Disabled("Temporarily disabled due to OAuth2 dependency issues")
+@ServiceTest
 public class UserServiceTest {
 
     private static final String USER_ROLE_NAME = "ROLE_USER";
@@ -51,19 +56,22 @@ public class UserServiceTest {
     @Mock
     private AuthorityService authorityService;
 
+    @InjectMocks
     private UserService userService;
     private User testUser;
     private UserDto testUserDto;
 
     @BeforeEach
     void setUp() {
-        testUser = new User();
-        testUser.setEmail("test@example.com");
-        testUser.setFirstName("testFirstName");
-        testUser.setLastName("testLastName");
-        testUser.setPassword("testPassword");
-        testUser.setRoles(Collections.singletonList(new Role("ROLE_USER")));
-        testUser.setEnabled(true);
+        // Use test data builders for cleaner test data setup
+        testUser = UserTestDataBuilder.aUser()
+                .withEmail("test@example.com")
+                .withFirstName("testFirstName")
+                .withLastName("testLastName")
+                .withPassword("testPassword")
+                .withRole("ROLE_USER")
+                .enabled()
+                .build();
 
         testUserDto = new UserDto();
         testUserDto.setEmail("test@example.com");
@@ -71,58 +79,93 @@ public class UserServiceTest {
         testUserDto.setLastName("testLastName");
         testUserDto.setPassword("testPassword");
         testUserDto.setRole(1);
-
-        userService = new UserService(userRepository, tokenRepository, passwordTokenRepository, passwordEncoder, roleRepository, sessionRegistry,
-                userEmailService, userVerificationService, authorityService, dsUserDetailsService, eventPublisher);
     }
 
     @Test
     void registerNewUserAccount_returnsUserWhenUserIsNew() {
-        when(passwordEncoder.encode(testUser.getPassword())).thenReturn(testUser.getPassword());
-        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(new Role(USER_ROLE_NAME));
-        when(userRepository.save(testUser)).thenReturn(testUser);
+        // Given
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        
+        // Set sendRegistrationVerificationEmail to true to test disabled user creation
+        ReflectionTestUtils.setField(userService, "sendRegistrationVerificationEmail", true);
+        
+        // When
         User saved = userService.registerNewUserAccount(testUserDto);
-        Assertions.assertEquals(saved, testUser);
+        
+        // Then
+        assertThat(saved).isNotNull();
+        assertThat(saved.getEmail()).isEqualTo(testUserDto.getEmail());
+        assertThat(saved.getFirstName()).isEqualTo(testUserDto.getFirstName());
+        assertThat(saved.getLastName()).isEqualTo(testUserDto.getLastName());
+        assertThat(saved.isEnabled()).isFalse(); // New users should not be enabled until verified
+        verify(userRepository).save(any(User.class));
     }
 
     @Test
     void registerNewUserAccount_throwsExceptionWhenUserExist() {
+        // Given
         when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
-        Assertions.assertThrows(UserAlreadyExistException.class, () -> userService.registerNewUserAccount(testUserDto));
+        
+        // When & Then
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(UserAlreadyExistException.class)
+                .hasMessageContaining("There is an account with that email address");
     }
 
     @Test
     void findByEmail_returnsUserWhenEmailExist() {
+        // Given
         when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
+        
+        // When
         User found = userService.findUserByEmail(testUser.getEmail());
-        Assertions.assertEquals(found, testUser);
+        
+        // Then
+        assertThat(found).isEqualTo(testUser);
     }
-
 
     @Test
     void checkIfValidOldPassword_returnTrueIfValid() {
+        // Given
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
-        Assertions.assertTrue(userService.checkIfValidOldPassword(testUser, testUser.getPassword()));
+        
+        // When
+        boolean isValid = userService.checkIfValidOldPassword(testUser, testUser.getPassword());
+        
+        // Then
+        assertThat(isValid).isTrue();
     }
 
-    // Tests temporarily disabled until OAuth2 dependency issue is resolved
-    // @Test
-    // void checkIfValidOldPassword_returnFalseIfInvalid() {
-    // when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
-    // Assertions.assertFalse(userService.checkIfValidOldPassword(testUser, "wrongPassword"));
-    // }
-    //
-    // @Test
-    // void changeUserPassword_encodesAndSavesNewPassword() {
-    // String newPassword = "newTestPassword";
-    // String encodedPassword = "encodedNewPassword";
-    //
-    // when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
-    // when(userRepository.save(any(User.class))).thenReturn(testUser);
-    //
-    // userService.changeUserPassword(testUser, newPassword);
-    //
-    // Assertions.assertEquals(encodedPassword, testUser.getPassword());
-    // }
+    @Test
+    void checkIfValidOldPassword_returnFalseIfInvalid() {
+        // Given
+        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+        
+        // When
+        boolean isValid = userService.checkIfValidOldPassword(testUser, "wrongPassword");
+        
+        // Then
+        assertThat(isValid).isFalse();
+    }
+
+    @Test
+    void changeUserPassword_encodesAndSavesNewPassword() {
+        // Given
+        String newPassword = "newTestPassword";
+        String encodedPassword = "encodedNewPassword";
+        when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+        // When
+        userService.changeUserPassword(testUser, newPassword);
+
+        // Then
+        assertThat(testUser.getPassword()).isEqualTo(encodedPassword);
+        verify(passwordEncoder).encode(newPassword);
+        verify(userRepository).save(testUser);
+    }
 
 }
