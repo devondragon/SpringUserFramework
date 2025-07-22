@@ -90,6 +90,13 @@ tasks.named('bootJar') {
 
 test {
 	useJUnitPlatform()
+	// Enable parallel execution for faster test runs
+	systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
+	systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
+	systemProperty 'junit.jupiter.execution.parallel.mode.classes.default', 'concurrent'
+	// Use available CPU cores - 1 for parallel execution
+	systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
+	maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
 	  testLogging {
         events "PASSED", "FAILED", "SKIPPED"
         exceptionFormat "full"
@@ -111,6 +118,12 @@ def registerJdkTestTask(name, jdkVersion) {
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
         useJUnitPlatform()
+        // Enable parallel execution for JDK-specific tests
+        systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
+        systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
+        systemProperty 'junit.jupiter.execution.parallel.mode.classes.default', 'concurrent'
+        systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
+        maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
         testLogging {
             events "PASSED", "FAILED", "SKIPPED"
         }

@@ -54,6 +54,7 @@ import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.RoleTestDataBuilder;
 import com.digitalsanctuary.spring.user.test.builders.TokenTestDataBuilder;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
+import com.digitalsanctuary.spring.user.test.fixtures.TestFixtures;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -94,22 +95,9 @@ public class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Use test data builders for cleaner test data setup
-        testUser = UserTestDataBuilder.aUser()
-                .withEmail("test@example.com")
-                .withFirstName("testFirstName")
-                .withLastName("testLastName")
-                .withPassword("testPassword")
-                .withRole("ROLE_USER")
-                .enabled()
-                .build();
-
-        testUserDto = new UserDto();
-        testUserDto.setEmail("test@example.com");
-        testUserDto.setFirstName("testFirstName");
-        testUserDto.setLastName("testLastName");
-        testUserDto.setPassword("testPassword");
-        testUserDto.setRole(1);
+        // Use centralized test fixtures for consistent test data
+        testUser = TestFixtures.Users.standardUser();
+        testUserDto = TestFixtures.DTOs.validUserRegistration();
     }
 
     @Test

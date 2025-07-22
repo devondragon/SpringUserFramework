@@ -2,8 +2,9 @@ package com.digitalsanctuary.spring.user.api;
 
 import static com.digitalsanctuary.spring.user.api.helper.ApiTestHelper.buildUrlEncodedFormEntity;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
+
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,12 +20,24 @@ import com.digitalsanctuary.spring.user.api.data.Response;
 import com.digitalsanctuary.spring.user.api.helper.AssertionsHelper;
 import com.digitalsanctuary.spring.user.api.provider.ApiTestRegistrationArgumentsProvider;
 import com.digitalsanctuary.spring.user.api.provider.holder.ApiTestArgumentsHolder;
+import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.jdbc.Jdbc;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.test.annotations.IntegrationTest;
+import com.digitalsanctuary.spring.user.test.fixtures.TestFixtures;
+import com.digitalsanctuary.spring.user.api.provider.ApiTestUpdatePasswordArgumentsProvider;
 
-@Disabled("Temporarily disabled due to OAuth2 dependency issues")
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Collections;
+
+@IntegrationTest
 public class UserApiTest extends BaseApiTest {
     private static final String URL = "/user";
 
@@ -77,37 +90,37 @@ public class UserApiTest extends BaseApiTest {
         AssertionsHelper.compareResponses(actual, excepted);
     }
 
-    // Tests temporarily disabled until OAuth2 dependency issue is resolved
-    // /**
-    // * Tests the update password functionality with valid and invalid password combinations.
-    // *
-    // * @param argumentsHolder Contains test data for password updates (valid/invalid scenarios)
-    // * @throws Exception if any error occurs during test execution
-    // */
-    // @ParameterizedTest
-    // @ArgumentsSource(ApiTestUpdatePasswordArgumentsProvider.class)
-    // @Order(3)
-    // public void updatePassword(ApiTestArgumentsHolder argumentsHolder) throws Exception {
-    // // Register and login test user first
-    // login(baseTestUser);
-    //
-    // PasswordDto passwordDto = argumentsHolder.getPasswordDto();
-    //
-    // ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/updatePassword")
-    // .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-    // .content(buildUrlEncodedFormEntity(passwordDto)));
-    //
-    // if (argumentsHolder.getStatus() == DataStatus.VALID) {
-    // action.andExpect(status().isOk());
-    // }
-    // if (argumentsHolder.getStatus() == DataStatus.INVALID) {
-    // action.andExpect(status().isBadRequest());
-    // }
-    //
-    // MockHttpServletResponse actual = action.andReturn().getResponse();
-    // Response expected = argumentsHolder.getResponse();
-    // AssertionsHelper.compareResponses(actual, expected);
-    // }
+    /**
+     * Tests the update password functionality with valid and invalid password combinations.
+     *
+     * @param argumentsHolder Contains test data for password updates (valid/invalid scenarios)  
+     * @throws Exception if any error occurs during test execution
+     */
+    @ParameterizedTest
+    @ArgumentsSource(ApiTestUpdatePasswordArgumentsProvider.class)
+    @Order(3)
+    public void updatePassword(ApiTestArgumentsHolder argumentsHolder) throws Exception {
+        // Register and login test user first
+        login(baseTestUser);
+
+        PasswordDto passwordDto = argumentsHolder.getPasswordDto();
+
+        ResultActions action = perform(MockMvcRequestBuilders.post(URL + "/updatePassword")
+                .with(oauth2Login().oauth2User(createTestOAuth2User()))
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .content(buildUrlEncodedFormEntity(passwordDto)));
+
+        if (argumentsHolder.getStatus() == DataStatus.VALID) {
+            action.andExpect(status().isOk());
+        }
+        if (argumentsHolder.getStatus() == DataStatus.INVALID) {
+            action.andExpect(status().isBadRequest());
+        }
+
+        MockHttpServletResponse actual = action.andReturn().getResponse();
+        Response expected = argumentsHolder.getResponse();
+        AssertionsHelper.compareResponses(actual, expected);
+    }
 
 
     protected void login(UserDto userDto) {
@@ -116,6 +129,13 @@ public class UserApiTest extends BaseApiTest {
             user = userService.registerNewUserAccount(userDto);
         }
         userService.authWithoutPassword(user);
+    }
+
+    /**
+     * Creates a test OAuth2 user for authentication in tests.
+     */
+    private OAuth2User createTestOAuth2User() {
+        return TestFixtures.OAuth2.customUser(baseTestUser.getEmail(), "Test User", "test-user-123");
     }
 
 
