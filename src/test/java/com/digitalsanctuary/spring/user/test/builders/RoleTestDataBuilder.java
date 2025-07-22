@@ -23,7 +23,7 @@ import java.util.Set;
  */
 public class RoleTestDataBuilder {
     
-    private static long idCounter = 1L;
+    private static final AtomicLong idCounter = new AtomicLong(1L);
     
     private Long id;
     private String name;
