@@ -6,25 +6,23 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Fluent builder for creating test Role entities with sensible defaults.
- * This builder simplifies role creation for tests and ensures consistent test data.
- * 
+ * Fluent builder for creating test Role entities with sensible defaults. This builder simplifies role creation for tests and ensures consistent test
+ * data.
+ *
  * Example usage:
+ * 
  * <pre>
- * Role adminRole = RoleTestDataBuilder.aRole()
- *     .withName("ROLE_ADMIN")
- *     .withDescription("Administrator role")
- *     .withPrivilege("READ_PRIVILEGE")
- *     .withPrivilege("WRITE_PRIVILEGE")
- *     .build();
+ * Role adminRole = RoleTestDataBuilder.aRole().withName("ROLE_ADMIN").withDescription("Administrator role").withPrivilege("READ_PRIVILEGE")
+ *         .withPrivilege("WRITE_PRIVILEGE").build();
  * </pre>
  */
 public class RoleTestDataBuilder {
-    
+
     private static final AtomicLong idCounter = new AtomicLong(1L);
-    
+
     private Long id;
     private String name;
     private String description;
@@ -32,7 +30,7 @@ public class RoleTestDataBuilder {
     private Set<Privilege> privileges = new HashSet<>();
 
     private RoleTestDataBuilder() {
-        this.id = idCounter++;
+        this.id = idCounter.getAndIncrement();
         this.name = "ROLE_USER"; // Default role
         this.description = "Default user role";
     }
@@ -48,45 +46,30 @@ public class RoleTestDataBuilder {
      * Creates a builder for a default user role.
      */
     public static RoleTestDataBuilder aUserRole() {
-        return new RoleTestDataBuilder()
-                .withName("ROLE_USER")
-                .withDescription("Standard user role")
-                .withPrivilege("READ_PRIVILEGE");
+        return new RoleTestDataBuilder().withName("ROLE_USER").withDescription("Standard user role").withPrivilege("READ_PRIVILEGE");
     }
 
     /**
      * Creates a builder for an admin role.
      */
     public static RoleTestDataBuilder anAdminRole() {
-        return new RoleTestDataBuilder()
-                .withName("ROLE_ADMIN")
-                .withDescription("Administrator role")
-                .withPrivilege("READ_PRIVILEGE")
-                .withPrivilege("WRITE_PRIVILEGE")
-                .withPrivilege("DELETE_PRIVILEGE")
-                .withPrivilege("ADMIN_PRIVILEGE");
+        return new RoleTestDataBuilder().withName("ROLE_ADMIN").withDescription("Administrator role").withPrivilege("READ_PRIVILEGE")
+                .withPrivilege("WRITE_PRIVILEGE").withPrivilege("DELETE_PRIVILEGE").withPrivilege("ADMIN_PRIVILEGE");
     }
 
     /**
      * Creates a builder for a moderator role.
      */
     public static RoleTestDataBuilder aModeratorRole() {
-        return new RoleTestDataBuilder()
-                .withName("ROLE_MODERATOR")
-                .withDescription("Moderator role")
-                .withPrivilege("READ_PRIVILEGE")
-                .withPrivilege("WRITE_PRIVILEGE")
-                .withPrivilege("MODERATE_PRIVILEGE");
+        return new RoleTestDataBuilder().withName("ROLE_MODERATOR").withDescription("Moderator role").withPrivilege("READ_PRIVILEGE")
+                .withPrivilege("WRITE_PRIVILEGE").withPrivilege("MODERATE_PRIVILEGE");
     }
 
     /**
      * Creates a builder for a guest role.
      */
     public static RoleTestDataBuilder aGuestRole() {
-        return new RoleTestDataBuilder()
-                .withName("ROLE_GUEST")
-                .withDescription("Guest role with limited access")
-                .withPrivilege("READ_PRIVILEGE");
+        return new RoleTestDataBuilder().withName("ROLE_GUEST").withDescription("Guest role with limited access").withPrivilege("READ_PRIVILEGE");
     }
 
     public RoleTestDataBuilder withId(Long id) {
@@ -157,13 +140,12 @@ public class RoleTestDataBuilder {
         role.setDescription(description);
         role.setUsers(users);
         role.setPrivileges(privileges);
-        
+
         return role;
     }
 
     /**
-     * Builds a set containing the configured role.
-     * Useful for methods expecting a set of roles.
+     * Builds a set containing the configured role. Useful for methods expecting a set of roles.
      */
     public Set<Role> buildAsSet() {
         return Set.of(build());
@@ -173,10 +155,6 @@ public class RoleTestDataBuilder {
      * Creates a standard set of roles (USER, ADMIN, MODERATOR).
      */
     public static Set<Role> buildStandardRoles() {
-        return Set.of(
-            aUserRole().build(),
-            anAdminRole().build(),
-            aModeratorRole().build()
-        );
+        return Set.of(aUserRole().build(), anAdminRole().build(), aModeratorRole().build());
     }
 }

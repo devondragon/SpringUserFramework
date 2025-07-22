@@ -1,32 +1,31 @@
 package com.digitalsanctuary.spring.user.test.builders;
 
-import com.digitalsanctuary.spring.user.persistence.model.Role;
-import com.digitalsanctuary.spring.user.persistence.model.User;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.*;
+import com.digitalsanctuary.spring.user.persistence.model.Role;
+import com.digitalsanctuary.spring.user.persistence.model.User;
 
 /**
- * Fluent builder for creating test User entities with sensible defaults.
- * This builder simplifies test data creation and ensures consistent test data.
- * 
+ * Fluent builder for creating test User entities with sensible defaults. This builder simplifies test data creation and ensures consistent test data.
+ *
  * Example usage:
+ *
  * <pre>
- * User testUser = UserTestDataBuilder.aUser()
- *     .withEmail("test@example.com")
- *     .withFirstName("John")
- *     .withLastName("Doe")
- *     .verified()
- *     .withRole("ROLE_ADMIN")
- *     .build();
+ * User testUser = UserTestDataBuilder.aUser().withEmail("test@example.com").withFirstName("John").withLastName("Doe").verified()
+ *         .withRole("ROLE_ADMIN").build();
  * </pre>
  */
 public class UserTestDataBuilder {
-    
+
     private static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder(4);
     private static final AtomicLong idCounter = new AtomicLong(1);
-    
+
     private Long id;
     private String firstName = "Test";
     private String lastName = "User";
@@ -44,8 +43,8 @@ public class UserTestDataBuilder {
 
     private UserTestDataBuilder() {
         // Generate unique email if not set
-        this.email = "user" + idCounter + "@test.com";
-        this.id = idCounter++;
+        this.email = "user" + idCounter.get() + "@test.com";
+        this.id = idCounter.getAndIncrement();
     }
 
     /**
@@ -59,42 +58,28 @@ public class UserTestDataBuilder {
      * Creates a builder for a default verified user.
      */
     public static UserTestDataBuilder aVerifiedUser() {
-        return new UserTestDataBuilder()
-                .verified()
-                .withRole("ROLE_USER");
+        return new UserTestDataBuilder().verified().withRole("ROLE_USER");
     }
 
     /**
      * Creates a builder for a default admin user.
      */
     public static UserTestDataBuilder anAdminUser() {
-        return new UserTestDataBuilder()
-                .withEmail("admin@test.com")
-                .withFirstName("Admin")
-                .withLastName("User")
-                .verified()
-                .withRole("ROLE_ADMIN");
+        return new UserTestDataBuilder().withEmail("admin@test.com").withFirstName("Admin").withLastName("User").verified().withRole("ROLE_ADMIN");
     }
 
     /**
      * Creates a builder for an unverified user.
      */
     public static UserTestDataBuilder anUnverifiedUser() {
-        return new UserTestDataBuilder()
-                .withEmail("unverified@test.com")
-                .unverified()
-                .withRole("ROLE_USER");
+        return new UserTestDataBuilder().withEmail("unverified@test.com").unverified().withRole("ROLE_USER");
     }
 
     /**
      * Creates a builder for a locked user.
      */
     public static UserTestDataBuilder aLockedUser() {
-        return new UserTestDataBuilder()
-                .withEmail("locked@test.com")
-                .locked()
-                .withFailedLoginAttempts(5)
-                .withRole("ROLE_USER");
+        return new UserTestDataBuilder().withEmail("locked@test.com").locked().withFailedLoginAttempts(5).withRole("ROLE_USER");
     }
 
     public UserTestDataBuilder withId(Long id) {
@@ -245,12 +230,12 @@ public class UserTestDataBuilder {
         user.setLastName(lastName);
         user.setEmail(email);
         user.setProvider(provider);
-        
+
         // Handle password encoding
         if (password != null) {
             user.setPassword(passwordEncoded ? password : PASSWORD_ENCODER.encode(password));
         }
-        
+
         user.setEnabled(enabled);
         user.setRegistrationDate(registrationDate);
         user.setLastActivityDate(lastActivityDate);
@@ -258,13 +243,12 @@ public class UserTestDataBuilder {
         user.setLocked(locked);
         user.setLockedDate(lockedDate);
         user.setRoles(roles);
-        
+
         return user;
     }
 
     /**
-     * Builds and returns a list containing the configured user.
-     * Useful for methods expecting a list.
+     * Builds and returns a list containing the configured user. Useful for methods expecting a list.
      */
     public List<User> buildAsList() {
         return Arrays.asList(build());
@@ -276,13 +260,13 @@ public class UserTestDataBuilder {
     public List<User> buildMany(int count) {
         List<User> users = new ArrayList<>();
         String baseEmail = this.email;
-        
+
         for (int i = 0; i < count; i++) {
             this.email = baseEmail.replace("@", i + "@");
             users.add(build());
-            this.id = idCounter++;
+            this.id = idCounter.getAndIncrement();
         }
-        
+
         this.email = baseEmail; // Reset
         return users;
     }
