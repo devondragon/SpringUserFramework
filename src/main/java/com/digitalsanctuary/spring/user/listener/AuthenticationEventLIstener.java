@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @Component
-public class AuthenticationEventLIstener {
+public class AuthenticationEventListener {
 
     final private LoginAttemptService loginAttemptService;
 

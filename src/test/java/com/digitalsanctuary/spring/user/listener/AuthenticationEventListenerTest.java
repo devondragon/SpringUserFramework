@@ -31,7 +31,7 @@ class AuthenticationEventListenerTest {
     private LoginAttemptService loginAttemptService;
 
     @InjectMocks
-    private AuthenticationEventLIstener authenticationEventListener;
+    private AuthenticationEventListener authenticationEventListener;
 
     private Authentication authentication;
     private String username;
@@ -99,8 +99,7 @@ class AuthenticationEventListenerTest {
         void onFailure_handlesBadCredentials() {
             // Given
             BadCredentialsException exception = new BadCredentialsException("Bad credentials");
-            AbstractAuthenticationFailureEvent event = new AuthenticationFailureBadCredentialsEvent(
-                    authentication, exception);
+            AbstractAuthenticationFailureEvent event = new AuthenticationFailureBadCredentialsEvent(authentication, exception);
 
             // When
             authenticationEventListener.onFailure(event);
@@ -114,8 +113,7 @@ class AuthenticationEventListenerTest {
         void onFailure_handlesAccountDisabled() {
             // Given
             DisabledException exception = new DisabledException("Account disabled");
-            AbstractAuthenticationFailureEvent event = new AuthenticationFailureDisabledEvent(
-                    authentication, exception);
+            AbstractAuthenticationFailureEvent event = new AuthenticationFailureDisabledEvent(authentication, exception);
 
             // When
             authenticationEventListener.onFailure(event);
@@ -129,8 +127,7 @@ class AuthenticationEventListenerTest {
         void onFailure_handlesAccountLocked() {
             // Given
             LockedException exception = new LockedException("Account locked");
-            AbstractAuthenticationFailureEvent event = new AuthenticationFailureLockedEvent(
-                    authentication, exception);
+            AbstractAuthenticationFailureEvent event = new AuthenticationFailureLockedEvent(authentication, exception);
 
             // When
             authenticationEventListener.onFailure(event);
@@ -146,8 +143,7 @@ class AuthenticationEventListenerTest {
             Authentication nullAuth = mock(Authentication.class);
             when(nullAuth.getName()).thenReturn(null);
             BadCredentialsException exception = new BadCredentialsException("Bad credentials");
-            AbstractAuthenticationFailureEvent event = new AuthenticationFailureBadCredentialsEvent(
-                    nullAuth, exception);
+            AbstractAuthenticationFailureEvent event = new AuthenticationFailureBadCredentialsEvent(nullAuth, exception);
 
             // When
             authenticationEventListener.onFailure(event);
@@ -182,8 +178,7 @@ class AuthenticationEventListenerTest {
             // Given
             AuthenticationSuccessEvent successEvent = new AuthenticationSuccessEvent(authentication);
             BadCredentialsException exception = new BadCredentialsException("Bad credentials");
-            AbstractAuthenticationFailureEvent failureEvent = new AuthenticationFailureBadCredentialsEvent(
-                    authentication, exception);
+            AbstractAuthenticationFailureEvent failureEvent = new AuthenticationFailureBadCredentialsEvent(authentication, exception);
 
             // When
             authenticationEventListener.onFailure(failureEvent);
@@ -200,14 +195,13 @@ class AuthenticationEventListenerTest {
             // Given
             String user1 = "user1@example.com";
             String user2 = "user2@example.com";
-            
+
             Authentication auth1 = new UsernamePasswordAuthenticationToken(user1, "password");
             Authentication auth2 = new UsernamePasswordAuthenticationToken(user2, "password");
-            
+
             AuthenticationSuccessEvent successEvent1 = new AuthenticationSuccessEvent(auth1);
             BadCredentialsException exception = new BadCredentialsException("Bad credentials");
-            AbstractAuthenticationFailureEvent failureEvent2 = new AuthenticationFailureBadCredentialsEvent(
-                    auth2, exception);
+            AbstractAuthenticationFailureEvent failureEvent2 = new AuthenticationFailureBadCredentialsEvent(auth2, exception);
 
             // When
             authenticationEventListener.onSuccess(successEvent1);

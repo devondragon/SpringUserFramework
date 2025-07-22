@@ -26,7 +26,7 @@ Our testing approach follows a multi-layered strategy:
 
 - **Service Layer**: Comprehensive unit testing with mocking
 - **Controller Layer**: API testing with MockMvc
-- **Security Layer**: Authentication and authorization scenarios  
+- **Security Layer**: Authentication and authorization scenarios
 - **Data Layer**: Repository testing with test databases
 
 ## Test Categories
@@ -37,7 +37,7 @@ The project uses custom annotations to categorize and configure tests:
 
 #### `@ServiceTest`
 - **Purpose**: Unit tests for service layer components
-- **Configuration**: 
+- **Configuration**:
   - Mockito extension enabled
   - Test profile activated
   - Base test configuration imported
@@ -48,10 +48,10 @@ The project uses custom annotations to categorize and configure tests:
 class UserServiceTest {
     @Mock
     private UserRepository userRepository;
-    
+
     @InjectMocks
     private UserService userService;
-    
+
     // Test methods
 }
 ```
@@ -70,7 +70,7 @@ class UserServiceTest {
 class UserRegistrationIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
-    
+
     // Integration test methods
 }
 ```
@@ -151,7 +151,7 @@ Use JUnit 5 tags for selective test execution:
 @Tag("fast")
 void quickTest() { /* ... */ }
 
-@Test  
+@Test
 @Tag("slow")
 @Tag("integration")
 void comprehensiveTest() { /* ... */ }
@@ -230,10 +230,10 @@ void shouldUpdateUserProfile() {
     User user = TestFixtures.Users.standardUser();
     UserDto updateDto = TestFixtures.DTOs.profileUpdate();
     when(userRepository.save(any())).thenReturn(user);
-    
+
     // Act (When)
     User updatedUser = userService.updateProfile(user, updateDto);
-    
+
     // Assert (Then)
     assertThat(updatedUser.getFirstName()).isEqualTo("Updated");
     verify(userRepository).save(user);
@@ -270,11 +270,11 @@ Use ArgumentCaptors for complex verification:
 void shouldPublishAuditEvent() {
     // Act
     userService.registerUser(userDto);
-    
+
     // Assert
     ArgumentCaptor<AuditEvent> eventCaptor = ArgumentCaptor.forClass(AuditEvent.class);
     verify(eventPublisher).publishEvent(eventCaptor.capture());
-    
+
     AuditEvent event = eventCaptor.getValue();
     assertThat(event.getAction()).isEqualTo("Registration");
     assertThat(event.getActionStatus()).isEqualTo("Success");
@@ -303,11 +303,11 @@ void shouldRequireAuthentication() throws Exception {
             .andExpect(status().isUnauthorized());
 }
 
-@Test  
+@Test
 void shouldAllowAccessForValidUser() throws Exception {
     mockMvc.perform(get("/user/profile")
             .with(user(TestFixtures.Security.standardUserDetails())))
-            .andExpected(status().isOk());
+            .andExpect(status().isOk());
 }
 ```
 
@@ -318,7 +318,7 @@ void shouldAllowAccessForValidUser() throws Exception {
 void shouldSendVerificationEmail() {
     // Act
     userEmailService.sendRegistrationVerificationEmail(user, appUrl);
-    
+
     // Assert
     ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
     verify(mailService).sendTemplateMessage(
@@ -327,7 +327,7 @@ void shouldSendVerificationEmail() {
         variablesCaptor.capture(),
         eq("mail/registration-token.html")
     );
-    
+
     Map<String, Object> variables = variablesCaptor.getValue();
     assertThat(variables).containsKeys("token", "user", "confirmationUrl");
 }
@@ -340,7 +340,7 @@ void shouldSendVerificationEmail() {
 void shouldThrowExceptionForDuplicateEmail() {
     // Given
     when(userRepository.findByEmail("test@example.com")).thenReturn(existingUser);
-    
+
     // When & Then
     assertThatThrownBy(() -> userService.registerUser(userDto))
         .isInstanceOf(UserAlreadyExistException.class)
@@ -358,14 +358,14 @@ void shouldThrowExceptionForDuplicateEmail() {
 
 #### Parallel Execution Issues
 **Problem**: Tests failing when run in parallel
-**Solution**: 
+**Solution**:
 - Check for shared state between tests
 - Use `@Tag("sequential")` for tests that must run sequentially
 - Ensure proper test isolation
 
 #### MockMvc Security Issues
 **Problem**: Security context not properly configured
-**Solution**: 
+**Solution**:
 - Use `@SecurityTest` annotation
 - Apply `springSecurity()` to MockMvc setup
 - Use `@WithMockUser` or `oauth2Login()` for authentication

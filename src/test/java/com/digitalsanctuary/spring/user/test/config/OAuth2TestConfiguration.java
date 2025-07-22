@@ -1,9 +1,16 @@
 package com.digitalsanctuary.spring.user.test.config;
 
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
@@ -18,20 +25,12 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-
 /**
- * OAuth2 test configuration that provides mock OAuth2/OIDC services for testing.
- * This configuration eliminates the need for external OAuth2 providers during tests.
+ * OAuth2 test configuration that provides mock OAuth2/OIDC services for testing. This configuration eliminates the need for external OAuth2 providers
+ * during tests.
  */
 @TestConfiguration
 @Profile("test")
@@ -43,11 +42,7 @@ public class OAuth2TestConfiguration {
     @Bean
     @Primary
     public ClientRegistrationRepository testClientRegistrationRepository() {
-        return new InMemoryClientRegistrationRepository(
-            testGoogleClientRegistration(),
-            testGitHubClientRegistration(),
-            testOidcClientRegistration()
-        );
+        return new InMemoryClientRegistrationRepository(testGoogleClientRegistration(), testGitHubClientRegistration(), testOidcClientRegistration());
     }
 
     /**
@@ -72,72 +67,49 @@ public class OAuth2TestConfiguration {
      * Google client registration for testing.
      */
     private ClientRegistration testGoogleClientRegistration() {
-        return ClientRegistration.withRegistrationId("google")
-                .clientId("test-google-client-id")
-                .clientSecret("test-google-client-secret")
+        return ClientRegistration.withRegistrationId("google").clientId("test-google-client-id").clientSecret("test-google-client-secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
-                .scope("openid", "profile", "email")
-                .authorizationUri("http://localhost:8080/oauth2/authorize")
-                .tokenUri("http://localhost:8080/oauth2/token")
-                .userInfoUri("http://localhost:8080/oauth2/userinfo")
-                .userNameAttributeName(IdTokenClaimNames.SUB)
-                .jwkSetUri("http://localhost:8080/oauth2/jwks")
-                .clientName("Google")
-                .build();
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE).redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .scope("openid", "profile", "email").authorizationUri("http://localhost:8080/oauth2/authorize")
+                .tokenUri("http://localhost:8080/oauth2/token").userInfoUri("http://localhost:8080/oauth2/userinfo")
+                .userNameAttributeName(IdTokenClaimNames.SUB).jwkSetUri("http://localhost:8080/oauth2/jwks").clientName("Google").build();
     }
 
     /**
      * GitHub client registration for testing.
      */
     private ClientRegistration testGitHubClientRegistration() {
-        return ClientRegistration.withRegistrationId("github")
-                .clientId("test-github-client-id")
-                .clientSecret("test-github-client-secret")
+        return ClientRegistration.withRegistrationId("github").clientId("test-github-client-id").clientSecret("test-github-client-secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
-                .scope("read:user", "user:email")
-                .authorizationUri("http://localhost:8080/oauth2/authorize")
-                .tokenUri("http://localhost:8080/oauth2/token")
-                .userInfoUri("http://localhost:8080/oauth2/user")
-                .userNameAttributeName("id")
-                .clientName("GitHub")
-                .build();
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE).redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .scope("read:user", "user:email").authorizationUri("http://localhost:8080/oauth2/authorize")
+                .tokenUri("http://localhost:8080/oauth2/token").userInfoUri("http://localhost:8080/oauth2/user").userNameAttributeName("id")
+                .clientName("GitHub").build();
     }
 
     /**
      * Generic OIDC client registration for testing.
      */
     private ClientRegistration testOidcClientRegistration() {
-        return ClientRegistration.withRegistrationId("oidc")
-                .clientId("test-oidc-client-id")
-                .clientSecret("test-oidc-client-secret")
+        return ClientRegistration.withRegistrationId("oidc").clientId("test-oidc-client-id").clientSecret("test-oidc-client-secret")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
-                .scope("openid", "profile", "email")
-                .authorizationUri("http://localhost:8080/oauth2/authorize")
-                .tokenUri("http://localhost:8080/oauth2/token")
-                .userInfoUri("http://localhost:8080/oauth2/userinfo")
-                .userNameAttributeName(IdTokenClaimNames.SUB)
-                .jwkSetUri("http://localhost:8080/oauth2/jwks")
-                .clientName("Test OIDC Provider")
-                .build();
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE).redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .scope("openid", "profile", "email").authorizationUri("http://localhost:8080/oauth2/authorize")
+                .tokenUri("http://localhost:8080/oauth2/token").userInfoUri("http://localhost:8080/oauth2/userinfo")
+                .userNameAttributeName(IdTokenClaimNames.SUB).jwkSetUri("http://localhost:8080/oauth2/jwks").clientName("Test OIDC Provider").build();
     }
 
     /**
      * Mock OAuth2UserService for testing.
      */
     public static class MockOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
-        
+
         @Override
         public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
             String registrationId = userRequest.getClientRegistration().getRegistrationId();
-            
+
             Map<String, Object> attributes = new HashMap<>();
-            
+
             if ("google".equals(registrationId)) {
                 attributes.put("sub", "google-123456");
                 attributes.put("name", "Google Test User");
@@ -156,13 +128,9 @@ public class OAuth2TestConfiguration {
                 attributes.put("email", "oidc.user@test.com");
                 attributes.put("email_verified", true);
             }
-            
-            return new DefaultOAuth2User(
-                Arrays.asList(() -> "ROLE_USER"),
-                attributes,
-                userRequest.getClientRegistration().getProviderDetails()
-                    .getUserInfoEndpoint().getUserNameAttributeName()
-            );
+
+            return new DefaultOAuth2User(Arrays.asList(() -> "ROLE_USER"), attributes,
+                    userRequest.getClientRegistration().getProviderDetails().getUserInfoEndpoint().getUserNameAttributeName());
         }
     }
 
@@ -170,11 +138,11 @@ public class OAuth2TestConfiguration {
      * Mock OidcUserService for testing.
      */
     public static class MockOidcUserService extends OidcUserService {
-        
+
         @Override
         public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
             String registrationId = userRequest.getClientRegistration().getRegistrationId();
-            
+
             Map<String, Object> claims = new HashMap<>();
             claims.put(IdTokenClaimNames.SUB, "oidc-" + registrationId + "-123456");
             claims.put("name", "OIDC Test User");
@@ -184,21 +152,12 @@ public class OAuth2TestConfiguration {
             claims.put(IdTokenClaimNames.AUD, Arrays.asList("test-oidc-client-id"));
             claims.put(IdTokenClaimNames.IAT, Instant.now());
             claims.put(IdTokenClaimNames.EXP, Instant.now().plusSeconds(3600));
-            
-            OidcIdToken idToken = new OidcIdToken(
-                "test-id-token",
-                Instant.now(),
-                Instant.now().plusSeconds(3600),
-                claims
-            );
-            
+
+            OidcIdToken idToken = new OidcIdToken("test-id-token", Instant.now(), Instant.now().plusSeconds(3600), claims);
+
             OidcUserInfo userInfo = new OidcUserInfo(claims);
-            
-            return new DefaultOidcUser(
-                Arrays.asList(() -> "ROLE_USER"),
-                idToken,
-                userInfo
-            );
+
+            return new DefaultOidcUser(Arrays.asList(() -> "ROLE_USER"), idToken, userInfo);
         }
     }
 
@@ -214,20 +173,15 @@ public class OAuth2TestConfiguration {
      * Factory for creating test OAuth2 tokens.
      */
     public static class OAuth2TestTokenFactory {
-        
+
         /**
          * Creates a test OAuth2 access token.
          */
         public OAuth2AccessToken createAccessToken() {
-            return new OAuth2AccessToken(
-                OAuth2AccessToken.TokenType.BEARER,
-                "test-access-token",
-                Instant.now(),
-                Instant.now().plusSeconds(3600),
-                new HashSet<>(Arrays.asList("read", "write"))
-            );
+            return new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "test-access-token", Instant.now(), Instant.now().plusSeconds(3600),
+                    new HashSet<>(Arrays.asList("read", "write")));
         }
-        
+
         /**
          * Creates a test OAuth2 user with custom attributes.
          */
@@ -237,12 +191,8 @@ public class OAuth2TestConfiguration {
             attributes.put("name", name);
             attributes.put("email", email);
             attributes.put("email_verified", true);
-            
-            return new DefaultOAuth2User(
-                Arrays.asList(() -> "ROLE_USER"),
-                attributes,
-                "sub"
-            );
+
+            return new DefaultOAuth2User(Arrays.asList(() -> "ROLE_USER"), attributes, "sub");
         }
     }
 }
