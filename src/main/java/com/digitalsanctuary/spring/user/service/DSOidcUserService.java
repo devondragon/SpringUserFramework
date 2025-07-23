@@ -1,6 +1,8 @@
 package com.digitalsanctuary.spring.user.service;
 
+import java.util.Arrays;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,9 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
 
     /** The user repository. */
     private final UserRepository userRepository;
+    
+    /** The role repository. */
+    private final RoleRepository roleRepository;
 
     OidcUserService defaultOidcUserService = new OidcUserService();
 
@@ -100,7 +105,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
     private User registerNewOidcUser(String registrationId, User user) {
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
-        // user.setRoles(Collections.singletonList(roleRepository.findByName(RoleName.ROLE_USER)));
+        user.setRoles(Arrays.asList(roleRepository.findByName("ROLE_USER")));
         // We will trust OAuth2 providers to provide us with a verified email address.
         user.setEnabled(true);
         return userRepository.save(user);

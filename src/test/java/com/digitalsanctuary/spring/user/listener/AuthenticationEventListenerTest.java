@@ -2,6 +2,8 @@ package com.digitalsanctuary.spring.user.listener;
 
 import static org.mockito.Mockito.*;
 
+import java.util.Collection;
+
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +24,7 @@ import org.springframework.security.authentication.event.AuthenticationFailureDi
 import org.springframework.security.authentication.event.AuthenticationFailureLockedEvent;
 import org.springframework.security.authentication.event.AuthenticationSuccessEvent;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthenticationEventListener Tests")
@@ -78,15 +81,66 @@ class AuthenticationEventListenerTest {
         @DisplayName("onSuccess - handles null username gracefully")
         void onSuccess_handlesNullUsername() {
             // Given
-            Authentication nullAuth = mock(Authentication.class);
-            when(nullAuth.getName()).thenReturn(null);
+            Authentication nullAuth = new Authentication() {
+                @Override
+                public String getName() {
+                    return null;
+                }
+                
+                @Override
+                public Collection<? extends GrantedAuthority> getAuthorities() {
+                    return null;
+                }
+                
+                @Override
+                public Object getCredentials() {
+                    return null;
+                }
+                
+                @Override
+                public Object getDetails() {
+                    return null;
+                }
+                
+                @Override
+                public Object getPrincipal() {
+                    return "unknown";
+                }
+                
+                @Override
+                public boolean isAuthenticated() {
+                    return true;
+                }
+                
+                @Override
+                public void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException {
+                }
+            };
             AuthenticationSuccessEvent event = new AuthenticationSuccessEvent(nullAuth);
 
             // When
             authenticationEventListener.onSuccess(event);
 
             // Then
-            verify(loginAttemptService).loginSucceeded(null);
+            // Should use the principal string "unknown" when getName() is null
+            verify(loginAttemptService).loginSucceeded("unknown");
+        }
+
+        @Test
+        @DisplayName("onSuccess - handles completely null authentication")
+        void onSuccess_handlesCompletelyNullAuthentication() {
+            // Given
+            Authentication nullAuth = mock(Authentication.class);
+            when(nullAuth.getName()).thenReturn(null);
+            when(nullAuth.getPrincipal()).thenReturn(null);
+            AuthenticationSuccessEvent event = new AuthenticationSuccessEvent(nullAuth);
+
+            // When
+            authenticationEventListener.onSuccess(event);
+
+            // Then
+            // Should not call login service when we can't extract any username
+            verify(loginAttemptService, never()).loginSucceeded(anyString());
         }
     }
 
@@ -142,6 +196,7 @@ class AuthenticationEventListenerTest {
             // Given
             Authentication nullAuth = mock(Authentication.class);
             when(nullAuth.getName()).thenReturn(null);
+            when(nullAuth.getPrincipal()).thenReturn("unknown");
             BadCredentialsException exception = new BadCredentialsException("Bad credentials");
             AbstractAuthenticationFailureEvent event = new AuthenticationFailureBadCredentialsEvent(nullAuth, exception);
 
@@ -149,7 +204,26 @@ class AuthenticationEventListenerTest {
             authenticationEventListener.onFailure(event);
 
             // Then
-            verify(loginAttemptService).loginFailed(null);
+            // Should use the principal string "unknown" when getName() is null
+            verify(loginAttemptService).loginFailed("unknown");
+        }
+
+        @Test
+        @DisplayName("onFailure - handles completely null authentication")
+        void onFailure_handlesCompletelyNullAuthentication() {
+            // Given
+            Authentication nullAuth = mock(Authentication.class);
+            when(nullAuth.getName()).thenReturn(null);
+            when(nullAuth.getPrincipal()).thenReturn(null);
+            BadCredentialsException exception = new BadCredentialsException("Bad credentials");
+            AbstractAuthenticationFailureEvent event = new AuthenticationFailureBadCredentialsEvent(nullAuth, exception);
+
+            // When
+            authenticationEventListener.onFailure(event);
+
+            // Then
+            // Should not call login service when we can't extract any username
+            verify(loginAttemptService, never()).loginFailed(anyString());
         }
     }
 
