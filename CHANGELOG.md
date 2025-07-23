@@ -1,3 +1,62 @@
+## [3.3.0] - 2025-07-22
+# Changelog
+
+## Features
+
+### Comprehensive Test Infrastructure and Service Tests
+- Established a comprehensive testing foundation including modular test configurations, custom annotations, test data builders, and a mock email service. This setup is crucial for facilitating both unit and integration tests within the library.
+- Implemented test data builders for User, Role, and Token entities to streamline the creation of test data.
+- Added testing support for OAuth2/OIDC with configured mock providers.
+- Authored detailed test plans and phase-specific task lists targeting a test coverage increase from 27% to 80%+.
+
+### Support for Parallel Test Execution
+- Enabled JUnit 5's parallel execution capabilities to significantly improve test performance by leveraging multiple CPU cores.
+- Expected test execution time reduced by 30-50%.
+
+### End-to-End Testing Infrastructure
+- Established a framework for end-to-end (E2E) testing which includes database setup using Testcontainers and email testing using GreenMail.
+- Initiated examples of user registration and password reset journey tests which validate integration across system boundaries.
+
+### Dependency and Version Updates
+- Updated `org.mariadb.jdbc:mariadb-java-client` to version 3.5.4 to ensure compatibility with the latest database features and security patches.
+- Updated the Gradle wrapper to version 8.14.3 for enhanced build performance and new functionalities.
+
+## Fixes
+
+### Improved Handling of Authentication Types
+- Enhanced `AuthenticationEventListener` to correctly handle various authentication types, including OAuth2User and DSUserDetails, solving issues related to improper principal extraction and null user scenarios in OAuth2 authentication flows.
+- Fixed deprecated API usage in `WebSecurityConfig` by replacing `RoleHierarchyImpl.fromHierarchy()` with the new constructor and `setHierarchy()` method.
+
+### Hibernate Entity Management
+- Addressed a critical issue related to Hibernate's immutable collection proxy by refactoring `User` entity's role storage from `List` to `Set`. This change prevents `UnsupportedOperationException` during entity saves in specific integration scenarios.
+
+### Patch Vulnerabilities and Improve Compatibility
+- Resolved the compilation error by aligning with the latest vanniktech maven publish plugin (0.34.0), ensuring smooth publishing to Maven Central.
+
+## Refactoring
+
+### Improved Readability and Consistency in Test Code
+- Refactored test data builders for improved readability and consistent code style, enhancing maintainability and developer understanding.
+- Refactored `UserServiceTest` to leverage centralized TestFixtures for cleaner setup and more organized test logic.
+
+## Testing
+
+### Extensive Test Coverage
+- Added a comprehensive suite of unit and integration tests for DSUserDetailsService and AuthorityService, covering user role loading, OAuth2 flows, and role hierarchy management.
+- Refined test classes to ensure appropriate usage of mocking and context initialization, leading to robust validation of expected behaviors across various scenarios.
+
+### Test Documentation
+- Authored detailed documentation outlining testing conventions, best practices, and guidelines for leveraging custom test annotations.
+- Documented the new test infrastructure setup extensively to guide future test development and optimization.
+
+## Other Changes
+
+### File Renaming and Cleanup
+- Streamlined test and source files by fixing naming discrepancies and correcting file paths where necessary for improved project organization.
+- Deleted outdated and redundant documentation files such as `TESTPLAN.md`, `TESTNEXTTASKS.md`, and `FAILING_TESTS_ANALYSIS.md`, integrating relevant content into a unified test improvement document.
+
+Overall, these changes enhance the library's testability, reliability, and developer experience, setting a robust foundation for future development and maintenance.
+
 ## [3.2.3] - 2025-06-23
 ### Features
 - **[Gradle Release Plugin] New Version:** Updated `gradle.properties` to set the project version to `3.2.3-SNAPSHOT` from `3.2.2`. This change prepares the project for future development by marking the start of a new snapshot version.
