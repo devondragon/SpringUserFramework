@@ -74,8 +74,8 @@ dependencies {
     testImplementation 'com.h2database:h2:2.3.232'
     
     // Additional test dependencies for improved testing
-    testImplementation 'org.testcontainers:testcontainers:1.19.3'
-    testImplementation 'org.testcontainers:mariadb:1.19.3'
+    testImplementation 'org.testcontainers:testcontainers:1.21.3'
+    testImplementation 'org.testcontainers:mariadb:1.21.3'
     testImplementation 'com.github.tomakehurst:wiremock:3.0.1'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.0'
     testImplementation 'org.assertj:assertj-core:3.24.2'
