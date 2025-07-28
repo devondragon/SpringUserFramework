@@ -1,5 +1,5 @@
 plugins {
-    id 'org.springframework.boot' version '3.5.3'
+    id 'org.springframework.boot' version '3.5.4'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.github.ben-manes.versions' version '0.52.0'
     id 'java-library'
@@ -17,7 +17,7 @@ group = 'com.digitalsanctuary.springuser'
 description = 'Spring User Framework'
 
 ext {
-    springBootVersion = '3.5.3'
+    springBootVersion = '3.5.4'
     lombokVersion = '1.18.38'
 }
 
@@ -74,11 +74,11 @@ dependencies {
     testImplementation 'com.h2database:h2:2.3.232'
     
     // Additional test dependencies for improved testing
-    testImplementation 'org.testcontainers:testcontainers:1.19.3'
-    testImplementation 'org.testcontainers:mariadb:1.19.3'
+    testImplementation 'org.testcontainers:testcontainers:1.21.3'
+    testImplementation 'org.testcontainers:mariadb:1.21.3'
     testImplementation 'com.github.tomakehurst:wiremock:3.0.1'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.0'
-    testImplementation 'org.assertj:assertj-core:3.24.2'
+    testImplementation 'org.assertj:assertj-core:3.27.3'
     testImplementation 'io.rest-assured:rest-assured:5.5.5'
     testImplementation 'com.icegreen:greenmail:2.0.0'
     testImplementation 'org.awaitility:awaitility:4.2.0'
