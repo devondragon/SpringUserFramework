@@ -79,7 +79,7 @@ dependencies {
     testImplementation 'com.github.tomakehurst:wiremock:3.0.1'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.2.0'
     testImplementation 'org.assertj:assertj-core:3.27.3'
-    testImplementation 'io.rest-assured:rest-assured:5.3.2'
+    testImplementation 'io.rest-assured:rest-assured:5.5.5'
     testImplementation 'com.icegreen:greenmail:2.0.0'
     testImplementation 'org.awaitility:awaitility:4.2.0'
 }
