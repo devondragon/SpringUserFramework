@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.audit;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
@@ -117,20 +118,61 @@ public class FileAuditLogWriter implements AuditLogWriter {
 
     /**
      * Opens the log file for writing. If the file does not exist, it is created. If the file is newly created, a header is written to the file.
+     * If the configured path is not writable, falls back to a temporary directory.
      */
     private void openLogFile() {
         String logFilePath = auditConfig.getLogFilePath();
         log.debug("FileAuditLogWriter.setup: Opening log file: {}", logFilePath);
+        
+        // Try the configured path first
+        if (tryOpenLogFile(logFilePath)) {
+            return;
+        }
+        
+        // Fall back to temp directory with graceful handling
+        String tempLogPath = System.getProperty("java.io.tmpdir") + File.separator + "user-audit.log";
+        log.warn("FileAuditLogWriter.setup: Configured log path '{}' is not writable. Falling back to temp directory: {}", 
+                 logFilePath, tempLogPath);
+        
+        if (tryOpenLogFile(tempLogPath)) {
+            log.info("FileAuditLogWriter.setup: Successfully opened fallback log file in temp directory");
+            return;
+        }
+        
+        // If both fail, log the error
+        log.error("FileAuditLogWriter.setup: Unable to open audit log file at configured path '{}' or fallback path '{}'. Audit logging will be disabled.", 
+                  logFilePath, tempLogPath);
+    }
+    
+    /**
+     * Attempts to open a log file at the specified path.
+     * 
+     * @param filePath the path to the log file
+     * @return true if the file was successfully opened, false otherwise
+     */
+    private boolean tryOpenLogFile(String filePath) {
         try {
+            // Ensure parent directory exists
+            Path path = Path.of(filePath);
+            Path parentDir = path.getParent();
+            if (parentDir != null && Files.notExists(parentDir)) {
+                Files.createDirectories(parentDir);
+            }
+            
             OpenOption[] fileOptions = {StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE};
-            boolean newFile = Files.notExists(Path.of(logFilePath));
-            bufferedWriter = Files.newBufferedWriter(Path.of(logFilePath), fileOptions);
+            boolean newFile = Files.notExists(path);
+            bufferedWriter = Files.newBufferedWriter(path, fileOptions);
+            
             if (newFile) {
                 writeHeader();
             }
-            log.info("FileAuditLogWriter.setup: Log file opened.");
+            
+            log.info("FileAuditLogWriter.setup: Log file opened successfully: {}", filePath);
+            return true;
+            
         } catch (IOException e) {
-            log.error("FileAuditLogWriter.setup: IOException trying to open log file: {}", logFilePath, e);
+            log.debug("FileAuditLogWriter.setup: Failed to open log file at '{}': {}", filePath, e.getMessage());
+            return false;
         }
     }
 

@@ -77,7 +77,7 @@ user:
     googleEnabled: false # If true, Google OAuth2 will be enabled for registration.
     facebookEnabled: false # If true, Facebook OAuth2 will be enabled for registration.
   audit:
-    logFilePath: /opt/app/logs/user-audit.log # The path to the audit log file.
+    logFilePath: ./logs/user-audit.log # The path to the audit log file.
     flushOnWrite: false # If true, the audit log will be flushed to disk after every write (less performant).  If false, the audit log will be flushed to disk every 10 seconds (more performant).
     logEvents: true # If true, all events will be logged.
 
@@ -96,6 +96,7 @@ user:
     loginPageURI: /user/login.html # The URI for the login page.
     loginActionURI: /user/login # The URI for the login action.
     loginSuccessURI: /index.html?messageKey=message.loginSuccess # The URI for the login success page.
+    alwaysUseDefaultTargetUrl: false # Whether to always redirect to loginSuccessURI or use saved requests (default: false for better UX)
     logoutSuccessURI: /index.html?messageKey=message.logoutSuccess # The URI for the logout success page.    
     logoutActionURI: /user/logout # The URI for the logout action.
     forgotPasswordChangeURI: /user/forgot-password-change.html # The URI for the forgot password change page.

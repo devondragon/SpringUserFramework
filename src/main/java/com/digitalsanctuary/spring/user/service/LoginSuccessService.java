@@ -31,6 +31,10 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	@Value("${user.security.loginSuccessURI}")
 	private String loginSuccessUri;
 
+	/** Whether to always use the default target URL or respect saved requests for better UX. */
+	@Value("${user.security.alwaysUseDefaultTargetUrl:false}")
+	private boolean alwaysUseDefaultTargetUrl;
+
 	/**
 	 * On authentication success.
 	 *
@@ -97,9 +101,9 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			log.debug("Using existing targetUrl: {}", targetUrl);
 		}
 
-		// Set the alwaysUseDefaultTargetUrl to ensure our target URL is always used
-		this.setAlwaysUseDefaultTargetUrl(true);
-		log.debug("AlwaysUseDefaultTargetUrl set to: {}", this.isAlwaysUseDefaultTargetUrl());
+		// Set the alwaysUseDefaultTargetUrl based on configuration
+		this.setAlwaysUseDefaultTargetUrl(alwaysUseDefaultTargetUrl);
+		log.debug("AlwaysUseDefaultTargetUrl set to: {} (configurable behavior)", this.isAlwaysUseDefaultTargetUrl());
 
 		// Check if there's a redirect URL in the request parameters (common in OAuth2 flows)
 		String continueParam = request.getParameter("continue");

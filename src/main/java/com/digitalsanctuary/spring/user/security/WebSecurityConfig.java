@@ -13,6 +13,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
@@ -58,14 +60,14 @@ public class WebSecurityConfig {
 	@Value("${user.security.defaultAction}")
 	private String defaultAction;
 
-	@Value("#{'${user.security.protectedURIs}'.split(',')}")
-	private String[] protectedURIsArray;
+	@Value("${user.security.protectedURIs}")
+	private String protectedURIsProperty;
 
-	@Value("#{'${user.security.unprotectedURIs}'.split(',')}")
-	private String[] unprotectedURIsArray;
+	@Value("${user.security.unprotectedURIs}")
+	private String unprotectedURIsProperty;
 
-	@Value("#{'${user.security.disableCSRFURIs}'.split(',')}")
-	private String[] disableCSRFURIsArray;
+	@Value("${user.security.disableCSRFURIs}")
+	private String disableCSRFURIsProperty;
 
 	@Value("${user.security.loginPageURI}")
 	private String loginPageURI;
@@ -134,7 +136,7 @@ public class WebSecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
-		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
+		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(getUnprotectedURIsArray()));
 		List<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
@@ -152,8 +154,8 @@ public class WebSecurityConfig {
 				.deleteCookies("JSESSIONID"));
 
 		// If we have URIs to disable CSRF validation on, do so here
-		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
-		if (disableCSRFURIs.size() > 0) {
+		String[] disableCSRFURIsArray = getDisableCSRFURIsArray();
+		if (disableCSRFURIsArray.length > 0) {
 			http.csrf(csrf -> {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
@@ -171,7 +173,7 @@ public class WebSecurityConfig {
 					(authorize) -> authorize.requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated());
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
 			// Require authentication for protected URIs and allow access to all other requests
-			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(protectedURIsArray).authenticated().anyRequest().permitAll());
+			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(getProtectedURIsArray()).authenticated().anyRequest().permitAll());
 		} else {
 			// Log an error and deny access to all resources if the default action is not set correctly
 			log.error(
@@ -213,9 +215,9 @@ public class WebSecurityConfig {
 	// }
 
 	private List<String> getUnprotectedURIsList() {
-		// Add the required user pages and actions to the unprotectedURIsArray
+		// Add the required user pages and actions to the unprotected URIs from configuration
 		List<String> unprotectedURIs = new ArrayList<String>();
-		unprotectedURIs.addAll(Arrays.asList(unprotectedURIsArray));
+		unprotectedURIs.addAll(Arrays.asList(getUnprotectedURIsArray()));
 		unprotectedURIs.add(loginPageURI);
 		unprotectedURIs.add(loginActionURI);
 		unprotectedURIs.add(logoutSuccessURI);
@@ -297,6 +299,19 @@ public class WebSecurityConfig {
 	}
 
 	/**
+	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler.
+	 * This ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
+	 *
+	 * @return the MethodSecurityExpressionHandler object
+	 */
+	@Bean
+	public MethodSecurityExpressionHandler methodSecurityExpressionHandler() {
+		DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+		expressionHandler.setRoleHierarchy(roleHierarchy());
+		return expressionHandler;
+	}
+
+	/**
 	 * The httpSessionEventPublisher method creates an HttpSessionEventPublisher object.
 	 *
 	 * @return the HttpSessionEventPublisher object
@@ -318,5 +333,47 @@ public class WebSecurityConfig {
 		return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
 	}
 
+	/**
+	 * Helper method to split comma-separated property values and filter out empty strings.
+	 *
+	 * @param property the comma-separated property value
+	 * @return array of non-empty strings
+	 */
+	private String[] splitAndFilterProperty(String property) {
+		if (property == null || property.trim().isEmpty()) {
+			return new String[0];
+		}
+		return Arrays.stream(property.split(","))
+				.map(String::trim)
+				.filter(s -> !s.isEmpty())
+				.toArray(String[]::new);
+	}
+
+	/**
+	 * Get the protected URIs array with empty values filtered out.
+	 *
+	 * @return array of protected URI patterns
+	 */
+	private String[] getProtectedURIsArray() {
+		return splitAndFilterProperty(protectedURIsProperty);
+	}
+
+	/**
+	 * Get the unprotected URIs array with empty values filtered out.
+	 *
+	 * @return array of unprotected URI patterns
+	 */
+	private String[] getUnprotectedURIsArray() {
+		return splitAndFilterProperty(unprotectedURIsProperty);
+	}
+
+	/**
+	 * Get the disable CSRF URIs array with empty values filtered out.
+	 *
+	 * @return array of URI patterns to disable CSRF protection for
+	 */
+	private String[] getDisableCSRFURIsArray() {
+		return splitAndFilterProperty(disableCSRFURIsProperty);
+	}
 
 }

@@ -48,16 +48,20 @@ public class GlobalUserModelInterceptor implements HandlerInterceptor {
 
         HandlerMethod handlerMethod = (HandlerMethod) handler;
 
-        // Apply global opt-in or opt-out behavior
+        // Apply global user model injection behavior based on configuration
         if (userWebConfig.isGlobalUserModelOptIn()) {
-            // Global Opt-In Mode: Skip if not explicitly opted-in
-            if (!hasAnnotation(handlerMethod, IncludeUserInModel.class)) {
-                return; // Skip if not explicitly opted-in
+            // Global Opt-In Mode (globalUserModelOptIn=true):
+            // - User is added to ALL views by default
+            // - Only skip if @ExcludeUserFromModel is present
+            if (hasAnnotation(handlerMethod, ExcludeUserFromModel.class)) {
+                return; // Skip - explicitly excluded
             }
         } else {
-            // Global Opt-Out Mode: Skip if explicitly excluded
-            if (hasAnnotation(handlerMethod, ExcludeUserFromModel.class)) {
-                return; // Skip if explicitly excluded
+            // Global Opt-Out Mode (globalUserModelOptIn=false) - DEFAULT:
+            // - User is NOT added to any views by default  
+            // - Only add if @IncludeUserInModel is present
+            if (!hasAnnotation(handlerMethod, IncludeUserInModel.class)) {
+                return; // Skip - not explicitly included
             }
         }
 

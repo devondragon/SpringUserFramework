@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Configuration
 @EnableAsync
+@EnableRetry
 @EnableScheduling
 @EnableMethodSecurity
 @ComponentScan(basePackages = "com.digitalsanctuary.spring.user")
