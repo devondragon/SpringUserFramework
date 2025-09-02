@@ -32,7 +32,7 @@ public class FileAuditLogWriter implements AuditLogWriter {
      */
     @PostConstruct
     @Override
-    public void setup() {
+    public synchronized void setup() {
         log.info("FileAuditLogWriter.setup: Entering...");
         if (!validateConfig()) {
             return;
@@ -46,7 +46,7 @@ public class FileAuditLogWriter implements AuditLogWriter {
      */
     @PreDestroy
     @Override
-    public void cleanup() {
+    public synchronized void cleanup() {
         log.info("FileAuditLogWriter.cleanup: Closing log file.");
         closeLogFile();
     }
@@ -58,7 +58,7 @@ public class FileAuditLogWriter implements AuditLogWriter {
      * @param event the audit event to write
      */
     @Override
-    public void writeLog(AuditEvent event) {
+    public synchronized void writeLog(AuditEvent event) {
         if (bufferedWriter == null) {
             log.error("FileAuditLogWriter.writeLog: BufferedWriter is not initialized.");
             return;
@@ -84,7 +84,7 @@ public class FileAuditLogWriter implements AuditLogWriter {
      * Flushes the buffered writer to ensure all data is written to the log file. This method is called by the {@link FileAuditLogFlushScheduler} to
      * ensure that the buffer is flushed periodically to balance performance with data integrity.
      */
-    public void flushWriter() {
+    public synchronized void flushWriter() {
         if (bufferedWriter != null) {
             try {
                 bufferedWriter.flush();

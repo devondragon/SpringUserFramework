@@ -258,8 +258,11 @@ class AuthorityServiceTest {
     void getAuthoritiesFromRoles_mixedCasePrivileges_preservesCase() {
         // Given
         Privilege lowerPrivilege = new Privilege("read_privilege");
+        lowerPrivilege.setId(1L);
         Privilege upperPrivilege = new Privilege("WRITE_PRIVILEGE");
+        upperPrivilege.setId(2L);
         Privilege mixedPrivilege = new Privilege("Delete_Privilege");
+        mixedPrivilege.setId(3L);
         
         Role testRole = RoleTestDataBuilder.aRole()
                 .withName("ROLE_TEST")
