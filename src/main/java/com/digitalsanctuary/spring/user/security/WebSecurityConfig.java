@@ -1,13 +1,9 @@
 package com.digitalsanctuary.spring.user.security;
 
-import static org.springframework.security.config.Customizer.withDefaults;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-
-import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +29,7 @@ import org.springframework.security.web.access.expression.DefaultWebSecurityExpr
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
+import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
 import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
 import lombok.Data;
@@ -145,9 +142,7 @@ public class WebSecurityConfig {
 
 		// Configure remember-me only if explicitly enabled and key is provided
 		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
-			http.rememberMe(rememberMe -> rememberMe
-					.key(rememberMeKey)
-					.userDetailsService(userDetailsService));
+			http.rememberMe(rememberMe -> rememberMe.key(rememberMeKey).userDetailsService(userDetailsService));
 		}
 
 		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
@@ -239,8 +234,7 @@ public class WebSecurityConfig {
 	 */
 	@Bean
 	public DaoAuthenticationProvider authProvider() {
-		final DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-		authProvider.setUserDetailsService(userDetailsService);
+		DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
 		authProvider.setPasswordEncoder(encoder());
 		return authProvider;
 	}
@@ -280,8 +274,7 @@ public class WebSecurityConfig {
 			log.error("WebSecurityConfig.roleHierarchy: rolesAndPrivilegesConfig.getRoleHierarchyString() is null!");
 			return null;
 		}
-		RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-		roleHierarchy.setHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
+		RoleHierarchyImpl roleHierarchy = RoleHierarchyImpl.fromHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
 		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
 		return roleHierarchy;
 	}
@@ -299,8 +292,8 @@ public class WebSecurityConfig {
 	}
 
 	/**
-	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler.
-	 * This ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
+	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler. This
+	 * ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
 	 *
 	 * @return the MethodSecurityExpressionHandler object
 	 */
@@ -343,10 +336,7 @@ public class WebSecurityConfig {
 		if (property == null || property.trim().isEmpty()) {
 			return new String[0];
 		}
-		return Arrays.stream(property.split(","))
-				.map(String::trim)
-				.filter(s -> !s.isEmpty())
-				.toArray(String[]::new);
+		return Arrays.stream(property.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
 	}
 
 	/**
