@@ -64,7 +64,7 @@ public class WebSecurityConfig {
 	@Value("#{'${user.security.unprotectedURIs}'.split(',')}")
 	private String[] unprotectedURIsArray;
 
-	@Value("#{'${user.security.disableCSRFdURIs}'.split(',')}")
+	@Value("#{'${user.security.disableCSRFURIs}'.split(',')}")
 	private String[] disableCSRFURIsArray;
 
 	@Value("${user.security.loginPageURI}")

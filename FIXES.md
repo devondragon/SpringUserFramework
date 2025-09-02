@@ -39,21 +39,25 @@
 
 ## Security & API Issues (Priority 2)
 
-### 8. Add DTO validation annotations
+### 8. Add DTO validation annotations ✅ COMPLETED
 - **Issue**: UserDto and PasswordDto lack bean validation
 - **Fix**: Add @NotBlank, @Email, password constraints, create @ControllerAdvice
+- **Status**: Fixed - added validation annotations to UserDto and PasswordDto fields, created GlobalValidationExceptionHandler for consistent API error responses
 
-### 9. Fix CSRF property typo
+### 9. Fix CSRF property typo ✅ COMPLETED
 - **Issue**: Property name contains odd "d" - 'disableCSRFdURIs'
 - **Fix**: Rename to 'disableCSRFURIs'
+- **Status**: Fixed - corrected property name in WebSecurityConfig, configuration metadata, properties files, and test configuration
 
-### 10. Improve error message handling
+### 10. Improve error message handling ✅ COMPLETED
 - **Issue**: CustomOAuth2AuthenticationEntryPoint exposes exception details
 - **Fix**: Use generic user messages, log details internally
+- **Status**: Fixed - replaced exposed exception messages with generic user-friendly messages, detailed exceptions logged internally for debugging, removed debug print statements
 
-### 11. Enhance IP detection
+### 11. Enhance IP detection ✅ COMPLETED
 - **Issue**: Only honors X-Forwarded-For header
 - **Fix**: Support X-Real-IP, CF-Connecting-IP, True-Client-IP
+- **Status**: Fixed - enhanced UserUtils.getClientIP() to check multiple headers in order of preference (X-Forwarded-For, X-Real-IP, CF-Connecting-IP, True-Client-IP) with proper validation and fallback
 
 ## Web/Security Config (Priority 3)
 

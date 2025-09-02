@@ -106,9 +106,9 @@
       "description": "A description for 'user.security.registrationURI'"
     },
     {
-      "name": "user.security.disableCSRFdURIs",
+      "name": "user.security.disableCSRFURIs",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.disableCSRFdURIs'"
+      "description": "A comma-delimited list of URIs that should not be protected by CSRF protection"
     },
     {
       "name": "user.security.registrationPendingURI",

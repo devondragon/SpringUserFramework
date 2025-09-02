@@ -90,7 +90,7 @@ user:
     defaultAction: deny # The default action for all requests.  This can be either deny or allow.
     unprotectedURIs: /,/index.html,/favicon.ico,/css/*,/js/*,/img/*,/user/registration,/user/resendRegistrationToken,/user/resetPassword,/user/registrationConfirm,/user/changePassword,/user/savePassword,/oauth2/authorization/*,/login # A comma delimited list of URIs that should not be protected by Spring Security if the defaultAction is deny.
     protectedURIs: /protected.html # A comma delimited list of URIs that should be protected by Spring Security if the defaultAction is allow.
-    disableCSRFdURIs: /no-csrf-test # A comma delimited list of URIs that should not be protected by CSRF protection. This may include API endpoints that need to be called without a CSRF token.
+    disableCSRFURIs: /no-csrf-test # A comma delimited list of URIs that should not be protected by CSRF protection. This may include API endpoints that need to be called without a CSRF token.
 
     # URIs for known user related pages. You can change these paths to your own pages if you want.
     loginPageURI: /user/login.html # The URI for the login page.
