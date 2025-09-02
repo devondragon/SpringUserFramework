@@ -109,6 +109,12 @@ public class WebSecurityConfig {
 	@Value("${user.security.bcryptStrength}")
 	private int bcryptStrength = 10;
 
+	@Value("${user.security.rememberMe.enabled:false}")
+	private boolean rememberMeEnabled;
+
+	@Value("${user.security.rememberMe.key:#{null}}")
+	private String rememberMeKey;
+
 
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
@@ -133,8 +139,14 @@ public class WebSecurityConfig {
 		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
 		http.formLogin(
-				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll())
-				.rememberMe(withDefaults());
+				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll());
+
+		// Configure remember-me only if explicitly enabled and key is provided
+		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
+			http.rememberMe(rememberMe -> rememberMe
+					.key(rememberMeKey)
+					.userDetailsService(userDetailsService));
+		}
 
 		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));

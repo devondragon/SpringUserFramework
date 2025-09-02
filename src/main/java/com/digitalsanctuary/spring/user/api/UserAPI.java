@@ -257,7 +257,7 @@ public class UserAPI {
 	 * @param request the HTTP servlet request
 	 */
 	private void publishRegistrationEvent(User user, HttpServletRequest request) {
-		String appUrl = request.getContextPath();
+		String appUrl = UserUtils.getAppUrl(request);
 		eventPublisher.publishEvent(new OnRegistrationCompleteEvent(user, request.getLocale(), appUrl));
 	}
 

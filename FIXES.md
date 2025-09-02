@@ -22,17 +22,20 @@
 - **Fix**: Add synchronized blocks to protect concurrent access
 - **Status**: Fixed - added synchronized keyword to writeLog(), flushWriter(), setup(), and cleanup() methods
 
-### 5. Fix registration email base URL
+### 5. Fix registration email base URL ✅ COMPLETED
 - **Issue**: UserAPI.publishRegistrationEvent uses request.getContextPath() (broken links)
 - **Fix**: Use UserUtils.getAppUrl(request) like other flows
+- **Status**: Fixed - updated publishRegistrationEvent to use UserUtils.getAppUrl(request) for complete URL construction
 
-### 6. Configure security remember-me properly
+### 6. Configure security remember-me properly ✅ COMPLETED
 - **Issue**: Uses random key per startup, invalidates on restart
 - **Fix**: Make opt-in with explicit key configuration
+- **Status**: Fixed - added user.security.rememberMe.enabled and user.security.rememberMe.key properties, remember-me is now only enabled when explicitly configured
 
-### 7. Remove @Async from event classes
+### 7. Remove @Async from event classes ✅ COMPLETED
 - **Issue**: @Async on POJOs has no effect (false impression)
 - **Fix**: Remove from AuditEvent and OnRegistrationCompleteEvent classes
+- **Status**: Fixed - removed @Async annotation and import from both AuditEvent and OnRegistrationCompleteEvent classes
 
 ## Security & API Issues (Priority 2)
 

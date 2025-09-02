@@ -2,7 +2,6 @@ package com.digitalsanctuary.spring.user.audit;
 
 import java.util.Date;
 import org.springframework.context.ApplicationEvent;
-import org.springframework.scheduling.annotation.Async;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -12,7 +11,6 @@ import lombok.Getter;
  * The AuditEvent class is used to record security audit events and actions. It can be created and sent from any code, and is captured by the
  * AuditEventListener for handling and persistence.
  */
-@Async
 @Getter
 @EqualsAndHashCode(callSuper = false)
 public class AuditEvent extends ApplicationEvent {
