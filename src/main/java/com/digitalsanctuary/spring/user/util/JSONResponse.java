@@ -24,7 +24,6 @@ import lombok.Singular;
  *     .build();
  * // Results in JSON: {"success": true, "messages": ["Operation completed", "Data saved successfully"], ...}
  * </pre>
- * </p>
  *
  * @author Devon Hillard
  * @version 1.0
