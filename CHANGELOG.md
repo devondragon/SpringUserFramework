@@ -1,3 +1,119 @@
+## [3.4.0] - 2025-09-03
+### Features
+- Proxy-aware URL and IP detection
+  - UserUtils.getAppUrl now builds correct external URLs when behind proxies/load balancers by honoring X-Forwarded-Proto, X-Forwarded-Host, and X-Forwarded-Port; the generated URL always includes a port for backward compatibility
+  - UserUtils.getClientIP now checks multiple standard headers in priority order (X-Forwarded-For, X-Real-IP, CF-Connecting-IP, True-Client-IP) with clean fallbacks
+- Remember‑me is now opt‑in and explicitly configurable
+  - Disabled by default; enable only when you set both properties:
+    - user.security.rememberMe.enabled=true
+    - user.security.rememberMe.key=<your-static-secret-key>
+- Role hierarchy applied to method security
+  - Method security expressions now honor the configured hierarchy (e.g., ROLE_ADMIN > ROLE_USER) via a MethodSecurityExpressionHandler wired with the RoleHierarchy
+- Stronger password validation for registration
+  - New @PasswordMatches class‑level constraint and validator; registration now enforces password and matchingPassword equality, with clear validation errors
+- Safer OAuth2/OIDC account creation
+  - Email is validated and normalized (lowercased) for OAuth2 and OIDC providers; authentication fails early with a clear, user‑friendly message if the provider didn’t supply an email (e.g., missing scope/permission)
+- Audit logging hardening and defaults
+  - FileAuditLogWriter concurrency is now protected with synchronized methods
+  - Default audit log location changed to ./logs with automatic creation; graceful fallback to system temp directory if not writable
+  - Periodic flush scheduling only active when audit logging is enabled and flushOnWrite is false
+- Password reset API refinement
+  - New PasswordResetRequestDto introduced; endpoint continues to send reset emails but now cleanly models the request as { "email": "..." }
+
+### Fixes
+- Security and privacy hardening
+  - Removed session IDs from debug logs to prevent sensitive data exposure
+  - CustomOAuth2AuthenticationEntryPoint now returns generic user‑friendly messages and logs detailed errors internally
+  - Enforced lowercase normalization for emails throughout registration and OAuth2/OIDC paths, preventing duplicate users by case variance
+- Robust null/edge‑case handling
+  - Fixed potential NPE in UserService.getUserByPasswordResetToken when token or token record is null
+  - UserService.registerNewUserAccount now validates password matching before proceeding
+- Correct URL generation in emails
+  - Registration verification emails now use UserUtils.getAppUrl(request), fixing previously broken links that used only the context path
+- JPA entity equality fixes
+  - Role and Privilege equals/hashCode now based on id only; bidirectional relationships excluded to avoid recursion/stack overflows and to improve Set behavior in persistence contexts
+- Build/packaging correctness for consumers
+  - Fixed published artifact name to ds-spring-user-framework
+  - Removed surprise transitive runtime dependencies from the library (devtools, database drivers) by moving them to test runtime scope
+- Configuration correctness and resilience
+  - Fixed CSRF property typo: user.security.disableCSRFdURIs → user.security.disableCSRFURIs
+  - Hardened parsing of comma‑delimited URI properties to ignore empty/whitespace entries
+- Logging and code quality
+  - Replaced string concatenation in logs with parameterized logging throughout
+  - Fixed JavaDoc syntax issues in JSONResponse
+
+### Breaking Changes
+- Password reset endpoint request body
+  - /user/resetPassword now expects PasswordResetRequestDto instead of UserDto
+  - Migration: change the request body to { "email": "user@example.com" }
+- Configuration property rename
+  - user.security.disableCSRFdURIs → user.security.disableCSRFURIs
+  - Migration: update your application properties/yaml accordingly
+- Remember‑me behavior
+  - Previously could be active with an ephemeral key; now disabled by default and only enabled when both user.security.rememberMe.enabled=true and user.security.rememberMe.key are set
+- MailService bean construction
+  - MailService now uses constructor injection for both JavaMailSender and MailContentBuilder
+  - Migration: if you construct MailService manually, pass both dependencies; Spring auto‑config will wire it automatically in typical setups
+- OAuth2/OIDC email requirement
+  - Authentication now fails if the provider does not return an email address; ensure the email scope/permission is granted
+
+### Refactoring
+- WebSecurityConfig
+  - Simplified remember‑me configuration; created DaoAuthenticationProvider via constructor; used RoleHierarchyImpl.fromHierarchy; reduced boilerplate and improved readability
+- UserUtils
+  - Streamlined IP header checks and forward‑aware app URL construction; clarified JavaDoc
+- General logging cleanup
+  - Consistent use of parameterized logging; removed System.out and noisy concatenation
+
+### Documentation
+- Major README overhaul
+  - Step‑by‑step Quick Start with prerequisites, dependencies (Thymeleaf, Mail, JPA, Security, Spring Retry), database examples (MariaDB/PostgreSQL/H2), email setup, and complete example configuration
+  - Clear explanation of registration modes: auto‑enable vs email verification, with expected behavior and configuration
+  - Guidance on customizing views and next steps
+- Configuration metadata fixes
+  - property names corrected (camelCase), types fixed (Boolean/Integer), missing properties added for better IDE assistance
+
+### Testing
+- Substantial test coverage added across critical paths
+  - OAuth2/OIDC services
+    - DSOAuth2UserServiceTest (≈15 tests): Google/Facebook flows, new vs existing users, provider conflicts, error handling
+    - DSOidcUserServiceTest (≈14 tests): Keycloak flows, claims extraction, DSUserDetails integration, conflict scenarios
+  - Security utilities and flows
+    - UserUtilsTest (≈29 tests): IP extraction header priority and URL building
+    - CustomOAuth2AuthenticationEntryPointTest (≈21 tests): exception handling, redirects, failure handler delegation
+    - LoginHelperServiceTest (≈15 tests): last activity tracking, automatic unlock, authorities handling, edge cases
+    - LogoutSuccessServiceTest (≈17 tests): audit event creation, IP extraction, URL resolution, exception scenarios
+    - RolePrivilegeSetupServiceTest (≈15 tests): initialization, reuse of privileges, transactional handling, mixed existing/new entities
+  - Mail
+    - MailServiceTest (≈24 tests): simple/template sends, async behavior, retry/recovery, edge cases
+  - Validation
+    - PasswordMatchesValidatorTest: positive/negative cases for password confirmation
+- Test infrastructure improvements
+  - Added fixture builders for OAuth2/OIDC users (Google, Facebook, Keycloak) for realistic claims and attributes
+  - Dependency updates for test stack (AssertJ, ArchUnit, Awaitility, Testcontainers, Rest‑Assured, GreenMail)
+
+### Other Changes
+- Dependency updates
+  - Spring Boot 3.5.5
+  - Test libraries: AssertJ 3.27.4, ArchUnit 1.4.1, Awaitility 4.3.0, Testcontainers 1.21.3, Rest‑Assured 5.5.6, GreenMail 2.1.5
+  - MariaDB JDBC driver 3.5.5
+- Build improvements
+  - Published artifact renamed correctly to ds-spring-user-framework
+  - Group/publishing coordinates aligned; dependency management standardized via Spring Boot BOM
+  - Added Gradle Versions Plugin configuration to prefer stable releases
+- Internal tools
+  - Updated changelog generator to use a newer model (gpt‑5)
+  
+Migration checklist
+- Update /user/resetPassword client requests to use PasswordResetRequestDto { "email": "..." }
+- Rename user.security.disableCSRFdURIs to user.security.disableCSRFURIs
+- If you rely on remember‑me, add:
+  - user.security.rememberMe.enabled=true
+  - user.security.rememberMe.key=<stable-secret>
+- Ensure OAuth2/OIDC providers grant email scope; otherwise login will fail by design
+- If constructing MailService manually, pass both JavaMailSender and MailContentBuilder
+- Be aware that emails are now normalized to lowercase; verify database uniqueness constraints if case sensitivity was previously assumed
+
 ## [3.3.0] - 2025-07-22
 # Changelog
 
