@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.mail;
 
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -24,23 +23,24 @@ import lombok.extern.slf4j.Slf4j;
 public class MailService {
 
 	/** The mail sender. */
-	private JavaMailSender mailSender;
+	private final JavaMailSender mailSender;
+
+	/** The mail content builder. */
+	private final MailContentBuilder mailContentBuilder;
 
 	/** The from address. */
 	@Value("${user.mail.fromAddress}")
 	private String fromAddress;
 
-	/** The mail content builder. */
-	@Autowired
-	MailContentBuilder mailContentBuilder;
-
 	/**
 	 * Instantiates a new mail service.
 	 *
 	 * @param mailSender the mail sender
+	 * @param mailContentBuilder the mail content builder
 	 */
-	public MailService(JavaMailSender mailSender) {
+	public MailService(JavaMailSender mailSender, MailContentBuilder mailContentBuilder) {
 		this.mailSender = mailSender;
+		this.mailContentBuilder = mailContentBuilder;
 	}
 
 	/**

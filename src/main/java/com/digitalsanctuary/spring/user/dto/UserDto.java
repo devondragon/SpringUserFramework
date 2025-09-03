@@ -1,15 +1,18 @@
 package com.digitalsanctuary.spring.user.dto;
 
+import com.digitalsanctuary.spring.user.validation.PasswordMatches;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 /**
  * A user dto. This object is used for handling user related form data (registration, forms passing in email addresses,
  * etc...).
  */
 @Data
+@PasswordMatches
 public class UserDto {
 
 	/** The first name. */
@@ -23,11 +26,13 @@ public class UserDto {
 	private String lastName;
 
 	/** The password. */
+	@ToString.Exclude
 	@NotBlank(message = "Password is required")
 	@Size(min = 8, max = 128, message = "Password must be between 8 and 128 characters")
 	private String password;
 
 	/** The matching password. */
+	@ToString.Exclude
 	@NotBlank(message = "Password confirmation is required")
 	private String matchingPassword;
 

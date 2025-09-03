@@ -69,6 +69,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.retry:spring-retry'
+    testImplementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     testImplementation 'com.h2database:h2:2.3.232'
     
     // Runtime dependencies moved to test scope for library
