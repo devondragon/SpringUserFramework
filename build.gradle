@@ -31,6 +31,24 @@ repositories {
 	mavenCentral()
 }
 
+dependencyUpdates {
+    // Only look at release versions
+    revision = 'release'
+
+    // Reject non-stable versions (alpha, beta, rc, milestone, etc.)
+    rejectVersionIf {
+        isNonStable(candidate.version) && !isNonStable(currentVersion)
+    }
+}
+
+boolean isNonStable(String version) {
+    def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { kw ->
+        version.toUpperCase().contains(kw)
+    }
+    def regex = /^[0-9,.v-]+(-r)?$/ // matches stable versions like 1.2.3, 2.0, 1.0-r
+    return !stableKeyword && !(version ==~ regex)
+}
+
 dependencies {
     // Spring Boot starters
     compileOnly 'org.springframework.boot:spring-boot-starter-actuator'
@@ -71,12 +89,12 @@ dependencies {
     testImplementation 'org.springframework.retry:spring-retry'
     testImplementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     testImplementation 'com.h2database:h2:2.3.232'
-    
+
     // Runtime dependencies moved to test scope for library
     testRuntimeOnly 'org.springframework.boot:spring-boot-devtools'
     testRuntimeOnly 'org.mariadb.jdbc:mariadb-java-client'
     testRuntimeOnly 'org.postgresql:postgresql'
-    
+
     // Additional test dependencies for improved testing
     testImplementation 'org.testcontainers:testcontainers:1.21.3'
     testImplementation 'org.testcontainers:mariadb:1.21.3'
