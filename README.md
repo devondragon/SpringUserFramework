@@ -18,6 +18,18 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Maven](#maven)
     - [Gradle](#gradle)
   - [Quick Start](#quick-start)
+    - [Prerequisites](#prerequisites)
+    - [Step 1: Add Dependencies](#step-1-add-dependencies)
+    - [Step 2: Database Configuration](#step-2-database-configuration)
+    - [Step 3: JPA Configuration](#step-3-jpa-configuration)
+    - [Step 4: Email Configuration (Optional but Recommended)](#step-4-email-configuration-optional-but-recommended)
+    - [Step 5: Essential Framework Configuration](#step-5-essential-framework-configuration)
+    - [Step 6: Create User Profile Extension (Optional)](#step-6-create-user-profile-extension-optional)
+    - [Step 7: Start Your Application](#step-7-start-your-application)
+    - [Step 8: Test Core Features](#step-8-test-core-features)
+    - [Step 9: Customize Pages (Optional)](#step-9-customize-pages-optional)
+    - [Complete Example Configuration](#complete-example-configuration)
+    - [Next Steps](#next-steps)
   - [Configuration](#configuration)
   - [Security Features](#security-features)
     - [Role-Based Access Control](#role-based-access-control)
@@ -84,14 +96,14 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.3.0</version>
+    <version>3.4.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.3.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.4.0'
 ```
 
 ## Quick Start
@@ -237,7 +249,7 @@ user:
     bcryptStrength: 12                     # Password hashing strength
     failedLoginAttempts: 5                 # Account lockout threshold
     accountLockoutDuration: 15             # Lockout duration in minutes
-    
+
   # Registration settings
   registration:
     sendVerificationEmail: false           # true = email verification required
@@ -250,16 +262,16 @@ If you need additional user data beyond the built-in fields, create a profile ex
 
 ```java
 @Entity
-@Table(name = "app_user_profile")  
+@Table(name = "app_user_profile")
 public class AppUserProfile extends BaseUserProfile {
     private String department;
     private String phoneNumber;
     private LocalDate birthDate;
-    
+
     // Getters and setters
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
-    
+
     // ... other getters and setters
 }
 ```
@@ -313,12 +325,12 @@ spring:
     username: appuser
     password: apppass
     driver-class-name: org.mariadb.jdbc.Driver
-    
+
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
-    
+
   mail:
     host: smtp.gmail.com
     port: 587
@@ -334,16 +346,16 @@ spring:
 user:
   mail:
     fromAddress: noreply@myapp.com
-    
+
   security:
     defaultAction: deny
     bcryptStrength: 12
     failedLoginAttempts: 3
     accountLockoutDuration: 30
-    
+
   registration:
     sendVerificationEmail: true
-    
+
   # Optional: Audit logging
   audit:
     logEvents: true
@@ -420,7 +432,7 @@ The registration flow is configurable and can operate in two modes:
 
 **Auto-Enable Mode** (default: `user.registration.sendVerificationEmail=false`):
 - Form submission validation
-- Email uniqueness check  
+- Email uniqueness check
 - User account is immediately enabled and can login
 - No verification email is sent
 - User has full access immediately after registration
