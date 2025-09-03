@@ -31,6 +31,10 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	@Value("${user.security.loginSuccessURI}")
 	private String loginSuccessUri;
 
+	/** Whether to always use the default target URL or respect saved requests for better UX. */
+	@Value("${user.security.alwaysUseDefaultTargetUrl:false}")
+	private boolean alwaysUseDefaultTargetUrl;
+
 	/**
 	 * On authentication success.
 	 *
@@ -44,20 +48,19 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																																	ServletException {
 		log.debug("LoginSuccessService.onAuthenticationSuccess()");
-		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with request: {}", request);
-		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "called with authentication: {}", authentication);
+		log.debug("LoginSuccessService.onAuthenticationSuccess: called with request: {}", request);
+		log.debug("LoginSuccessService.onAuthenticationSuccess: called with authentication: {}", authentication);
 
 		// Enhanced logging to check request attributes
 		log.debug("Request URI: {}", request.getRequestURI());
 		log.debug("Request URL: {}", request.getRequestURL());
 		log.debug("Request query string: {}", request.getQueryString());
-		log.debug("Session ID: {}", request.getSession().getId());
 
 		// Log saved request if present
 		Object savedRequest = request.getSession().getAttribute("SPRING_SECURITY_SAVED_REQUEST");
 		log.debug("Saved request in session: {}", savedRequest);
 
-		log.debug("LoginSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
+		log.debug("LoginSuccessService.onAuthenticationSuccess: targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
 		if (authentication != null && authentication.getPrincipal() != null) {
@@ -66,7 +69,7 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal().getClass(): "
 					+ authentication.getPrincipal().getClass());
 			if (authentication.getPrincipal() instanceof DSUserDetails) {
-				log.debug("LoginSuccessService.onAuthenticationSuccess:" + "DSUserDetails: " + authentication.getPrincipal());
+				log.debug("LoginSuccessService.onAuthenticationSuccess: DSUserDetails: {}", authentication.getPrincipal());
 				user = ((DSUserDetails) authentication.getPrincipal()).getUser();
 			}
 		}
@@ -92,14 +95,14 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 			targetUrl = loginSuccessUri;
 			log.debug("Using configured loginSuccessUri: {}", loginSuccessUri);
 			this.setDefaultTargetUrl(targetUrl);
-			log.debug("LoginSuccessService.onAuthenticationSuccess:" + "set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
+			log.debug("LoginSuccessService.onAuthenticationSuccess: set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
 		} else {
 			log.debug("Using existing targetUrl: {}", targetUrl);
 		}
 
-		// Set the alwaysUseDefaultTargetUrl to ensure our target URL is always used
-		this.setAlwaysUseDefaultTargetUrl(true);
-		log.debug("AlwaysUseDefaultTargetUrl set to: {}", this.isAlwaysUseDefaultTargetUrl());
+		// Set the alwaysUseDefaultTargetUrl based on configuration
+		this.setAlwaysUseDefaultTargetUrl(alwaysUseDefaultTargetUrl);
+		log.debug("AlwaysUseDefaultTargetUrl set to: {} (configurable behavior)", this.isAlwaysUseDefaultTargetUrl());
 
 		// Check if there's a redirect URL in the request parameters (common in OAuth2 flows)
 		String continueParam = request.getParameter("continue");

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
+import com.digitalsanctuary.spring.user.dto.PasswordResetRequestDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
@@ -133,13 +134,13 @@ public class UserAPI {
 	 * This is used when the user has forgotten their password and wants to reset their password. This will send an email to the user with a link to
 	 * reset their password.
 	 *
-	 * @param userDto the user data transfer object containing user details
+	 * @param passwordResetRequest the password reset request containing the email address
 	 * @param request the HTTP servlet request
 	 * @return a ResponseEntity containing a JSONResponse with the password reset email send result
 	 */
 	@PostMapping("/resetPassword")
-	public ResponseEntity<JSONResponse> resetPassword(@Valid @RequestBody UserDto userDto, HttpServletRequest request) {
-		User user = userService.findUserByEmail(userDto.getEmail());
+	public ResponseEntity<JSONResponse> resetPassword(@Valid @RequestBody PasswordResetRequestDto passwordResetRequest, HttpServletRequest request) {
+		User user = userService.findUserByEmail(passwordResetRequest.getEmail());
 		if (user != null) {
 			userEmailService.sendForgotPasswordVerificationEmail(user, UserUtils.getAppUrl(request));
 			logAuditEvent("Reset Password", "Success", "Password reset email sent", user, request);
@@ -257,7 +258,7 @@ public class UserAPI {
 	 * @param request the HTTP servlet request
 	 */
 	private void publishRegistrationEvent(User user, HttpServletRequest request) {
-		String appUrl = request.getContextPath();
+		String appUrl = UserUtils.getAppUrl(request);
 		eventPublisher.publishEvent(new OnRegistrationCompleteEvent(user, request.getLocale(), appUrl));
 	}
 

@@ -1,18 +1,16 @@
 package com.digitalsanctuary.spring.user.security;
 
-import static org.springframework.security.config.Customizer.withDefaults;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-
-import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
@@ -31,6 +29,7 @@ import org.springframework.security.web.access.expression.DefaultWebSecurityExpr
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
+import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
 import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
 import lombok.Data;
@@ -58,14 +57,14 @@ public class WebSecurityConfig {
 	@Value("${user.security.defaultAction}")
 	private String defaultAction;
 
-	@Value("#{'${user.security.protectedURIs}'.split(',')}")
-	private String[] protectedURIsArray;
+	@Value("${user.security.protectedURIs}")
+	private String protectedURIsProperty;
 
-	@Value("#{'${user.security.unprotectedURIs}'.split(',')}")
-	private String[] unprotectedURIsArray;
+	@Value("${user.security.unprotectedURIs}")
+	private String unprotectedURIsProperty;
 
-	@Value("#{'${user.security.disableCSRFdURIs}'.split(',')}")
-	private String[] disableCSRFURIsArray;
+	@Value("${user.security.disableCSRFURIs}")
+	private String disableCSRFURIsProperty;
 
 	@Value("${user.security.loginPageURI}")
 	private String loginPageURI;
@@ -109,6 +108,12 @@ public class WebSecurityConfig {
 	@Value("${user.security.bcryptStrength}")
 	private int bcryptStrength = 10;
 
+	@Value("${user.security.rememberMe.enabled:false}")
+	private boolean rememberMeEnabled;
+
+	@Value("${user.security.rememberMe.key:#{null}}")
+	private String rememberMeKey;
+
 
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
@@ -128,20 +133,24 @@ public class WebSecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
-		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(unprotectedURIsArray));
+		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(getUnprotectedURIsArray()));
 		List<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
 		http.formLogin(
-				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll())
-				.rememberMe(withDefaults());
+				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll());
+
+		// Configure remember-me only if explicitly enabled and key is provided
+		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
+			http.rememberMe(rememberMe -> rememberMe.key(rememberMeKey).userDetailsService(userDetailsService));
+		}
 
 		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));
 
 		// If we have URIs to disable CSRF validation on, do so here
-		List<String> disableCSRFURIs = Arrays.stream(disableCSRFURIsArray).filter(uri -> uri != null && !uri.isEmpty()).collect(Collectors.toList());
-		if (disableCSRFURIs.size() > 0) {
+		String[] disableCSRFURIsArray = getDisableCSRFURIsArray();
+		if (disableCSRFURIsArray.length > 0) {
 			http.csrf(csrf -> {
 				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
 			});
@@ -159,7 +168,7 @@ public class WebSecurityConfig {
 					(authorize) -> authorize.requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated());
 		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
 			// Require authentication for protected URIs and allow access to all other requests
-			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(protectedURIsArray).authenticated().anyRequest().permitAll());
+			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(getProtectedURIsArray()).authenticated().anyRequest().permitAll());
 		} else {
 			// Log an error and deny access to all resources if the default action is not set correctly
 			log.error(
@@ -201,9 +210,9 @@ public class WebSecurityConfig {
 	// }
 
 	private List<String> getUnprotectedURIsList() {
-		// Add the required user pages and actions to the unprotectedURIsArray
+		// Add the required user pages and actions to the unprotected URIs from configuration
 		List<String> unprotectedURIs = new ArrayList<String>();
-		unprotectedURIs.addAll(Arrays.asList(unprotectedURIsArray));
+		unprotectedURIs.addAll(Arrays.asList(getUnprotectedURIsArray()));
 		unprotectedURIs.add(loginPageURI);
 		unprotectedURIs.add(loginActionURI);
 		unprotectedURIs.add(logoutSuccessURI);
@@ -225,8 +234,7 @@ public class WebSecurityConfig {
 	 */
 	@Bean
 	public DaoAuthenticationProvider authProvider() {
-		final DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-		authProvider.setUserDetailsService(userDetailsService);
+		DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
 		authProvider.setPasswordEncoder(encoder());
 		return authProvider;
 	}
@@ -266,8 +274,7 @@ public class WebSecurityConfig {
 			log.error("WebSecurityConfig.roleHierarchy: rolesAndPrivilegesConfig.getRoleHierarchyString() is null!");
 			return null;
 		}
-		RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-		roleHierarchy.setHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
+		RoleHierarchyImpl roleHierarchy = RoleHierarchyImpl.fromHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
 		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
 		return roleHierarchy;
 	}
@@ -282,6 +289,19 @@ public class WebSecurityConfig {
 		DefaultWebSecurityExpressionHandler defaultWebSecurityExpressionHandler = new DefaultWebSecurityExpressionHandler();
 		defaultWebSecurityExpressionHandler.setRoleHierarchy(roleHierarchy());
 		return defaultWebSecurityExpressionHandler;
+	}
+
+	/**
+	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler. This
+	 * ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
+	 *
+	 * @return the MethodSecurityExpressionHandler object
+	 */
+	@Bean
+	public MethodSecurityExpressionHandler methodSecurityExpressionHandler() {
+		DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+		expressionHandler.setRoleHierarchy(roleHierarchy());
+		return expressionHandler;
 	}
 
 	/**
@@ -306,5 +326,44 @@ public class WebSecurityConfig {
 		return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
 	}
 
+	/**
+	 * Helper method to split comma-separated property values and filter out empty strings.
+	 *
+	 * @param property the comma-separated property value
+	 * @return array of non-empty strings
+	 */
+	private String[] splitAndFilterProperty(String property) {
+		if (property == null || property.trim().isEmpty()) {
+			return new String[0];
+		}
+		return Arrays.stream(property.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
+	}
+
+	/**
+	 * Get the protected URIs array with empty values filtered out.
+	 *
+	 * @return array of protected URI patterns
+	 */
+	private String[] getProtectedURIsArray() {
+		return splitAndFilterProperty(protectedURIsProperty);
+	}
+
+	/**
+	 * Get the unprotected URIs array with empty values filtered out.
+	 *
+	 * @return array of unprotected URI patterns
+	 */
+	private String[] getUnprotectedURIsArray() {
+		return splitAndFilterProperty(unprotectedURIsProperty);
+	}
+
+	/**
+	 * Get the disable CSRF URIs array with empty values filtered out.
+	 *
+	 * @return array of URI patterns to disable CSRF protection for
+	 */
+	private String[] getDisableCSRFURIsArray() {
+		return splitAndFilterProperty(disableCSRFURIsProperty);
+	}
 
 }

@@ -213,8 +213,15 @@ public class UserService {
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
+		
+		// Validate password match only if both are provided
+		if (newUserDto.getPassword() != null && newUserDto.getMatchingPassword() != null 
+				&& !newUserDto.getPassword().equals(newUserDto.getMatchingPassword())) {
+			throw new IllegalArgumentException("Passwords do not match");
+		}
+		
 		if (emailExists(newUserDto.getEmail())) {
-			log.debug("UserService.registerNewUserAccount:" + "email already exists: {}", newUserDto.getEmail());
+			log.debug("UserService.registerNewUserAccount: email already exists: {}", newUserDto.getEmail());
 			throw new UserAlreadyExistException("There is an account with that email address: " + newUserDto.getEmail());
 		}
 
@@ -223,7 +230,7 @@ public class UserService {
 		user.setFirstName(newUserDto.getFirstName());
 		user.setLastName(newUserDto.getLastName());
 		user.setPassword(passwordEncoder.encode(newUserDto.getPassword()));
-		user.setEmail(newUserDto.getEmail());
+		user.setEmail(newUserDto.getEmail().toLowerCase());
 		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
 
 		// If we are not sending a verification email
@@ -295,7 +302,10 @@ public class UserService {
 	 * @return the user
 	 */
 	public User findUserByEmail(final String email) {
-		return userRepository.findByEmail(email);
+		if (email == null) {
+			return null;
+		}
+		return userRepository.findByEmail(email.toLowerCase());
 	}
 
 	/**
@@ -315,7 +325,14 @@ public class UserService {
 	 * @return the user by password reset token
 	 */
 	public Optional<User> getUserByPasswordResetToken(final String token) {
-		return Optional.ofNullable(passwordTokenRepository.findByToken(token).getUser());
+		if (token == null) {
+			return Optional.empty();
+		}
+		PasswordResetToken passwordResetToken = passwordTokenRepository.findByToken(token);
+		if (passwordResetToken == null) {
+			return Optional.empty();
+		}
+		return Optional.ofNullable(passwordResetToken.getUser());
 	}
 
 	/**

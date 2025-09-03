@@ -2,7 +2,6 @@ package com.digitalsanctuary.spring.user.event;
 
 import java.util.Locale;
 import org.springframework.context.ApplicationEvent;
-import org.springframework.scheduling.annotation.Async;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +11,6 @@ import lombok.EqualsAndHashCode;
  * The OnRegistrationCompleteEvent class is triggered when a user registers. We are using to send the registration verification email, if enabled,
  * asynchronously. You can also listen for this event and perform any other post-registration processing desired.
  */
-@Async
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class OnRegistrationCompleteEvent extends ApplicationEvent {

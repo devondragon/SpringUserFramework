@@ -172,7 +172,7 @@ Important: Focus on providing value to humans reading the changelog. Explain cha
 
     # Use GPT-4o (without fallback)
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-5",
         messages=[
             {"role": "system", "content": "You are a helpful assistant for software development with expertise in analyzing code changes and creating detailed changelogs."},
             {"role": "user", "content": prompt},

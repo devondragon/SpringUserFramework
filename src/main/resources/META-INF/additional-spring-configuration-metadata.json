@@ -1,184 +1,204 @@
 {
   "properties": [
     {
-      "name": "user.registration.facebook-enabled",
-      "type": "java.lang.String",
-      "description": "A description for 'user.registration.facebook-enabled'"
+      "name": "user.registration.facebookEnabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable Facebook OAuth2 registration"
     },
     {
-      "name": "user.registration.google-enabled",
-      "type": "java.lang.String",
-      "description": "A description for 'user.registration.google-enabled'"
+      "name": "user.registration.googleEnabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable Google OAuth2 registration"
     },
     {
-      "name": "user.registration.keycloak-enabled",
-      "type": "java.lang.String",
-      "description": "A description for 'user.registration.keycloak-enabled'"
+      "name": "user.registration.keycloakEnabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable Keycloak OAuth2 registration"
     },
     {
-      "name": "user.registration.send-verification-email",
-      "type": "java.lang.String",
-      "description": "A description for 'user.registration.send-verification-email'"
+      "name": "user.registration.sendVerificationEmail",
+      "type": "java.lang.Boolean",
+      "description": "Send verification email upon registration"
     },
     {
       "name": "user.copyrightFirstYear",
-      "type": "java.lang.String",
-      "description": "A description for 'user.copyrightFirstYear'"
+      "type": "java.lang.Integer",
+      "description": "First year for copyright notice"
     },
     {
       "name": "user.purgetokens.cron.expression",
       "type": "java.lang.String",
-      "description": "A description for 'user.purgetokens.cron.expression'"
+      "description": "Cron expression for token purge schedule"
     },
     {
-      "name": "user.security.login-action-uRI",
+      "name": "user.security.loginActionURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.login-action-uRI'"
+      "description": "URI for login form submission"
     },
     {
       "name": "user.security.protectedURIs",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.protectedURIs'"
+      "description": "Comma-delimited list of URIs that require authentication"
     },
     {
       "name": "user.security.unprotectedURIs",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.unprotectedURIs'"
+      "description": "Comma-delimited list of URIs that don't require authentication"
     },
     {
       "name": "user.security.logoutActionURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.logoutActionURI'"
+      "description": "URI for logout action"
     },
     {
       "name": "user.security.loginPageURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.loginPageURI'"
+      "description": "URI for login page"
     },
     {
       "name": "user.security.logoutSuccessURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.logoutSuccessURI'"
+      "description": "URI to redirect to after successful logout"
     },
     {
       "name": "user.security.registrationSuccessURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.registrationSuccessURI'"
+      "description": "URI for registration success page"
     },
     {
       "name": "user.security.loginSuccessURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.loginSuccessURI'"
+      "description": "URI to redirect to after successful login"
     },
     {
       "name": "user.security.registrationNewVerificationURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.registrationNewVerificationURI'"
+      "description": "URI for requesting new verification email"
     },
     {
-      "name": "user.mail.from-address",
+      "name": "user.mail.fromAddress",
       "type": "java.lang.String",
-      "description": "A description for 'user.mail.from-address'"
+      "description": "From address for emails sent by the system"
     },
     {
       "name": "user.security.failedLoginAttempts",
-      "type": "java.lang.String",
-      "description": "A description for 'user.security.failedLoginAttempts'"
+      "type": "java.lang.Integer",
+      "description": "Number of allowed failed login attempts before account lockout"
     },
     {
       "name": "user.security.updateUserURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.updateUserURI'"
+      "description": "URI for user profile update page"
     },
     {
       "name": "user.security.forgotPasswordPendingURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.forgotPasswordPendingURI'"
+      "description": "URI for forgot password pending page"
     },
     {
       "name": "user.security.defaultAction",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.defaultAction'"
+      "description": "Default security action (allow or deny) for URIs not explicitly configured"
     },
     {
       "name": "user.security.registrationURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.registrationURI'"
+      "description": "URI for registration page"
     },
     {
-      "name": "user.security.disableCSRFdURIs",
+      "name": "user.security.disableCSRFURIs",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.disableCSRFdURIs'"
+      "description": "Comma-delimited list of URIs that should not be protected by CSRF protection"
     },
     {
       "name": "user.security.registrationPendingURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.registrationPendingURI'"
+      "description": "URI for registration pending verification page"
     },
     {
       "name": "user.security.forgotPasswordURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.forgotPasswordURI'"
+      "description": "URI for forgot password page"
     },
     {
       "name": "user.security.forgotPasswordChangeURI",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.forgotPasswordChangeURI'"
+      "description": "URI for password change page after reset"
     },
     {
       "name": "hibernate.globally_quoted_identifiers",
-      "type": "java.lang.String",
-      "description": "A description for 'hibernate.globally_quoted_identifiers'"
+      "type": "java.lang.Boolean",
+      "description": "Quote all database identifiers"
     },
     {
       "name": "spring.thymeleaf.template-loader-path",
       "type": "java.lang.String",
-      "description": "A description for 'spring.thymeleaf.template-loader-path'"
+      "description": "Path for Thymeleaf templates"
     },
     {
-      "name": "user.audit.log-events",
-      "type": "java.lang.String",
-      "description": "A description for 'user.audit.log-events'"
-    },
-    {
-      "name": "user.audit.flush-on-write",
+      "name": "user.audit.logEvents",
       "type": "java.lang.Boolean",
-      "description": "A description for 'user.audit.flush-on-write'"
+      "description": "Enable audit event logging"
     },
     {
-      "name": "user.audit.log-file-path",
+      "name": "user.audit.flushOnWrite",
+      "type": "java.lang.Boolean",
+      "description": "Flush audit log on each write"
+    },
+    {
+      "name": "user.audit.logFilePath",
       "type": "java.lang.String",
-      "description": "A description for 'user.audit.log-file-path'"
+      "description": "Path for audit log file"
     },
     {
       "name": "user.security.bcryptStrength",
-      "type": "java.lang.String",
-      "description": "A description for 'user.security.bcryptStrength'"
+      "type": "java.lang.Integer",
+      "description": "BCrypt hash strength (4-31, default 10)"
     },
     {
       "name": "user.security.testHashTime",
-      "type": "java.lang.String",
-      "description": "A description for 'user.security.testHashTime'"
+      "type": "java.lang.Boolean",
+      "description": "Test BCrypt hash time on startup"
     },
     {
       "name": "spring.security.oauth2.enabled",
-      "type": "java.lang.String",
-      "description": "A flag to enable/disable OAuth2 setup in WebSecurityConfig"
+      "type": "java.lang.Boolean",
+      "description": "Enable OAuth2 authentication"
     },
     {
       "name": "spring.devtools.livereload.https",
-      "type": "java.lang.String",
-      "description": "A description for 'spring.devtools.livereload.https'"
+      "type": "java.lang.Boolean",
+      "description": "Enable HTTPS for Spring DevTools LiveReload"
     },
     {
       "name": "user.actuallyDeleteAccount",
-      "type": "java.lang.String",
-      "description": "A description for 'user.actuallyDeleteAccount'"
+      "type": "java.lang.Boolean",
+      "description": "Actually delete user accounts (true) or just disable them (false)"
     },
     {
       "name": "user.security.accountLockoutDuration",
+      "type": "java.lang.Integer",
+      "description": "Account lockout duration in minutes"
+    },
+    {
+      "name": "user.security.rememberMe.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable remember-me functionality"
+    },
+    {
+      "name": "user.security.rememberMe.key",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.accountLockoutDuration'"
+      "description": "Secret key for remember-me token generation"
+    },
+    {
+      "name": "user.security.alwaysUseDefaultTargetUrl",
+      "type": "java.lang.Boolean",
+      "description": "Always redirect to default target URL after login"
+    },
+    {
+      "name": "user.web.globalUserModelOptIn",
+      "type": "java.lang.Boolean",
+      "description": "Add user to model by default (true) or only with annotation (false)"
     }
   ]
 }

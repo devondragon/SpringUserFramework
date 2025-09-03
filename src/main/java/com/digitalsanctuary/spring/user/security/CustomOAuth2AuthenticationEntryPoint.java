@@ -43,15 +43,16 @@ public class CustomOAuth2AuthenticationEntryPoint implements AuthenticationEntry
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException,
                                                                                                                           ServletException {
-        log.debug("CustomOAuth2AuthenticationEntryPoint.commence:" + "called with authException: {}", authException);
-        System.out.println("CustomOAuth2AuthenticationEntryPoint.commence() called with authException: " + authException);
+        // Log detailed exception information internally for debugging
+        log.warn("OAuth2 authentication failed: {}", authException.getMessage(), authException);
+        
         if (authException instanceof OAuth2AuthenticationException && failureHandler != null) {
             // Use the failure handler to handle the exception and perform the redirect
             failureHandler.onAuthenticationFailure(request, response, authException);
         } else {
-            // For other exceptions, redirect to the login page
-            System.out.println("CustomOAuth2AuthenticationEntryPoint.commence() setting error.message: " + authException.getMessage());
-            request.getSession().setAttribute("error.message", authException.getMessage());
+            // For other exceptions, redirect to the login page with a generic error message
+            String userFriendlyMessage = "Authentication failed. Please try again.";
+            request.getSession().setAttribute("error.message", userFriendlyMessage);
             response.sendRedirect(redirectURL);
         }
     }

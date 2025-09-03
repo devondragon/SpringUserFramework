@@ -132,6 +132,7 @@ public class User {
 
 	/**
 	 * Gets the roles as a List for backward compatibility.
+	 * Returns a list view of the roles for compatibility with existing code.
 	 * 
 	 * @return the roles as a List
 	 */
@@ -141,31 +142,45 @@ public class User {
 
 	/**
 	 * Sets the roles from a List for backward compatibility.
-	 * Creates a new HashSet to ensure the collection is mutable.
+	 * Clears the existing roles and adds all roles from the provided list.
+	 * This allows JPA to track changes properly.
 	 * 
 	 * @param rolesList the roles to set
 	 */
 	public void setRoles(List<Role> rolesList) {
-		this.roles = new HashSet<>(rolesList != null ? rolesList : new ArrayList<>());
+		this.roles.clear();
+		if (rolesList != null) {
+			this.roles.addAll(rolesList);
+		}
 	}
 
 	/**
 	 * Gets the roles as a Set (preferred method).
-	 * Returns a defensive copy to prevent external modification.
+	 * Returns the actual roles set to allow JPA dirty checking.
 	 * 
 	 * @return the roles as a Set
 	 */
 	public Set<Role> getRolesAsSet() {
-		return new HashSet<>(roles);
+		return this.roles;
 	}
 
 	/**
 	 * Sets the roles from a Set (preferred method).
-	 * Creates a new HashSet to ensure the collection is mutable.
+	 * Clears the existing roles and adds all roles from the provided set.
+	 * This allows JPA to track changes properly.
 	 * 
 	 * @param rolesSet the roles to set
 	 */
 	public void setRolesAsSet(Set<Role> rolesSet) {
-		this.roles = new HashSet<>(rolesSet != null ? rolesSet : new HashSet<>());
+		if (rolesSet == null) {
+			this.roles.clear();
+		} else if (rolesSet == this.roles) {
+			// If we're setting the same set object that we're already using,
+			// no action is needed as the changes are already applied
+			return;
+		} else {
+			this.roles.clear();
+			this.roles.addAll(rolesSet);
+		}
 	}
 }

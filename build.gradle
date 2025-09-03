@@ -12,7 +12,7 @@ plugins {
 import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 
-group = 'com.digitalsanctuary.springuser'
+group = 'com.digitalsanctuary'
 // version = '3.0.0-SNAPSHOT'
 description = 'Spring User Framework'
 
@@ -31,6 +31,24 @@ repositories {
 	mavenCentral()
 }
 
+dependencyUpdates {
+    // Only look at release versions
+    revision = 'release'
+
+    // Reject non-stable versions (alpha, beta, rc, milestone, etc.)
+    rejectVersionIf {
+        isNonStable(candidate.version) && !isNonStable(currentVersion)
+    }
+}
+
+boolean isNonStable(String version) {
+    def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { kw ->
+        version.toUpperCase().contains(kw)
+    }
+    def regex = /^[0-9,.v-]+(-r)?$/ // matches stable versions like 1.2.3, 2.0, 1.0-r
+    return !stableKeyword && !(version ==~ regex)
+}
+
 dependencies {
     // Spring Boot starters
     compileOnly 'org.springframework.boot:spring-boot-starter-actuator'
@@ -40,22 +58,19 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-client'
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
     compileOnly 'org.springframework.boot:spring-boot-starter-thymeleaf'
-    compileOnly "org.springframework.boot:spring-boot-starter-web:$springBootVersion"
+    compileOnly 'org.springframework.boot:spring-boot-starter-web'
     compileOnly 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.3.RELEASE'
     compileOnly 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:3.4.0'
 
-    // Other dependencies
-    runtimeOnly 'org.springframework.boot:spring-boot-devtools'
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.5.5'
-    runtimeOnly 'org.postgresql:postgresql'
+    // Other dependencies (moved to test scope for library)
     implementation 'org.passay:passay:1.6.6'
     implementation 'com.google.guava:guava:33.4.8-jre'
-    compileOnly 'org.springframework.boot:spring-boot-starter-actuator'
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
+    compileOnly 'org.springframework.retry:spring-retry'
 
     // Lombok dependencies
     compileOnly "org.projectlombok:lombok:$lombokVersion"
-    annotationProcessor "org.springframework.boot:spring-boot-configuration-processor:$springBootVersion"
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     annotationProcessor "org.projectlombok:lombok:$lombokVersion"
 
     // Lombok dependencies for test classes
@@ -63,16 +78,23 @@ dependencies {
     testAnnotationProcessor "org.projectlombok:lombok:$lombokVersion"
 
      // Test dependencies
-    testImplementation "org.springframework.boot:spring-boot-starter-test:$springBootVersion"
-    testImplementation "org.springframework.boot:spring-boot-starter-web:$springBootVersion"
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-web'
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     testImplementation 'org.springframework.boot:spring-boot-starter-mail'
     testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.retry:spring-retry'
+    testImplementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     testImplementation 'com.h2database:h2:2.3.232'
-    
+
+    // Runtime dependencies moved to test scope for library
+    testRuntimeOnly 'org.springframework.boot:spring-boot-devtools'
+    testRuntimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+    testRuntimeOnly 'org.postgresql:postgresql'
+
     // Additional test dependencies for improved testing
     testImplementation 'org.testcontainers:testcontainers:1.21.3'
     testImplementation 'org.testcontainers:mariadb:1.21.3'
@@ -106,7 +128,7 @@ test {
 
 tasks.named('jar') {
     enabled = true
-    archiveBaseName.set('ds-spring-ai-client')
+    archiveBaseName.set('ds-spring-user-framework')
     archiveClassifier.set('')
 }
 
@@ -137,23 +159,12 @@ registerJdkTestTask('testJdk17', 17)
 registerJdkTestTask('testJdk21', 21)
 
 
-// Task that runs both test tasks
+// Optional task that runs tests with multiple JDKs
 tasks.register('testAll') {
     dependsOn(tasks.named('testJdk17'), tasks.named('testJdk21'))
     doFirst {
         println("Running tests with both JDK 17 and JDK 21")
     }
-}
-
-// Make the default 'test' task depend on 'testAll'
-tasks.test {
-    dependsOn(tasks.named('testAll'))
-       doFirst {
-        println("Delegating to 'testAll'")
-    }
-    // Prevent the default test behavior
-    testClassesDirs = files()
-    classpath = files()
 }
 
 

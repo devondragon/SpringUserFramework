@@ -1,13 +1,16 @@
 package com.digitalsanctuary.spring.user.util;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * The TimeLogger class is a utility for logging the time taken for a process. It can log the time to a provided SLF4J Logger or to the console if no
- * Logger is provided.
+ * The TimeLogger class is a utility for logging the time taken for a process. It can log the time to a provided SLF4J Logger or to a default
+ * logger if no Logger is provided.
  */
 public class TimeLogger {
 
+    private static final Logger DEFAULT_LOGGER = LoggerFactory.getLogger(TimeLogger.class);
+    
     private Logger logger;
     private String label = "";
     private long startTime;
@@ -58,18 +61,15 @@ public class TimeLogger {
     }
 
     /**
-     * Logs the time taken between the start and end times. If a Logger is provided, it logs the message at the debug level. Otherwise, it prints the
-     * message to the console.
+     * Logs the time taken between the start and end times. If a Logger is provided, it logs the message at the debug level. Otherwise, it uses
+     * the default logger for the TimeLogger class.
      */
     public void logTime() {
         long duration = endTime - startTime;
         String logMessage = label + " took " + duration + " milliseconds";
 
-        if (logger == null) {
-            System.out.println(logMessage);
-        } else {
-            logger.debug(logMessage);
-        }
+        Logger loggerToUse = logger != null ? logger : DEFAULT_LOGGER;
+        loggerToUse.debug(logMessage);
     }
 
 }

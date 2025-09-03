@@ -18,6 +18,18 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Maven](#maven)
     - [Gradle](#gradle)
   - [Quick Start](#quick-start)
+    - [Prerequisites](#prerequisites)
+    - [Step 1: Add Dependencies](#step-1-add-dependencies)
+    - [Step 2: Database Configuration](#step-2-database-configuration)
+    - [Step 3: JPA Configuration](#step-3-jpa-configuration)
+    - [Step 4: Email Configuration (Optional but Recommended)](#step-4-email-configuration-optional-but-recommended)
+    - [Step 5: Essential Framework Configuration](#step-5-essential-framework-configuration)
+    - [Step 6: Create User Profile Extension (Optional)](#step-6-create-user-profile-extension-optional)
+    - [Step 7: Start Your Application](#step-7-start-your-application)
+    - [Step 8: Test Core Features](#step-8-test-core-features)
+    - [Step 9: Customize Pages (Optional)](#step-9-customize-pages-optional)
+    - [Complete Example Configuration](#complete-example-configuration)
+    - [Next Steps](#next-steps)
   - [Configuration](#configuration)
   - [Security Features](#security-features)
     - [Role-Based Access Control](#role-based-access-control)
@@ -84,37 +96,135 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.3.0</version>
+    <version>3.4.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.3.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.4.0'
 ```
 
 ## Quick Start
 
-1. **Add the dependency** as shown above
+Follow these steps to get up and running with the Spring User Framework in your application.
 
-2. **Set essential configuration** in your `application.yml`:
+### Prerequisites
 
+- Java 17 or higher
+- Spring Boot 3.0+
+- A database (MariaDB, PostgreSQL, MySQL, H2, etc.)
+- SMTP server for email functionality (optional but recommended)
+
+### Step 1: Add Dependencies
+
+1. **Add the main framework dependency**:
+
+   Maven:
+   ```xml
+   <dependency>
+       <groupId>com.digitalsanctuary</groupId>
+       <artifactId>ds-spring-user-framework</artifactId>
+       <version>3.3.0</version>
+   </dependency>
+   ```
+
+   Gradle:
+   ```groovy
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:3.3.0'
+   ```
+
+2. **Add required dependencies**:
+
+   **Important**: This framework requires these additional Spring Boot starters to function properly:
+
+   Maven:
+   ```xml
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-thymeleaf</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-mail</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-data-jpa</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-security</artifactId>
+   </dependency>
+   <dependency>
+       <groupId>org.springframework.retry</groupId>
+       <artifactId>spring-retry</artifactId>
+   </dependency>
+   ```
+
+   Gradle:
+   ```groovy
+   implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+   implementation 'org.springframework.boot:spring-boot-starter-mail'
+   implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+   implementation 'org.springframework.boot:spring-boot-starter-security'
+   implementation 'org.springframework.retry:spring-retry'
+   ```
+
+### Step 2: Database Configuration
+
+Configure your database in `application.yml`. The framework supports all databases compatible with Spring Data JPA:
+
+**MariaDB/MySQL:**
 ```yaml
 spring:
   datasource:
-    url: jdbc:mariadb://localhost:3306/yourdb
+    url: jdbc:mariadb://localhost:3306/yourdb?createDatabaseIfNotExist=true
     username: dbuser
     password: dbpassword
     driver-class-name: org.mariadb.jdbc.Driver
+```
+
+**PostgreSQL:**
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/yourdb
+    username: dbuser
+    password: dbpassword
+    driver-class-name: org.postgresql.Driver
+```
+
+**H2 (for development/testing):**
+```yaml
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+```
+
+### Step 3: JPA Configuration
+
+```yaml
+spring:
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: update  # Creates/updates tables automatically
+    show-sql: false     # Set to true for SQL debugging
+```
+
+### Step 4: Email Configuration (Optional but Recommended)
+
+For password reset and email verification features:
+
+```yaml
+spring:
   mail:
-    host: smtp.example.com
+    host: smtp.gmail.com       # or your SMTP server
     port: 587
-    username: your-username
-    password: your-password
+    username: your-email@gmail.com
+    password: your-app-password
     properties:
       mail:
         smtp:
@@ -124,29 +234,139 @@ spring:
 
 user:
   mail:
-    fromAddress: noreply@yourdomain.com
-  security:
-    defaultAction: deny
-    bcryptStrength: 12
-    failedLoginAttempts: 5
-    accountLockoutDuration: 15
+    fromAddress: noreply@yourdomain.com  # Email "from" address
 ```
 
-3. **Create a UserProfile extension** for your application-specific user data:
+### Step 5: Essential Framework Configuration
+
+Add these minimal settings to get started:
+
+```yaml
+user:
+  # Basic security settings
+  security:
+    defaultAction: deny                    # Secure by default
+    bcryptStrength: 12                     # Password hashing strength
+    failedLoginAttempts: 5                 # Account lockout threshold
+    accountLockoutDuration: 15             # Lockout duration in minutes
+
+  # Registration settings
+  registration:
+    sendVerificationEmail: false           # true = email verification required
+                                          # false = auto-enable accounts
+```
+
+### Step 6: Create User Profile Extension (Optional)
+
+If you need additional user data beyond the built-in fields, create a profile extension:
 
 ```java
 @Entity
 @Table(name = "app_user_profile")
 public class AppUserProfile extends BaseUserProfile {
-    // Add your application-specific fields
-    private String preferredLanguage;
-    private boolean receiveNewsletter;
+    private String department;
+    private String phoneNumber;
+    private LocalDate birthDate;
 
     // Getters and setters
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
+
+    // ... other getters and setters
 }
 ```
 
-4. **Run your application** and navigate to `/user/login.html` to see the login page.
+### Step 7: Start Your Application
+
+1. **Run your Spring Boot application**:
+   ```bash
+   mvn spring-boot:run
+   # or
+   ./gradlew bootRun
+   ```
+
+2. **Verify the framework is working**:
+   - Navigate to `http://localhost:8080/user/login.html` to see the login page
+   - Check your database - user tables should be created automatically
+   - Look for framework startup messages in the console
+
+### Step 8: Test Core Features
+
+**Create your first user:**
+- Navigate to `/user/register.html`
+- Fill out the registration form
+- If `sendVerificationEmail=false`, you can login immediately
+- If `sendVerificationEmail=true`, check your email for verification link
+
+**Test login:**
+- Navigate to `/user/login.html`
+- Use the credentials you just created
+
+### Step 9: Customize Pages (Optional)
+
+The framework provides default HTML templates, but you can override them:
+
+1. **Create custom templates** in `src/main/resources/templates/user/`:
+   - `login.html` - Login page
+   - `register.html` - Registration page
+   - `forgot-password.html` - Password reset page
+   - And more...
+
+2. **Use your own CSS** by adding stylesheets to `src/main/resources/static/css/`
+
+### Complete Example Configuration
+
+Here's a complete `application.yml` for a typical setup:
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mariadb://localhost:3306/myapp?createDatabaseIfNotExist=true
+    username: appuser
+    password: apppass
+    driver-class-name: org.mariadb.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: myapp@gmail.com
+    password: myapppassword
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+user:
+  mail:
+    fromAddress: noreply@myapp.com
+
+  security:
+    defaultAction: deny
+    bcryptStrength: 12
+    failedLoginAttempts: 3
+    accountLockoutDuration: 30
+
+  registration:
+    sendVerificationEmail: true
+
+  # Optional: Audit logging
+  audit:
+    logEvents: true
+    logFilePath: ./logs/audit.log
+```
+
+### Next Steps
+
+- Read the [Configuration Guide](CONFIG.md) for advanced settings
+- See [Extension Examples](PROFILE.md) for custom user profiles
+- Check out the [Demo Application](https://github.com/devondragon/SpringUserFrameworkDemoApp) for a complete example
 
 ## Configuration
 
@@ -208,12 +428,32 @@ user:
 
 ### Registration
 
-Default registration flow includes:
+The registration flow is configurable and can operate in two modes:
+
+**Auto-Enable Mode** (default: `user.registration.sendVerificationEmail=false`):
 - Form submission validation
 - Email uniqueness check
-- Email verification (optional)
-- Welcome email
-- Configurable initial roles
+- User account is immediately enabled and can login
+- No verification email is sent
+- User has full access immediately after registration
+
+**Email Verification Mode** (`user.registration.sendVerificationEmail=true`):
+- Form submission validation
+- Email uniqueness check
+- User account is created but **disabled**
+- Verification email is sent with confirmation link
+- User must click verification link to enable account
+- Account remains disabled until email verification is completed
+- Configurable initial roles assigned after verification
+
+**Configuration Example:**
+```yaml
+user:
+  registration:
+    sendVerificationEmail: true  # Enable email verification (default: false)
+```
+
+**Note:** When email verification is disabled, user accounts are immediately active and functional. When enabled, accounts require email confirmation before login is possible.
 
 ### Profile Management
 

@@ -16,6 +16,7 @@ import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.service.UserVerificationService;
 import com.digitalsanctuary.spring.user.util.UserUtils;
+import com.digitalsanctuary.spring.user.web.IncludeUserInModel;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RequiredArgsConstructor
 @Controller
+@IncludeUserInModel
 public class UserActionController {
 	private static final String AUTH_MESSAGE_PREFIX = "auth.message.";
 
@@ -70,7 +72,7 @@ public class UserActionController {
 			@RequestParam("token") final String token) {
 		log.debug("UserAPI.showChangePasswordPage: called with token: {}", token);
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
-		log.debug("UserAPI.showChangePasswordPage:" + "result: {}", result);
+		log.debug("UserAPI.showChangePasswordPage: result: {}", result);
 		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
 				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent"))
 				.action("showChangePasswordPage")

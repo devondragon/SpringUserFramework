@@ -1,6 +1,8 @@
 package com.digitalsanctuary.spring.user.web;
 
 
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -27,7 +29,7 @@ public class GlobalUserModelInterceptor implements HandlerInterceptor {
      * Pre-handle method to allow all requests to proceed by default.
      */
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull Object handler) throws Exception {
         // Allow all requests to proceed by default
         log.debug("Handling request for path: {}", request.getRequestURI());
 
@@ -39,7 +41,8 @@ public class GlobalUserModelInterceptor implements HandlerInterceptor {
      * Post-handle method to add the current user to the model for applicable requests.
      */
     @Override
-    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+    public void postHandle(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull Object handler,
+            @Nullable ModelAndView modelAndView) throws Exception {
         log.debug("handler is: {}", handler.getClass().getName());
         log.debug("modelAndView: {}", modelAndView);
         if (modelAndView == null || !(handler instanceof HandlerMethod)) {
@@ -48,16 +51,20 @@ public class GlobalUserModelInterceptor implements HandlerInterceptor {
 
         HandlerMethod handlerMethod = (HandlerMethod) handler;
 
-        // Apply global opt-in or opt-out behavior
+        // Apply global user model injection behavior based on configuration
         if (userWebConfig.isGlobalUserModelOptIn()) {
-            // Global Opt-In Mode: Skip if not explicitly opted-in
-            if (!hasAnnotation(handlerMethod, IncludeUserInModel.class)) {
-                return; // Skip if not explicitly opted-in
+            // Global Opt-In Mode (globalUserModelOptIn=true):
+            // - User is added to ALL views by default
+            // - Only skip if @ExcludeUserFromModel is present
+            if (hasAnnotation(handlerMethod, ExcludeUserFromModel.class)) {
+                return; // Skip - explicitly excluded
             }
         } else {
-            // Global Opt-Out Mode: Skip if explicitly excluded
-            if (hasAnnotation(handlerMethod, ExcludeUserFromModel.class)) {
-                return; // Skip if explicitly excluded
+            // Global Opt-Out Mode (globalUserModelOptIn=false) - DEFAULT:
+            // - User is NOT added to any views by default
+            // - Only add if @IncludeUserInModel is present
+            if (!hasAnnotation(handlerMethod, IncludeUserInModel.class)) {
+                return; // Skip - not explicitly included
             }
         }
 

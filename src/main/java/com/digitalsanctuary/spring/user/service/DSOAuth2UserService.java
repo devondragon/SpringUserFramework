@@ -77,7 +77,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         } else if (registrationId.equalsIgnoreCase("facebook")) {
             user = getUserFromFacebookOAuth2User(oAuth2User);
         } else {
-            log.error("Sorry! Login with " + registrationId + " is not supported yet.");
+            log.error("Sorry! Login with {} is not supported yet.", registrationId);
             throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
                     "Sorry! Login with " + registrationId + " is not supported yet.");
         }
@@ -85,6 +85,12 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             log.error("handleOAuthLoginSuccess: user is null");
             throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
                     "Sorry! An error occurred while processing your login request.");
+        }
+        // Validate that we have an email address from the OAuth2 provider
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            log.error("handleOAuthLoginSuccess: OAuth2 provider did not provide an email address");
+            throw new OAuth2AuthenticationException(new OAuth2Error("Missing Email"),
+                    "Unable to retrieve email address from " + registrationId + ". Please ensure you have granted email permissions.");
         }
         log.debug("handleOAuthLoginSuccess: looking up user with email: {}", user.getEmail());
         User existingUser = userRepository.findByEmail(user.getEmail().toLowerCase());
@@ -158,7 +164,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         }
         log.debug("Principal attributes: {}", principal.getAttributes());
         User user = new User();
-        user.setEmail(principal.getAttribute("email"));
+        String email = principal.getAttribute("email");
+        user.setEmail(email != null ? email.toLowerCase() : null);
         user.setFirstName(principal.getAttribute("given_name"));
         user.setLastName(principal.getAttribute("family_name"));
         user.setProvider(User.Provider.GOOGLE);
@@ -178,7 +185,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         }
         log.debug("Principal attributes: {}", principal.getAttributes());
         User user = new User();
-        user.setEmail(principal.getAttribute("email"));
+        String email = principal.getAttribute("email");
+        user.setEmail(email != null ? email.toLowerCase() : null);
         String fullName = principal.getAttribute("name");
         if (fullName != null) {
             String[] names = fullName.split(" ");
@@ -206,7 +214,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         log.debug("Loading user from OAuth2 provider with userRequest: {}", userRequest);
         OAuth2User user = defaultOAuth2UserService.loadUser(userRequest);
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
-        log.debug("registrationId: " + registrationId);
+        log.debug("registrationId: {}", registrationId);
         User dbUser = handleOAuthLoginSuccess(registrationId, user);
         DSUserDetails userDetails = loginHelperService.userLoginHelper(dbUser);
         return userDetails;
