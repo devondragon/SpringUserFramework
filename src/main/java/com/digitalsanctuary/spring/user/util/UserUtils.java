@@ -83,8 +83,11 @@ public final class UserUtils {
 		// Check for forwarded port
 		String portHeader = request.getHeader("X-Forwarded-Port");
 		int port;
-		if (portHeader != null && !portHeader.isEmpty()) {
-			port = Integer.parseInt(portHeader);
+			try {
+				port = Integer.parseInt(portHeader);
+			} catch (NumberFormatException e) {
+				port = request.getServerPort();
+			}
 		} else {
 			port = request.getServerPort();
 		}
