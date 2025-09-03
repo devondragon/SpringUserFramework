@@ -43,7 +43,7 @@ public class UserPageController {
 	 */
 	@GetMapping("${user.security.loginPageURI:/user/login.html}")
 	public String login(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
-		log.debug("UserPageController.login:" + "userDetails: {}", userDetails);
+		log.debug("UserPageController.login: userDetails: {}", userDetails);
 		if (session != null && session.getAttribute("error.message") != null) {
 			model.addAttribute("errormessage", session.getAttribute("error.message"));
 			session.removeAttribute("error.message");
@@ -64,7 +64,7 @@ public class UserPageController {
 	 */
 	@GetMapping("${user.security.registrationURI:/user/register.html}")
 	public String register(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session, ModelMap model) {
-		log.debug("UserPageController.register:" + "userDetails: {}", userDetails);
+		log.debug("UserPageController.register: userDetails: {}", userDetails);
 		if (session != null && session.getAttribute("error.message") != null) {
 			model.addAttribute("errormessage", session.getAttribute("error.message"));
 			session.removeAttribute("error.message");
@@ -97,7 +97,7 @@ public class UserPageController {
 	@GetMapping("${user.security.registrationSuccessURI:/user/registration-complete.html}")
 	public String registrationComplete(@AuthenticationPrincipal DSUserDetails userDetails, HttpSession session,
 			ModelMap model) {
-		log.debug("UserPageController.registrationComplete:" + "userDetails: {}", userDetails);
+		log.debug("UserPageController.registrationComplete: userDetails: {}", userDetails);
 		return "user/registration-complete";
 	}
 

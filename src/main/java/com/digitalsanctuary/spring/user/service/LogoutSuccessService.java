@@ -43,9 +43,9 @@ public class LogoutSuccessService extends SimpleUrlLogoutSuccessHandler {
 	@Override
 	public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)	throws IOException,
 																															ServletException {
-		log.debug("LogoutSuccessService.onLogoutSuccess:" + "called.");
-		log.debug("LogoutSuccessService.onAuthenticationSuccess:" + "called with authentiation: {}", authentication);
-		log.debug("LogoutSuccessService.onAuthenticationSuccess:" + "targetUrl: {}", super.determineTargetUrl(request, response));
+		log.debug("LogoutSuccessService.onLogoutSuccess: called.");
+		log.debug("LogoutSuccessService.onAuthenticationSuccess: called with authentiation: {}", authentication);
+		log.debug("LogoutSuccessService.onAuthenticationSuccess: targetUrl: {}", super.determineTargetUrl(request, response));
 
 		User user = null;
 		if (authentication != null && authentication.getPrincipal() != null && authentication.getPrincipal() instanceof DSUserDetails) {

@@ -213,8 +213,15 @@ public class UserService {
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
+		
+		// Validate password match only if both are provided
+		if (newUserDto.getPassword() != null && newUserDto.getMatchingPassword() != null 
+				&& !newUserDto.getPassword().equals(newUserDto.getMatchingPassword())) {
+			throw new IllegalArgumentException("Passwords do not match");
+		}
+		
 		if (emailExists(newUserDto.getEmail())) {
-			log.debug("UserService.registerNewUserAccount:" + "email already exists: {}", newUserDto.getEmail());
+			log.debug("UserService.registerNewUserAccount: email already exists: {}", newUserDto.getEmail());
 			throw new UserAlreadyExistException("There is an account with that email address: " + newUserDto.getEmail());
 		}
 

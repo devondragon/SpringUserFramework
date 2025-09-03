@@ -52,12 +52,49 @@ public final class UserUtils {
 	}
 
 	/**
-	 * Get the application URL based on the provided request.
+	 * Get the application URL based on the provided request, handling proxy headers properly.
+	 * 
+	 * Checks for forwarded headers (X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Port)
+	 * to construct the correct URL when behind a proxy or load balancer.
+	 * Falls back to standard request properties if no proxy headers are present.
 	 *
 	 * @param request The HttpServletRequest object.
 	 * @return The application URL as a String.
 	 */
 	public static String getAppUrl(HttpServletRequest request) {
-		return request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort() + request.getContextPath();
+		// Check for forwarded protocol
+		String scheme = request.getHeader("X-Forwarded-Proto");
+		if (scheme == null || scheme.isEmpty()) {
+			scheme = request.getScheme();
+		}
+		
+		// Check for forwarded host
+		String host = request.getHeader("X-Forwarded-Host");
+		if (host == null || host.isEmpty()) {
+			host = request.getServerName();
+		} else {
+			// X-Forwarded-Host might include port, extract just the host part
+			int colonIndex = host.indexOf(":");
+			if (colonIndex > 0) {
+				host = host.substring(0, colonIndex);
+			}
+		}
+		
+		// Check for forwarded port
+		String portHeader = request.getHeader("X-Forwarded-Port");
+		int port;
+		if (portHeader != null && !portHeader.isEmpty()) {
+			port = Integer.parseInt(portHeader);
+		} else {
+			port = request.getServerPort();
+		}
+		
+		// Build URL - always include port for backward compatibility
+		StringBuilder url = new StringBuilder();
+		url.append(scheme).append("://").append(host);
+		url.append(":").append(port);
+		url.append(request.getContextPath());
+		
+		return url.toString();
 	}
 }

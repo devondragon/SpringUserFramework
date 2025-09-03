@@ -63,7 +63,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         if (registrationId.equalsIgnoreCase("keycloak")) {
             user = getUserFromKeycloakOidc2User(oidcUser);
         } else {
-            log.error("Sorry! Login with " + registrationId + " is not supported yet.");
+            log.error("Sorry! Login with {} is not supported yet.", registrationId);
             throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
                     "Sorry! Login with " + registrationId + " is not supported yet.");
         }
@@ -71,6 +71,12 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             log.error("handleOidcLoginSuccess: user is null");
             throw new OAuth2AuthenticationException(new OAuth2Error("Login Exception"),
                     "Sorry! An error occurred while processing your login request.");
+        }
+        // Validate that we have an email address from the OIDC provider
+        if (user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            log.error("handleOidcLoginSuccess: OIDC provider did not provide an email address");
+            throw new OAuth2AuthenticationException(new OAuth2Error("Missing Email"),
+                    "Unable to retrieve email address from " + registrationId + ". Please ensure you have granted email permissions.");
         }
         log.debug("handleOidcLoginSuccess: looking up user with email: {}", user.getEmail());
         User existingUser = userRepository.findByEmail(user.getEmail());
@@ -142,7 +148,8 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
 /*        user.setEmail(principal.getAttribute("email"));
         user.setFirstName(principal.getAttribute("given_name"));
         user.setLastName(principal.getAttribute("family_name"));*/
-        user.setEmail(principal.getEmail());
+        String email = principal.getEmail();
+        user.setEmail(email != null ? email.toLowerCase() : null);
         user.setFirstName(principal.getGivenName());
         user.setLastName(principal.getFamilyName());
         user.setProvider(User.Provider.KEYCLOAK);
@@ -163,7 +170,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         log.debug("Loading user from OAuth2 provider with userRequest: {}", userRequest);
         OidcUser user = defaultOidcUserService.loadUser(userRequest);
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
-        log.debug("registrationId: " + registrationId);
+        log.debug("registrationId: {}", registrationId);
         User dbUser = handleOidcLoginSuccess(registrationId, user);
         DSUserDetails dsUserDetails = DSUserDetails.builder()
                 .user(dbUser)

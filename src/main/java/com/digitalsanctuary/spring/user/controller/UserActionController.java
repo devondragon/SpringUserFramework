@@ -72,7 +72,7 @@ public class UserActionController {
 			@RequestParam("token") final String token) {
 		log.debug("UserAPI.showChangePasswordPage: called with token: {}", token);
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
-		log.debug("UserAPI.showChangePasswordPage:" + "result: {}", result);
+		log.debug("UserAPI.showChangePasswordPage: result: {}", result);
 		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
 				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent"))
 				.action("showChangePasswordPage")
