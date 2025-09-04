@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.audit;
 
 import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
@@ -169,6 +170,32 @@ class AuditEventListenerTest {
         }
 
         @Test
+        @DisplayName("Handles event with user having null ID gracefully")
+        void handles_eventWithUserHavingNullId() {
+            // Given
+            User userWithNullId = UserTestDataBuilder.aUser()
+                    .withId(null)  // User exists but ID is null (e.g., during registration)
+                    .withEmail("newuser@example.com")
+                    .withFirstName("New")
+                    .withLastName("User")
+                    .build();
+
+            auditEvent = AuditEvent.builder()
+                    .source(this)
+                    .user(userWithNullId)
+                    .action("Registration")
+                    .actionStatus("In Progress")
+                    .message("User registration started")
+                    .build();
+
+            // When
+            auditEventListener.onApplicationEvent(auditEvent);
+
+            // Then
+            verify(auditLogWriter).writeLog(auditEvent);
+        }
+
+        @Test
         @DisplayName("Logs account deletion event")
         void logs_accountDeletionEvent() {
             // Given
@@ -303,6 +330,57 @@ class AuditEventListenerTest {
 
             // Then
             verify(auditLogWriter).writeLog(auditEvent);
+        }
+    }
+
+    @Nested
+    @DisplayName("Exception Handling Tests")
+    class ExceptionHandlingTests {
+
+        @BeforeEach
+        void setUp() {
+            when(auditConfig.isLogEvents()).thenReturn(true);
+        }
+
+        @Test
+        @DisplayName("Does not propagate exceptions from writer")
+        void doesNotPropagateExceptionsFromWriter() {
+            // Given
+            auditEvent = AuditEvent.builder()
+                    .source(this)
+                    .user(testUser)
+                    .action("Test Action")
+                    .actionStatus("Success")
+                    .build();
+
+            // Simulate an exception in the writer
+            doThrow(new RuntimeException("Writer failed")).when(auditLogWriter).writeLog(any());
+
+            // When & Then - should not throw
+            assertDoesNotThrow(() -> auditEventListener.onApplicationEvent(auditEvent));
+            
+            // Verify the writer was still called
+            verify(auditLogWriter).writeLog(auditEvent);
+        }
+
+        @Test
+        @DisplayName("Handles exceptions when checking config")
+        void handlesExceptionsWhenCheckingConfig() {
+            // Given
+            auditEvent = AuditEvent.builder()
+                    .source(this)
+                    .action("Test")
+                    .actionStatus("Success")
+                    .build();
+
+            // Simulate an exception when checking config
+            when(auditConfig.isLogEvents()).thenThrow(new RuntimeException("Config error"));
+
+            // When & Then - should not throw
+            assertDoesNotThrow(() -> auditEventListener.onApplicationEvent(auditEvent));
+            
+            // Verify writer was never called since config check failed
+            verify(auditLogWriter, never()).writeLog(any());
         }
     }
 }
