@@ -65,8 +65,25 @@ public class FileAuditLogWriter implements AuditLogWriter {
             return;
         }
         try {
-            String userId = event.getUser() != null ? event.getUser().getId().toString() : null;
-            String userEmail = event.getUser() != null ? event.getUser().getEmail() : null;
+            // Null-safe extraction of user ID and email
+            String userId = null;
+            String userEmail = null;
+            
+            if (event.getUser() != null) {
+                Long id = event.getUser().getId();
+                userId = (id != null) ? id.toString() : null;
+                userEmail = event.getUser().getEmail();
+            }
+            
+            // If no user ID available, use email or "unknown" for the userId field
+            if (userId == null) {
+                if (userEmail != null) {
+                    userId = userEmail;  // Use email as identifier when ID is null
+                } else {
+                    userId = "unknown";  // Fallback when both are null
+                }
+            }
+            
             String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", event.getDate(), event.getAction(),
                     event.getActionStatus(), userId, userEmail, event.getIpAddress(), event.getSessionId(), event.getMessage(), event.getUserAgent(),
                     event.getExtraData());
@@ -77,6 +94,9 @@ public class FileAuditLogWriter implements AuditLogWriter {
             }
         } catch (IOException e) {
             log.error("FileAuditLogWriter.writeLog: IOException writing to log file: {}", auditConfig.getLogFilePath(), e);
+        } catch (Exception e) {
+            // Never let audit failures impact app flow
+            log.error("FileAuditLogWriter.writeLog: Failed to write audit log (suppressed): {}", e.getMessage(), e);
         }
     }
 

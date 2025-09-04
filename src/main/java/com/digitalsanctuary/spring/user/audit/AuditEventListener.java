@@ -31,10 +31,15 @@ public class AuditEventListener {
 	 */
 	@EventListener
 	public void onApplicationEvent(AuditEvent event) {
-		log.debug("AuditEventListener.onApplicationEvent: called with event: {}", event);
-		if (auditConfig.isLogEvents() && event != null) {
-			log.debug("AuditEventListener.onApplicationEvent: logging event...");
-			auditLogWriter.writeLog(event);
+		try {
+			log.debug("AuditEventListener.onApplicationEvent: called with event: {}", event);
+			if (auditConfig.isLogEvents() && event != null) {
+				log.debug("AuditEventListener.onApplicationEvent: logging event...");
+				auditLogWriter.writeLog(event);
+			}
+		} catch (Exception e) {
+			// Never let audit failures impact application flow
+			log.error("AuditEventListener.onApplicationEvent: Failed to process audit event (suppressed): {}", e.getMessage(), e);
 		}
 	}
 }
