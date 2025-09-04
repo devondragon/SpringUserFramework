@@ -1,3 +1,44 @@
+## [3.4.1] - 2025-09-04
+### Features
+- No new feature functionality introduced in these commits.
+
+### Fixes
+- Hardened audit logging to prevent NullPointerException on first-time OAuth registration when the user ID is null (Fixes #210).
+  - FileAuditLogWriter:
+    - Null-safe extraction of user fields. New subject resolution order for the 4th pipe-delimited field: user ID (if present) → email (if ID is null) → "unknown".
+    - Catches and logs IOException and any other Exception to ensure audit failures never impact application flow.
+    - Uses log.error for audit system failures.
+  - AuditEventListener:
+    - Wraps event handling in try/catch to suppress and log unexpected errors from configuration checks or writer failures.
+  - Impact:
+    - Prevents application crashes during first-time OAuth registration or other scenarios where user.getId() is null.
+    - Compatibility note for log consumers: the user identifier field may now contain an email address or the literal "unknown" when no numeric ID is available. If your log processing expects a numeric ID, update parsers accordingly.
+
+### Breaking Changes
+- None.
+
+### Refactoring
+- None.
+
+### Documentation
+- Updated README dependency coordinates to version 3.4.1 for both Maven and Gradle.
+
+### Testing
+- Substantial test coverage added around audit logging for null-safety and robustness:
+  - AuditEventListenerTest:
+    - Ensures events with a user that has a null ID are handled and logged.
+    - Verifies exceptions thrown by the writer are suppressed and do not propagate.
+    - Verifies exceptions during audit configuration checks are suppressed and the writer is not called.
+  - New FileAuditLogWriterTest (403 lines):
+    - Null-safety cases: null user, null ID, null ID + null email, normal user with ID.
+    - Error handling: IOException on write, uninitialized writer, unexpected exceptions during event access.
+    - Setup and configuration: disabled logging, null config object, empty log file path.
+    - Writer lifecycle: flush and cleanup behaviors.
+- Overall increases resilience and confidence in the audit subsystem through 15+ targeted test cases.
+
+### Other Changes
+- Bumped project version to 3.4.1-SNAPSHOT in gradle.properties via Gradle Release Plugin (development iteration; no runtime behavior change).
+
 ## [3.4.0] - 2025-09-03
 ### Features
 - Proxy-aware URL and IP detection
