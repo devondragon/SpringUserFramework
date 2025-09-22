@@ -220,8 +220,6 @@ public class UserService {
 
 	private final PasswordHistoryRepository passwordHistoryRepository;
 
-	// private final PasswordEncoder passwordEncoder;
-
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -243,16 +241,17 @@ public class UserService {
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
-		
+
 		// Validate password match only if both are provided
-		if (newUserDto.getPassword() != null && newUserDto.getMatchingPassword() != null 
+		if (newUserDto.getPassword() != null && newUserDto.getMatchingPassword() != null
 				&& !newUserDto.getPassword().equals(newUserDto.getMatchingPassword())) {
 			throw new IllegalArgumentException("Passwords do not match");
 		}
-		
+
 		if (emailExists(newUserDto.getEmail())) {
 			log.debug("UserService.registerNewUserAccount: email already exists: {}", newUserDto.getEmail());
-			throw new UserAlreadyExistException("There is an account with that email address: " + newUserDto.getEmail());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + newUserDto.getEmail());
 		}
 
 		// Create a new User entity
@@ -287,7 +286,6 @@ public class UserService {
 	}
 
 	private void savePasswordHistory(User user, String encodedPassword) {
-		log.info("landed in savePasswordHistory");
 		if (user == null || !StringUtils.hasText(encodedPassword)) {
 			log.warn("Cannot save password history: user or password is null/empty.");
 			return;

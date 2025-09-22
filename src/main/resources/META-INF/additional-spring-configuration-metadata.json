@@ -128,57 +128,57 @@
     {
       "name": "user.security.password.enabled",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.enabled'"
+      "description": "Enable/disable password policy enforcement"
     },
     {
       "name": "user.security.password.min-length",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.min-length'"
+      "description": "Minimum password length"
     },
     {
       "name": "user.security.password.max-length",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.max-length'"
+      "description": "Maximum password length"
     },
      {
       "name": "user.security.password.require-uppercase",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.require-uppercase'"
+      "description": "Require at least one uppercase character"
     },
      {
       "name": "user.security.password.require-lowercase",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.require-lowercase'"
+      "description": "Require at least one lowercase character"
     },
      {
       "name": "user.security.password.require-digit",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.require-digit'"
+      "description": "Require at least one digit"
     },
      {
       "name": "user.security.password.require-special",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.require-special'"
+      "description": "Require at least one special character"
     },
      {
       "name": "user.security.password.special-chars",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.special-chars'"
+      "description": "Allowed special characters"
     },
      {
       "name": "user.security.password.prevent-common-passwords",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.prevent-common-passwords'"
+      "description": "Prevent use of common passwords (dictionary check)"
     },
      {
       "name": "user.security.password.history-count",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.history-count'"
+      "description": "Number of previous passwords to prevent reuse"
     },
      {
       "name": "user.security.password.similarity-threshold",
       "type": "java.lang.String",
-      "description": "A description for 'user.security.password.similarity-threshold'"
+      "description": "Percentage of similarity allowed with username/email"
     },
     {
       "name": "hibernate.globally_quoted_identifiers",

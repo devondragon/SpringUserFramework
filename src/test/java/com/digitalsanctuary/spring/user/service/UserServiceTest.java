@@ -80,42 +80,20 @@ public class UserServiceTest {
     private DSUserDetailsService dsUserDetailsService;
     @Mock
     private ApplicationEventPublisher eventPublisher;
-
     @Mock
     private AuthorityService authorityService;
-
-    @InjectMocks
     @Mock
     private PasswordHistoryRepository passwordHistoryRepository;
+    @InjectMocks
     private UserService userService;
     private User testUser;
     private UserDto testUserDto;
 
     @BeforeEach
     void setUp() {
-        testUser = new User();
-        testUser.setEmail("test@example.com");
-        testUser.setFirstName("testFirstName");
-        testUser.setLastName("testLastName");
-        testUser.setPassword("testPassword");
-        testUser.setRoles(Collections.singletonList(new Role("ROLE_USER")));
-        testUser.setEnabled(true);
-
-        testUserDto = new UserDto();
-        testUserDto.setEmail("test@example.com");
-        testUserDto.setFirstName("testFirstName");
-        testUserDto.setLastName("testLastName");
-        testUserDto.setPassword("testPassword");
-        testUserDto.setRole(1);
-
         // Use centralized test fixtures for consistent test data
         testUser = TestFixtures.Users.standardUser();
         testUserDto = TestFixtures.DTOs.validUserRegistration();
-
-        userService = new UserService(userRepository, tokenRepository, passwordTokenRepository, passwordEncoder,
-                roleRepository, sessionRegistry,
-                userEmailService, userVerificationService, authorityService, dsUserDetailsService, eventPublisher,
-                passwordHistoryRepository);
     }
 
     @Test
@@ -147,7 +125,8 @@ public class UserServiceTest {
         when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
 
         // When & Then
-        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto)).isInstanceOf(UserAlreadyExistException.class)
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(UserAlreadyExistException.class)
                 .hasMessageContaining("There is an account with that email address");
     }
 
@@ -307,7 +286,8 @@ public class UserServiceTest {
         void getPasswordResetToken_returnsTokenWhenExists() {
             // Given
             String tokenString = "test-token-123";
-            PasswordResetToken token = TokenTestDataBuilder.aPasswordResetToken().withToken(tokenString).forUser(testUser).build();
+            PasswordResetToken token = TokenTestDataBuilder.aPasswordResetToken().withToken(tokenString)
+                    .forUser(testUser).build();
             when(passwordTokenRepository.findByToken(tokenString)).thenReturn(token);
 
             // When
@@ -324,7 +304,8 @@ public class UserServiceTest {
         void getUserByPasswordResetToken_returnsUserWhenTokenValid() {
             // Given
             String tokenString = "valid-token";
-            PasswordResetToken token = TokenTestDataBuilder.aPasswordResetToken().withToken(tokenString).forUser(testUser).build();
+            PasswordResetToken token = TokenTestDataBuilder.aPasswordResetToken().withToken(tokenString)
+                    .forUser(testUser).build();
             when(passwordTokenRepository.findByToken(tokenString)).thenReturn(token);
 
             // When
@@ -340,7 +321,8 @@ public class UserServiceTest {
         void validatePasswordResetToken_returnsValidForFreshToken() {
             // Given
             String tokenString = "fresh-token";
-            PasswordResetToken token = TokenTestDataBuilder.aValidPasswordResetToken().withToken(tokenString).expiringInHours(1).build();
+            PasswordResetToken token = TokenTestDataBuilder.aValidPasswordResetToken().withToken(tokenString)
+                    .expiringInHours(1).build();
             when(passwordTokenRepository.findByToken(tokenString)).thenReturn(token);
 
             // When
@@ -370,7 +352,8 @@ public class UserServiceTest {
         void validatePasswordResetToken_returnsExpiredForOldToken() {
             // Given
             String tokenString = "expired-token";
-            PasswordResetToken token = TokenTestDataBuilder.anExpiredPasswordResetToken().withToken(tokenString).expiredMinutesAgo(120).build();
+            PasswordResetToken token = TokenTestDataBuilder.anExpiredPasswordResetToken().withToken(tokenString)
+                    .expiredMinutesAgo(120).build();
             when(passwordTokenRepository.findByToken(tokenString)).thenReturn(token);
 
             // When
@@ -431,9 +414,12 @@ public class UserServiceTest {
             List<Object> principals = Arrays.asList(user1, user2, stringPrincipal);
 
             when(sessionRegistry.getAllPrincipals()).thenReturn(principals);
-            when(sessionRegistry.getAllSessions(user1, false)).thenReturn(Arrays.asList(mock(SessionInformation.class)));
-            when(sessionRegistry.getAllSessions(user2, false)).thenReturn(Arrays.asList(mock(SessionInformation.class)));
-            when(sessionRegistry.getAllSessions(stringPrincipal, false)).thenReturn(Arrays.asList(mock(SessionInformation.class)));
+            when(sessionRegistry.getAllSessions(user1, false))
+                    .thenReturn(Arrays.asList(mock(SessionInformation.class)));
+            when(sessionRegistry.getAllSessions(user2, false))
+                    .thenReturn(Arrays.asList(mock(SessionInformation.class)));
+            when(sessionRegistry.getAllSessions(stringPrincipal, false))
+                    .thenReturn(Arrays.asList(mock(SessionInformation.class)));
 
             // When
             List<String> result = userService.getUsersFromSessionRegistry();
@@ -450,7 +436,8 @@ public class UserServiceTest {
             User inactiveUser = UserTestDataBuilder.aUser().withEmail("inactive@example.com").build();
 
             when(sessionRegistry.getAllPrincipals()).thenReturn(Arrays.asList(activeUser, inactiveUser));
-            when(sessionRegistry.getAllSessions(activeUser, false)).thenReturn(Arrays.asList(mock(SessionInformation.class)));
+            when(sessionRegistry.getAllSessions(activeUser, false))
+                    .thenReturn(Arrays.asList(mock(SessionInformation.class)));
             when(sessionRegistry.getAllSessions(inactiveUser, false)).thenReturn(Collections.emptyList());
 
             // When
@@ -483,7 +470,8 @@ public class UserServiceTest {
             when(mockRequest.getSession(true)).thenReturn(mockSession);
 
             try (MockedStatic<RequestContextHolder> mockedHolder = mockStatic(RequestContextHolder.class);
-                    MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(SecurityContextHolder.class)) {
+                    MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(
+                            SecurityContextHolder.class)) {
 
                 mockedHolder.when(RequestContextHolder::getRequestAttributes).thenReturn(attrs);
                 SecurityContext securityContext = mock(SecurityContext.class);
@@ -494,7 +482,8 @@ public class UserServiceTest {
 
                 // Then
                 verify(securityContext)
-                        .setAuthentication(argThat(auth -> auth.getPrincipal().equals(userDetails) && auth.getAuthorities().equals(authorities)));
+                        .setAuthentication(argThat(auth -> auth.getPrincipal().equals(userDetails)
+                                && auth.getAuthorities().equals(authorities)));
                 verify(mockSession).setAttribute(eq("SPRING_SECURITY_CONTEXT"), eq(securityContext));
             }
         }
@@ -528,7 +517,8 @@ public class UserServiceTest {
         @DisplayName("authWithoutPassword - handles user not found")
         void authWithoutPassword_handlesUserNotFound() {
             // Given
-            when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenThrow(new UsernameNotFoundException("User not found"));
+            when(dsUserDetailsService.loadUserByUsername(testUser.getEmail()))
+                    .thenThrow(new UsernameNotFoundException("User not found"));
 
             // When
             userService.authWithoutPassword(testUser);
@@ -548,7 +538,8 @@ public class UserServiceTest {
             when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
 
             try (MockedStatic<RequestContextHolder> mockedHolder = mockStatic(RequestContextHolder.class);
-                    MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(SecurityContextHolder.class)) {
+                    MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(
+                            SecurityContextHolder.class)) {
 
                 mockedHolder.when(RequestContextHolder::getRequestAttributes).thenReturn(null);
                 SecurityContext securityContext = mock(SecurityContext.class);
