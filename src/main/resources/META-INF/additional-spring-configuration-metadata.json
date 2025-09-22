@@ -126,6 +126,61 @@
       "description": "URI for password change page after reset"
     },
     {
+      "name": "user.security.password.enabled",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.enabled'"
+    },
+    {
+      "name": "user.security.password.min-length",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.min-length'"
+    },
+    {
+      "name": "user.security.password.max-length",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.max-length'"
+    },
+     {
+      "name": "user.security.password.require-uppercase",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.require-uppercase'"
+    },
+     {
+      "name": "user.security.password.require-lowercase",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.require-lowercase'"
+    },
+     {
+      "name": "user.security.password.require-digit",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.require-digit'"
+    },
+     {
+      "name": "user.security.password.require-special",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.require-special'"
+    },
+     {
+      "name": "user.security.password.special-chars",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.special-chars'"
+    },
+     {
+      "name": "user.security.password.prevent-common-passwords",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.prevent-common-passwords'"
+    },
+     {
+      "name": "user.security.password.history-count",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.history-count'"
+    },
+     {
+      "name": "user.security.password.similarity-threshold",
+      "type": "java.lang.String",
+      "description": "A description for 'user.security.password.similarity-threshold'"
+    },
+    {
       "name": "hibernate.globally_quoted_identifiers",
       "type": "java.lang.Boolean",
       "description": "Quote all database identifiers"

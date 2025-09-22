@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.service;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
@@ -17,14 +18,17 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
+import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
+import com.digitalsanctuary.spring.user.persistence.repository.PasswordHistoryRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
@@ -36,11 +40,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Service class for managing users. Provides methods for user registration, authentication, password management, and user-related operations. This
- * class is transactional and uses various repositories and services for its operations.
+ * Service class for managing users. Provides methods for user registration,
+ * authentication, password management, and user-related operations. This
+ * class is transactional and uses various repositories and services for its
+ * operations.
  *
  * <p>
- * This class is transactional, meaning that any failure causes the entire operation to roll back to the previous state.
+ * This class is transactional, meaning that any failure causes the entire
+ * operation to roll back to the previous state.
  * </p>
  *
  * <p>
@@ -62,41 +69,55 @@ import lombok.extern.slf4j.Slf4j;
  * Configuration:
  * </p>
  * <ul>
- * <li>sendRegistrationVerificationEmail: Flag to determine if a verification email should be sent upon registration.</li>
+ * <li>sendRegistrationVerificationEmail: Flag to determine if a verification
+ * email should be sent upon registration.</li>
  * </ul>
  *
  * <p>
  * Enum:
  * </p>
  * <ul>
- * <li>{@link TokenValidationResult}: Enum representing the result of token validation.</li>
+ * <li>{@link TokenValidationResult}: Enum representing the result of token
+ * validation.</li>
  * </ul>
  *
  * <p>
  * Methods:
  * </p>
  * <ul>
- * <li>{@link #registerNewUserAccount(UserDto)}: Registers a new user account.</li>
+ * <li>{@link #registerNewUserAccount(UserDto)}: Registers a new user
+ * account.</li>
  * <li>{@link #saveRegisteredUser(User)}: Saves a registered user.</li>
- * <li>{@link #deleteOrDisableUser(User)}: Deletes a user and cleans up associated tokens.</li>
+ * <li>{@link #deleteOrDisableUser(User)}: Deletes a user and cleans up
+ * associated tokens.</li>
  * <li>{@link #findUserByEmail(String)}: Finds a user by email.</li>
- * <li>{@link #getPasswordResetToken(String)}: Gets a password reset token by token string.</li>
- * <li>{@link #getUserByPasswordResetToken(String)}: Gets a user by password reset token.</li>
+ * <li>{@link #getPasswordResetToken(String)}: Gets a password reset token by
+ * token string.</li>
+ * <li>{@link #getUserByPasswordResetToken(String)}: Gets a user by password
+ * reset token.</li>
  * <li>{@link #findUserByID(long)}: Finds a user by ID.</li>
- * <li>{@link #changeUserPassword(User, String)}: Changes the user's password.</li>
- * <li>{@link #checkIfValidOldPassword(User, String)}: Checks if the provided old password is valid.</li>
- * <li>{@link #validatePasswordResetToken(String)}: Validates a password reset token.</li>
- * <li>{@link #getUsersFromSessionRegistry()}: Gets the list of users from the session registry.</li>
- * <li>{@link #authWithoutPassword(User)}: Authenticates a user without a password.</li>
+ * <li>{@link #changeUserPassword(User, String)}: Changes the user's
+ * password.</li>
+ * <li>{@link #checkIfValidOldPassword(User, String)}: Checks if the provided
+ * old password is valid.</li>
+ * <li>{@link #validatePasswordResetToken(String)}: Validates a password reset
+ * token.</li>
+ * <li>{@link #getUsersFromSessionRegistry()}: Gets the list of users from the
+ * session registry.</li>
+ * <li>{@link #authWithoutPassword(User)}: Authenticates a user without a
+ * password.</li>
  * </ul>
  *
  * <p>
  * Private Methods:
  * </p>
  * <ul>
- * <li>{@link #emailExists(String)}: Checks if an email exists in the user repository.</li>
- * <li>{@link #authenticateUser(DSUserDetails, Collection)}: Authenticates a user by setting the authentication object in the security context.</li>
- * <li>{@link #storeSecurityContextInSession()}: Stores the current security context in the session.</li>
+ * <li>{@link #emailExists(String)}: Checks if an email exists in the user
+ * repository.</li>
+ * <li>{@link #authenticateUser(DSUserDetails, Collection)}: Authenticates a
+ * user by setting the authentication object in the security context.</li>
+ * <li>{@link #storeSecurityContextInSession()}: Stores the current security
+ * context in the session.</li>
  * </ul>
  *
  * <p>
@@ -104,9 +125,12 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  * <ul>
  * <li>{@link Slf4j}: For logging.</li>
- * <li>{@link Service}: Indicates that this class is a service component in Spring.</li>
- * <li>{@link RequiredArgsConstructor}: Generates a constructor with required arguments.</li>
- * <li>{@link Transactional}: Indicates that the class or methods should be transactional.</li>
+ * <li>{@link Service}: Indicates that this class is a service component in
+ * Spring.</li>
+ * <li>{@link RequiredArgsConstructor}: Generates a constructor with required
+ * arguments.</li>
+ * <li>{@link Transactional}: Indicates that the class or methods should be
+ * transactional.</li>
  * <li>{@link Value}: Injects property values.</li>
  * </ul>
  *
@@ -129,7 +153,8 @@ public class UserService {
 		VALID("valid"),
 
 		/**
-		 * Indicates that the token is invalid, either due to tampering or an unknown format.
+		 * Indicates that the token is invalid, either due to tampering or an unknown
+		 * format.
 		 */
 		INVALID_TOKEN("invalidToken"),
 
@@ -158,8 +183,6 @@ public class UserService {
 			return value;
 		}
 	}
-
-
 
 	/** The user role name. */
 	private static final String USER_ROLE_NAME = "ROLE_USER";
@@ -195,6 +218,10 @@ public class UserService {
 
 	private final ApplicationEventPublisher eventPublisher;
 
+	private final PasswordHistoryRepository passwordHistoryRepository;
+
+	// private final PasswordEncoder passwordEncoder;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -203,12 +230,15 @@ public class UserService {
 	private boolean actuallyDeleteAccount;
 
 	/**
-	 * Registers a new user account with the provided user data. If the email already exists, throws a UserAlreadyExistException. If
+	 * Registers a new user account with the provided user data. If the email
+	 * already exists, throws a UserAlreadyExistException. If
 	 * sendRegistrationVerificationEmail is false, the user is enabled immediately.
 	 *
-	 * @param newUserDto the data transfer object containing the user registration information
+	 * @param newUserDto the data transfer object containing the user registration
+	 *                   information
 	 * @return the newly created user entity
-	 * @throws UserAlreadyExistException if an account with the same email already exists
+	 * @throws UserAlreadyExistException if an account with the same email already
+	 *                                   exists
 	 */
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
@@ -240,6 +270,7 @@ public class UserService {
 		}
 
 		user = userRepository.save(user);
+		savePasswordHistory(user, user.getPassword());
 		// authWithoutPassword(user);
 		timeLogger.end();
 		return user;
@@ -255,12 +286,27 @@ public class UserService {
 		return userRepository.save(user);
 	}
 
+	private void savePasswordHistory(User user, String encodedPassword) {
+		log.info("landed in savePasswordHistory");
+		if (user == null || !StringUtils.hasText(encodedPassword)) {
+			log.warn("Cannot save password history: user or password is null/empty.");
+			return;
+		}
+
+		PasswordHistoryEntry entry = new PasswordHistoryEntry(user, encodedPassword, LocalDateTime.now());
+		passwordHistoryRepository.save(entry);
+		log.debug("Password history entry saved for user: {}", user.getEmail());
+	}
+
 	/**
-	 * Delete user and clean up associated tokens. If actuallyDeleteAccount is true, the user is deleted from the database. Otherwise, the user is
+	 * Delete user and clean up associated tokens. If actuallyDeleteAccount is true,
+	 * the user is deleted from the database. Otherwise, the user is
 	 * disabled.
 	 *
-	 * Transactional method to ensure that the operation is atomic. If any part of the operation fails, the entire transaction is rolled back. This
-	 * includes the Event to allow the consuming application to handle data cleanup as needed before the User is deleted.
+	 * Transactional method to ensure that the operation is atomic. If any part of
+	 * the operation fails, the entire transaction is rolled back. This
+	 * includes the Event to allow the consuming application to handle data cleanup
+	 * as needed before the User is deleted.
 	 *
 	 * @param user the user to delete or disable
 	 */
@@ -293,7 +339,6 @@ public class UserService {
 			log.debug("UserService.deleteOrDisableUser: user {} has been disabled", user.getEmail());
 		}
 	}
-
 
 	/**
 	 * Find user by email.
@@ -348,7 +393,7 @@ public class UserService {
 	/**
 	 * Change user password.
 	 *
-	 * @param user the user
+	 * @param user     the user
 	 * @param password the password
 	 */
 	public void changeUserPassword(final User user, final String password) {
@@ -359,12 +404,13 @@ public class UserService {
 	/**
 	 * Check if valid old password.
 	 *
-	 * @param user the user
+	 * @param user        the user
 	 * @param oldPassword the old password
 	 * @return true, if successful
 	 */
 	public boolean checkIfValidOldPassword(final User user, final String oldPassword) {
-		// Removed System.out.println, using log.debug for minimal output (avoid logging passwords in production)
+		// Removed System.out.println, using log.debug for minimal output (avoid logging
+		// passwords in production)
 		log.debug("Verifying old password for user: {}", user.getEmail());
 		return passwordEncoder.matches(oldPassword, user.getPassword());
 	}
@@ -404,22 +450,26 @@ public class UserService {
 	 * @return the users from session registry
 	 */
 	public List<String> getUsersFromSessionRegistry() {
-		return sessionRegistry.getAllPrincipals().stream().filter((u) -> !sessionRegistry.getAllSessions(u, false).isEmpty()).map(o -> {
-			if (o instanceof User) {
-				return ((User) o).getEmail();
-			} else {
-				return o.toString();
-			}
-		}).collect(Collectors.toList());
+		return sessionRegistry.getAllPrincipals().stream()
+				.filter((u) -> !sessionRegistry.getAllSessions(u, false).isEmpty()).map(o -> {
+					if (o instanceof User) {
+						return ((User) o).getEmail();
+					} else {
+						return o.toString();
+					}
+				}).collect(Collectors.toList());
 	}
 
 	/**
-	 * Authenticates the given user without requiring a password. This method loads the user's details, generates their authorities from their roles
+	 * Authenticates the given user without requiring a password. This method loads
+	 * the user's details, generates their authorities from their roles
 	 * and privileges, and stores these details in the security context and session.
 	 *
 	 * <p>
-	 * <strong>SECURITY WARNING:</strong> This is a potentially dangerous method as it authenticates a user without password verification. This method
-	 * should only be used in specific controlled scenarios, such as after successful email verification or OAuth authentication.
+	 * <strong>SECURITY WARNING:</strong> This is a potentially dangerous method as
+	 * it authenticates a user without password verification. This method
+	 * should only be used in specific controlled scenarios, such as after
+	 * successful email verification or OAuth authentication.
 	 * </p>
 	 *
 	 * @param user The user to authenticate without password verification
@@ -452,7 +502,8 @@ public class UserService {
 	}
 
 	/**
-	 * Authenticates the user by creating an authentication object and setting it in the security context.
+	 * Authenticates the user by creating an authentication object and setting it in
+	 * the security context.
 	 *
 	 * @param userDetails The user details.
 	 * @param authorities The list of authorities for the user.
@@ -466,7 +517,8 @@ public class UserService {
 	 * Stores the current security context in the session.
 	 */
 	private void storeSecurityContextInSession() {
-		ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+		ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder
+				.getRequestAttributes();
 		// Check if request attributes are available
 		if (servletRequestAttributes == null) {
 			log.error("Could not get request attributes");
@@ -479,7 +531,5 @@ public class UserService {
 		// Store the security context in the session
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
-
-
 
 }

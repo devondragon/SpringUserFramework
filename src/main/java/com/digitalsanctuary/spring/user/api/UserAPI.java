@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.api;
 
+import java.util.List;
 import java.util.Locale;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,7 @@ import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
@@ -33,7 +35,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * REST controller for managing user-related operations. This class handles user registration, account deletion, and other user-related endpoints.
+ * REST controller for managing user-related operations. This class handles user
+ * registration, account deletion, and other user-related endpoints.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -45,6 +48,7 @@ public class UserAPI {
 	private final UserEmailService userEmailService;
 	private final MessageSource messages;
 	private final ApplicationEventPublisher eventPublisher;
+	private final PasswordPolicyService passwordPolicyService;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -55,19 +59,30 @@ public class UserAPI {
 	@Value("${user.security.forgotPasswordPendingURI}")
 	private String forgotPasswordPendingURI;
 
-
-
 	/**
 	 * Registers a new user account.
 	 *
 	 * @param userDto the user data transfer object containing user details
 	 * @param request the HTTP servlet request
-	 * @return a ResponseEntity containing a JSONResponse with the registration result
+	 * @return a ResponseEntity containing a JSONResponse with the registration
+	 *         result
 	 */
 	@PostMapping("/registration")
-	public ResponseEntity<JSONResponse> registerUserAccount(@Valid @RequestBody UserDto userDto, HttpServletRequest request) {
+	public ResponseEntity<JSONResponse> registerUserAccount(@Valid @RequestBody UserDto userDto,
+			HttpServletRequest request) {
 		try {
 			validateUserDto(userDto);
+
+			// Password Policy Enforcement
+			List<String> errors = passwordPolicyService.validate(null, userDto.getPassword(),
+					userDto.getEmail(), request.getLocale());
+
+			// Check if any password validation errors exist
+			if (!errors.isEmpty()) {
+				log.warn("Password validation failed: {}", errors);
+				return buildErrorResponse(String.join(" ", errors), 1, HttpStatus.BAD_REQUEST);
+			}
+
 			User registeredUser = userService.registerNewUserAccount(userDto);
 			publishRegistrationEvent(registeredUser, request);
 			logAuditEvent("Registration", "Success", "Registration Successful", registeredUser, request);
@@ -87,14 +102,17 @@ public class UserAPI {
 	}
 
 	/**
-	 * Resends the registration token. This is used when the user did not receive the initial registration email.
+	 * Resends the registration token. This is used when the user did not receive
+	 * the initial registration email.
 	 *
 	 * @param userDto the user data transfer object containing user details
 	 * @param request the HTTP servlet request
-	 * @return a ResponseEntity containing a JSONResponse with the registration result
+	 * @return a ResponseEntity containing a JSONResponse with the registration
+	 *         result
 	 */
 	@PostMapping("/resendRegistrationToken")
-	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody UserDto userDto, HttpServletRequest request) {
+	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody UserDto userDto,
+			HttpServletRequest request) {
 		User user = userService.findUserByEmail(userDto.getEmail());
 		if (user != null) {
 			if (user.isEnabled()) {
@@ -108,16 +126,19 @@ public class UserAPI {
 	}
 
 	/**
-	 * Updates the user's password. This is used when the user is logged in and wants to change their password.
+	 * Updates the user's password. This is used when the user is logged in and
+	 * wants to change their password.
 	 *
 	 * @param userDetails the authenticated user details
-	 * @param userDto the user data transfer object containing user details
-	 * @param request the HTTP servlet request
-	 * @param locale the locale
-	 * @return a ResponseEntity containing a JSONResponse with the password update result
+	 * @param userDto     the user data transfer object containing user details
+	 * @param request     the HTTP servlet request
+	 * @param locale      the locale
+	 * @return a ResponseEntity containing a JSONResponse with the password update
+	 *         result
 	 */
 	@PostMapping("/updateUser")
-	public ResponseEntity<JSONResponse> updateUserAccount(@AuthenticationPrincipal DSUserDetails userDetails, @Valid @RequestBody UserDto userDto,
+	public ResponseEntity<JSONResponse> updateUserAccount(@AuthenticationPrincipal DSUserDetails userDetails,
+			@Valid @RequestBody UserDto userDto,
 			HttpServletRequest request, Locale locale) {
 		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
@@ -131,12 +152,14 @@ public class UserAPI {
 	}
 
 	/**
-	 * This is used when the user has forgotten their password and wants to reset their password. This will send an email to the user with a link to
+	 * This is used when the user has forgotten their password and wants to reset
+	 * their password. This will send an email to the user with a link to
 	 * reset their password.
 	 *
 	 * @param passwordResetRequest the password reset request containing the email address
 	 * @param request the HTTP servlet request
-	 * @return a ResponseEntity containing a JSONResponse with the password reset email send result
+	 * @return a ResponseEntity containing a JSONResponse with the password reset
+	 *         email send result
 	 */
 	@PostMapping("/resetPassword")
 	public ResponseEntity<JSONResponse> resetPassword(@Valid @RequestBody PasswordResetRequestDto passwordResetRequest, HttpServletRequest request) {
@@ -149,13 +172,16 @@ public class UserAPI {
 	}
 
 	/**
-	 * Updates the user's password. This is used when the user is logged in and wants to change their password.
+	 * Updates the user's password. This is used when the user is logged in and
+	 * wants to change their password.
 	 *
 	 * @param userDetails the authenticated user details
-	 * @param passwordDto the password data transfer object containing the old and new passwords
-	 * @param request the HTTP servlet request
-	 * @param locale the locale
-	 * @return a ResponseEntity containing a JSONResponse with the password update result
+	 * @param passwordDto the password data transfer object containing the old and
+	 *                    new passwords
+	 * @param request     the HTTP servlet request
+	 * @param locale      the locale
+	 * @return a ResponseEntity containing a JSONResponse with the password update
+	 *         result
 	 */
 	@PostMapping("/updatePassword")
 	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails,
@@ -174,7 +200,8 @@ public class UserAPI {
 			return buildSuccessResponse(messages.getMessage("message.update-password.success", null, locale), null);
 		} catch (InvalidOldPasswordException ex) {
 			logAuditEvent("PasswordUpdate", "Failure", "Invalid old password", user, request);
-			return buildErrorResponse(messages.getMessage("message.update-password.invalid-old", null, locale), 1, HttpStatus.BAD_REQUEST);
+			return buildErrorResponse(messages.getMessage("message.update-password.invalid-old", null, locale), 1,
+					HttpStatus.BAD_REQUEST);
 		} catch (Exception ex) {
 			log.error("Unexpected error during password update.", ex);
 			logAuditEvent("PasswordUpdate", "Failure", ex.getMessage(), user, request);
@@ -183,15 +210,19 @@ public class UserAPI {
 	}
 
 	/**
-	 * Deletes the user's account. This is used when the user wants to delete their account. This will either delete the account or disable it based
-	 * on the configuration of the actuallyDeleteAccount property. After the account is disabled or deleted, the user will be logged out.
+	 * Deletes the user's account. This is used when the user wants to delete their
+	 * account. This will either delete the account or disable it based
+	 * on the configuration of the actuallyDeleteAccount property. After the account
+	 * is disabled or deleted, the user will be logged out.
 	 *
 	 * @param userDetails the authenticated user details
-	 * @param request the HTTP servlet request
-	 * @return a ResponseEntity containing a JSONResponse with the account deletion result
+	 * @param request     the HTTP servlet request
+	 * @return a ResponseEntity containing a JSONResponse with the account deletion
+	 *         result
 	 */
 	@DeleteMapping("/deleteAccount")
-	public ResponseEntity<JSONResponse> deleteAccount(@AuthenticationPrincipal DSUserDetails userDetails, HttpServletRequest request) {
+	public ResponseEntity<JSONResponse> deleteAccount(@AuthenticationPrincipal DSUserDetails userDetails,
+			HttpServletRequest request) {
 		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
 		userService.deleteOrDisableUser(user);
@@ -254,7 +285,7 @@ public class UserAPI {
 	/**
 	 * Publishes a registration event.
 	 *
-	 * @param user the registered user
+	 * @param user    the registered user
 	 * @param request the HTTP servlet request
 	 */
 	private void publishRegistrationEvent(User user, HttpServletRequest request) {
@@ -265,16 +296,17 @@ public class UserAPI {
 	/**
 	 * Logs an audit event.
 	 *
-	 * @param action the action performed
-	 * @param status the status of the action
+	 * @param action  the action performed
+	 * @param status  the status of the action
 	 * @param message the message describing the action
-	 * @param user the user involved in the action
+	 * @param user    the user involved in the action
 	 * @param request the HTTP servlet request
 	 */
 	private void logAuditEvent(String action, String status, String message, User user, HttpServletRequest request) {
-		AuditEvent event =
-				AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId()).ipAddress(UserUtils.getClientIP(request))
-						.userAgent(request.getHeader("User-Agent")).action(action).actionStatus(status).message(message).build();
+		AuditEvent event = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
+				.ipAddress(UserUtils.getClientIP(request))
+				.userAgent(request.getHeader("User-Agent")).action(action).actionStatus(status).message(message)
+				.build();
 		eventPublisher.publishEvent(event);
 	}
 
@@ -297,7 +329,8 @@ public class UserAPI {
 	 * @return a ResponseEntity containing a JSONResponse with the error response
 	 */
 	private ResponseEntity<JSONResponse> buildErrorResponse(String message, int code, HttpStatus status) {
-		return ResponseEntity.status(status).body(JSONResponse.builder().success(false).code(code).message(message).build());
+		return ResponseEntity.status(status)
+				.body(JSONResponse.builder().success(false).code(code).message(message).build());
 	}
 
 	/**
@@ -308,6 +341,7 @@ public class UserAPI {
 	 * @return a ResponseEntity containing a JSONResponse with the success response
 	 */
 	private ResponseEntity<JSONResponse> buildSuccessResponse(String message, String redirectUrl) {
-		return ResponseEntity.ok(JSONResponse.builder().success(true).code(0).message(message).redirectUrl(redirectUrl).build());
+		return ResponseEntity
+				.ok(JSONResponse.builder().success(true).code(0).message(message).redirectUrl(redirectUrl).build());
 	}
 }

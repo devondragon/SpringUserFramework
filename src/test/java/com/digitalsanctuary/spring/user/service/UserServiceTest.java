@@ -43,6 +43,7 @@ import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
+import com.digitalsanctuary.spring.user.persistence.repository.PasswordHistoryRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
@@ -84,15 +85,37 @@ public class UserServiceTest {
     private AuthorityService authorityService;
 
     @InjectMocks
+    @Mock
+    private PasswordHistoryRepository passwordHistoryRepository;
     private UserService userService;
     private User testUser;
     private UserDto testUserDto;
 
     @BeforeEach
     void setUp() {
+        testUser = new User();
+        testUser.setEmail("test@example.com");
+        testUser.setFirstName("testFirstName");
+        testUser.setLastName("testLastName");
+        testUser.setPassword("testPassword");
+        testUser.setRoles(Collections.singletonList(new Role("ROLE_USER")));
+        testUser.setEnabled(true);
+
+        testUserDto = new UserDto();
+        testUserDto.setEmail("test@example.com");
+        testUserDto.setFirstName("testFirstName");
+        testUserDto.setLastName("testLastName");
+        testUserDto.setPassword("testPassword");
+        testUserDto.setRole(1);
+
         // Use centralized test fixtures for consistent test data
         testUser = TestFixtures.Users.standardUser();
         testUserDto = TestFixtures.DTOs.validUserRegistration();
+
+        userService = new UserService(userRepository, tokenRepository, passwordTokenRepository, passwordEncoder,
+                roleRepository, sessionRegistry,
+                userEmailService, userVerificationService, authorityService, dsUserDetailsService, eventPublisher,
+                passwordHistoryRepository);
     }
 
     @Test
@@ -540,5 +563,25 @@ public class UserServiceTest {
             }
         }
     }
+    // Tests temporarily disabled until OAuth2 dependency issue is resolved
+    // @Test
+    // void checkIfValidOldPassword_returnFalseIfInvalid() {
+    // when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+    // Assertions.assertFalse(userService.checkIfValidOldPassword(testUser,
+    // "wrongPassword"));
+    // }
+    //
+    // @Test
+    // void changeUserPassword_encodesAndSavesNewPassword() {
+    // String newPassword = "newTestPassword";
+    // String encodedPassword = "encodedNewPassword";
+    //
+    // when(passwordEncoder.encode(newPassword)).thenReturn(encodedPassword);
+    // when(userRepository.save(any(User.class))).thenReturn(testUser);
+    //
+    // userService.changeUserPassword(testUser, newPassword);
+    //
+    // Assertions.assertEquals(encodedPassword, testUser.getPassword());
+    // }
 
 }
