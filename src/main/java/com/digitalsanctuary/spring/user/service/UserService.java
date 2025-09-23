@@ -227,6 +227,9 @@ public class UserService {
 	@Value("${user.actuallyDeleteAccount:false}")
 	private boolean actuallyDeleteAccount;
 
+	@Value("${user.security.password.history-count:0}")
+	private int historyCount;
+
 	/**
 	 * Registers a new user account with the provided user data. If the email
 	 * already exists, throws a UserAlreadyExistException. If
@@ -294,6 +297,22 @@ public class UserService {
 		PasswordHistoryEntry entry = new PasswordHistoryEntry(user, encodedPassword, LocalDateTime.now());
 		passwordHistoryRepository.save(entry);
 		log.debug("Password history entry saved for user: {}", user.getEmail());
+
+		// Clean up old entries
+		cleanUpPasswordHistory(user);
+	}
+
+	private void cleanUpPasswordHistory(User user) {
+		if (user == null || historyCount <= 0) {
+			return;
+		}
+
+		List<PasswordHistoryEntry> entries = passwordHistoryRepository.findByUserOrderByEntryDateDesc(user);
+		if (entries.size() > historyCount) {
+			List<PasswordHistoryEntry> toDelete = entries.subList(historyCount, entries.size());
+			passwordHistoryRepository.deleteAll(toDelete);
+			log.debug("Cleaned up {} old password history entries for user: {}", toDelete.size(), user.getEmail());
+		}
 	}
 
 	/**
@@ -395,8 +414,10 @@ public class UserService {
 	 * @param password the password
 	 */
 	public void changeUserPassword(final User user, final String password) {
-		user.setPassword(passwordEncoder.encode(password));
+		String encodedPassword = passwordEncoder.encode(password);
+		user.setPassword(encodedPassword);
 		userRepository.save(user);
+		savePasswordHistory(user, encodedPassword);
 	}
 
 	/**
