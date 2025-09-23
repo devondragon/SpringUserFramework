@@ -255,7 +255,7 @@ class PasswordPolicyServiceTest {
                 .thenReturn("password.error.similarity");
 
         // Identical strings => 100% similarity >= 80 -> fail
-        List<String> errors = service.validate(null, "password", null, LOCALE);
+        List<String> errors = service.validate(null, "password", "password", LOCALE);
 
         assertEquals(1, errors.size());
         assertEquals("password.error.similarity", errors.get(0));
