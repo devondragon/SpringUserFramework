@@ -126,6 +126,61 @@
       "description": "URI for password change page after reset"
     },
     {
+      "name": "user.security.password.enabled",
+      "type": "java.lang.String",
+      "description": "Enable/disable password policy enforcement"
+    },
+    {
+      "name": "user.security.password.min-length",
+      "type": "java.lang.String",
+      "description": "Minimum password length"
+    },
+    {
+      "name": "user.security.password.max-length",
+      "type": "java.lang.String",
+      "description": "Maximum password length"
+    },
+     {
+      "name": "user.security.password.require-uppercase",
+      "type": "java.lang.String",
+      "description": "Require at least one uppercase character"
+    },
+     {
+      "name": "user.security.password.require-lowercase",
+      "type": "java.lang.String",
+      "description": "Require at least one lowercase character"
+    },
+     {
+      "name": "user.security.password.require-digit",
+      "type": "java.lang.String",
+      "description": "Require at least one digit"
+    },
+     {
+      "name": "user.security.password.require-special",
+      "type": "java.lang.String",
+      "description": "Require at least one special character"
+    },
+     {
+      "name": "user.security.password.special-chars",
+      "type": "java.lang.String",
+      "description": "Allowed special characters"
+    },
+     {
+      "name": "user.security.password.prevent-common-passwords",
+      "type": "java.lang.String",
+      "description": "Prevent use of common passwords (dictionary check)"
+    },
+     {
+      "name": "user.security.password.history-count",
+      "type": "java.lang.String",
+      "description": "Number of previous passwords to prevent reuse"
+    },
+     {
+      "name": "user.security.password.similarity-threshold",
+      "type": "java.lang.String",
+      "description": "Percentage of similarity allowed with username/email"
+    },
+    {
       "name": "hibernate.globally_quoted_identifiers",
       "type": "java.lang.Boolean",
       "description": "Quote all database identifiers"
