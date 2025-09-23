@@ -308,8 +308,11 @@ public class UserService {
 		}
 
 		List<PasswordHistoryEntry> entries = passwordHistoryRepository.findByUserOrderByEntryDateDesc(user);
-		if (entries.size() > historyCount) {
-			List<PasswordHistoryEntry> toDelete = entries.subList(historyCount, entries.size());
+		// Keep historyCount + 1 entries: the current password plus historyCount previous passwords
+		// This ensures we actually prevent reuse of the last historyCount passwords
+		int maxEntries = historyCount + 1;
+		if (entries.size() > maxEntries) {
+			List<PasswordHistoryEntry> toDelete = entries.subList(maxEntries, entries.size());
 			passwordHistoryRepository.deleteAll(toDelete);
 			log.debug("Cleaned up {} old password history entries for user: {}", toDelete.size(), user.getEmail());
 		}

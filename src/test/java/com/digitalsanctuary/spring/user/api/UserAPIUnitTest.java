@@ -46,6 +46,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.HttpStatus;
 
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -143,6 +144,8 @@ public class UserAPIUnitTest {
                     .build();
 
             when(userService.registerNewUserAccount(any(UserDto.class))).thenReturn(newUser);
+            when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
+                    .thenReturn(Collections.emptyList());
 
             // When & Then
             MvcResult result = mockMvc.perform(post("/user/registration")
@@ -182,6 +185,8 @@ public class UserAPIUnitTest {
                     .build();
 
             when(userService.registerNewUserAccount(any(UserDto.class))).thenReturn(newUser);
+            when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
+                    .thenReturn(Collections.emptyList());
 
             // When & Then
             mockMvc.perform(post("/user/registration")
@@ -202,6 +207,8 @@ public class UserAPIUnitTest {
             // Given
             when(userService.registerNewUserAccount(any(UserDto.class)))
                     .thenThrow(new UserAlreadyExistException("User already exists"));
+            when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
+                    .thenReturn(Collections.emptyList());
 
             // When & Then
             mockMvc.perform(post("/user/registration")
@@ -252,6 +259,8 @@ public class UserAPIUnitTest {
             // Given
             when(userService.registerNewUserAccount(any(UserDto.class)))
                     .thenThrow(new RuntimeException("Database error"));
+            when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
+                    .thenReturn(Collections.emptyList());
 
             // When & Then
             mockMvc.perform(post("/user/registration")
