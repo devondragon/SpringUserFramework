@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.api;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.PasswordResetRequestDto;
+import com.digitalsanctuary.spring.user.dto.SavePasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
@@ -74,6 +76,9 @@ public class UserAPI {
 			validateUserDto(userDto);
 
 			// Password Policy Enforcement
+			// Note: Passing null for user during registration means password history
+			// is not checked (new users have no history). This is intentional - only
+			// existing users are checked against their own password history.
 			List<String> errors = passwordPolicyService.validate(null, userDto.getPassword(),
 					userDto.getEmail(), request.getLocale());
 
@@ -172,6 +177,77 @@ public class UserAPI {
 	}
 
 	/**
+	 * Saves a new password after password reset token validation.
+	 * This endpoint is called from the password reset form after the user
+	 * clicks the link in their email and enters a new password.
+	 *
+	 * @param savePasswordDto DTO containing token and new password
+	 * @param request         HTTP servlet request
+	 * @param locale          locale for messages
+	 * @return ResponseEntity with success or error response
+	 */
+	@PostMapping("/savePassword")
+	public ResponseEntity<JSONResponse> savePassword(@Valid @RequestBody SavePasswordDto savePasswordDto,
+			HttpServletRequest request, Locale locale) {
+
+		try {
+			// Validate passwords match
+			// Note: Using equals() is safe here - we're comparing two user-provided strings
+			// from the same request (not comparing against a stored secret), so timing attacks
+			// are not a concern. Constant-time comparison is only needed when comparing
+			// against stored credentials, which is handled by Spring's PasswordEncoder.
+			if (!savePasswordDto.getNewPassword().equals(savePasswordDto.getConfirmPassword())) {
+				return buildErrorResponse(messages.getMessage("message.password.mismatch", null, locale), 1,
+						HttpStatus.BAD_REQUEST);
+			}
+
+			// Validate the reset token
+			UserService.TokenValidationResult tokenResult = userService
+					.validatePasswordResetToken(savePasswordDto.getToken());
+
+			if (tokenResult != UserService.TokenValidationResult.VALID) {
+				String messageKey = "auth.message." + tokenResult.getValue();
+				return buildErrorResponse(messages.getMessage(messageKey, null, locale), 2, HttpStatus.BAD_REQUEST);
+			}
+
+			// Get user by token
+			Optional<User> userOptional = userService.getUserByPasswordResetToken(savePasswordDto.getToken());
+
+			if (userOptional.isEmpty()) {
+				return buildErrorResponse(messages.getMessage("auth.message.invalid", null, locale), 3,
+						HttpStatus.BAD_REQUEST);
+			}
+
+			User user = userOptional.get();
+
+			// Validate new password against policy
+			List<String> errors = passwordPolicyService.validate(user, savePasswordDto.getNewPassword(),
+					user.getEmail(), locale);
+
+			if (!errors.isEmpty()) {
+				log.warn("Password validation failed during reset for user {}: {}", user.getEmail(), errors);
+				return buildErrorResponse(String.join(" ", errors), 4, HttpStatus.BAD_REQUEST);
+			}
+
+			// Save the new password (this also saves to history)
+			userService.changeUserPassword(user, savePasswordDto.getNewPassword());
+
+			// Delete the reset token (it's been used)
+			userService.deletePasswordResetToken(savePasswordDto.getToken());
+
+			logAuditEvent("PasswordReset", "Success", "Password reset completed", user, request);
+
+			return buildSuccessResponse(messages.getMessage("message.reset-password.success", null, locale),
+					"/user/login.html");
+
+		} catch (Exception ex) {
+			log.error("Unexpected error during password reset.", ex);
+			logAuditEvent("PasswordReset", "Failure", ex.getMessage(), null, request);
+			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
 	 * Updates the user's password. This is used when the user is logged in and
 	 * wants to change their password.
 	 *
@@ -190,10 +266,21 @@ public class UserAPI {
 		User user = userDetails.getUser();
 
 		try {
+			// Verify old password is correct
 			if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
 				throw new InvalidOldPasswordException("Invalid old password");
 			}
 
+			// Validate new password against policy
+			List<String> errors = passwordPolicyService.validate(user, passwordDto.getNewPassword(), user.getEmail(),
+					locale);
+
+			if (!errors.isEmpty()) {
+				log.warn("Password validation failed for user {}: {}", user.getEmail(), errors);
+				return buildErrorResponse(String.join(" ", errors), 2, HttpStatus.BAD_REQUEST);
+			}
+
+			// Save the new password (this also saves to history)
 			userService.changeUserPassword(user, passwordDto.getNewPassword());
 			logAuditEvent("PasswordUpdate", "Success", "User password updated", user, request);
 

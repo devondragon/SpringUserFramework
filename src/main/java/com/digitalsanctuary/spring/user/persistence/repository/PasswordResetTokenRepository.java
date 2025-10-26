@@ -52,4 +52,15 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
 	@Modifying
 	@Query("delete from PasswordResetToken t where t.expiryDate <= ?1")
 	void deleteAllExpiredSince(Date now);
+
+	/**
+	 * Delete by token using a direct DELETE query without fetching the entity first.
+	 * More efficient than fetching and then deleting as it executes a single DELETE statement.
+	 *
+	 * @param token the token string to delete
+	 * @return the number of tokens deleted (0 or 1)
+	 */
+	@Modifying
+	@Query("DELETE FROM PasswordResetToken t WHERE t.token = :token")
+	int deleteByToken(@org.springframework.data.repository.query.Param("token") String token);
 }

@@ -33,7 +33,7 @@ public class PasswordHistoryEntry {
     private Long id;
 
     /** The user associated with this password entry. */
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 

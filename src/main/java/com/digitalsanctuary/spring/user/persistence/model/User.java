@@ -105,6 +105,12 @@ public class User {
 			inverseJoinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"))
 	private Set<Role> roles = new HashSet<>();
 
+	/** The password history entries. */
+	@ToString.Exclude
+	@EqualsAndHashCode.Exclude
+	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+	private List<PasswordHistoryEntry> passwordHistoryEntries = new ArrayList<>();
+
 	/**
 	 * Instantiates a new user.
 	 */

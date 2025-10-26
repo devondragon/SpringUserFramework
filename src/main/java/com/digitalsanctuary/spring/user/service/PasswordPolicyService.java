@@ -119,7 +119,11 @@ public class PasswordPolicyService {
     /**
      * Validate the given password against the configured policy rules.
      *
-     * @param user            The user
+     * <p>Note: The user parameter may be null during new user registration.
+     * When null, password history checking is skipped (since new users have no history).
+     * This is intentional - history checks only apply to existing users changing their passwords.</p>
+     *
+     * @param user            The user (may be null for new registrations)
      * @param password        the password to validate
      * @param usernameOrEmail optional username/email for similarity checks
      * @param locale          the locale
