@@ -9,5 +9,7 @@
     "debug.javascript.defaultRuntimeExecutable": {
         "pwa-node": "/Users/devon/.local/share/mise/shims/node"
     },
-    "python.defaultInterpreterPath": "/Users/devon/.local/share/mise/installs/python/3.13.2/bin/python"
+    "python.defaultInterpreterPath": "/Users/devon/.local/share/mise/installs/python/3.13.2/bin/python",
+    "java.jdt.ls.java.home": "/Users/devon/.local/share/mise/installs/java/17.0.2",
+    "java.import.gradle.java.home": "/Users/devon/.local/share/mise/installs/java/17.0.2"
 }
