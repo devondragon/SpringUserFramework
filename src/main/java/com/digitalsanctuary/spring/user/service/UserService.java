@@ -17,6 +17,7 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -302,6 +303,14 @@ public class UserService {
 		cleanUpPasswordHistory(user);
 	}
 
+	/**
+	 * Cleans up old password history entries for a user, keeping only the most recent entries.
+	 * Uses SERIALIZABLE isolation to prevent race conditions when the same user changes
+	 * their password concurrently from multiple sessions.
+	 *
+	 * @param user the user whose password history should be cleaned up
+	 */
+	@Transactional(isolation = Isolation.SERIALIZABLE)
 	private void cleanUpPasswordHistory(User user) {
 		if (user == null || historyCount <= 0) {
 			return;
@@ -398,6 +407,22 @@ public class UserService {
 			return Optional.empty();
 		}
 		return Optional.ofNullable(passwordResetToken.getUser());
+	}
+
+	/**
+	 * Deletes a password reset token after it has been used.
+	 *
+	 * @param token the token string to delete
+	 */
+	public void deletePasswordResetToken(final String token) {
+		if (token == null) {
+			return;
+		}
+		PasswordResetToken resetToken = passwordTokenRepository.findByToken(token);
+		if (resetToken != null) {
+			passwordTokenRepository.delete(resetToken);
+			log.debug("Deleted password reset token for user: {}", resetToken.getUser().getEmail());
+		}
 	}
 
 	/**
