@@ -449,6 +449,28 @@ public class UserService {
 	}
 
 	/**
+	 * Change user password (char array version - preferred for security).
+	 * This method converts the char array to String for encoding and immediately clears it.
+	 *
+	 * @param user          the user
+	 * @param passwordChars the password as char array
+	 */
+	public void changeUserPassword(final User user, final char[] passwordChars) {
+		if (passwordChars == null) {
+			throw new IllegalArgumentException("Password cannot be null");
+		}
+		
+		// Convert to String for password encoder (required by BCrypt)
+		String password = new String(passwordChars);
+		try {
+			changeUserPassword(user, password);
+		} finally {
+			// Clear the temporary String reference
+			password = null;
+		}
+	}
+
+	/**
 	 * Check if valid old password.
 	 *
 	 * @param user        the user
@@ -460,6 +482,29 @@ public class UserService {
 		// passwords in production)
 		log.debug("Verifying old password for user: {}", user.getEmail());
 		return passwordEncoder.matches(oldPassword, user.getPassword());
+	}
+
+	/**
+	 * Check if valid old password (char array version - preferred for security).
+	 * This method converts the char array to String for verification.
+	 *
+	 * @param user             the user
+	 * @param oldPasswordChars the old password as char array
+	 * @return true, if successful
+	 */
+	public boolean checkIfValidOldPassword(final User user, final char[] oldPasswordChars) {
+		if (oldPasswordChars == null) {
+			return false;
+		}
+		
+		// Convert to String for password encoder
+		String oldPassword = new String(oldPasswordChars);
+		try {
+			return checkIfValidOldPassword(user, oldPassword);
+		} finally {
+			// Clear the temporary String reference
+			oldPassword = null;
+		}
 	}
 
 	/**

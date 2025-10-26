@@ -155,6 +155,41 @@ public class PasswordPolicyService {
     }
 
     /**
+     * Validate the given password (as char array) against the configured policy rules.
+     * This is the preferred method for security as it allows explicit password clearing.
+     *
+     * <p>Note: The password char array is converted to String internally only when needed
+     * for validation, and the String is not retained beyond the validation process.</p>
+     *
+     * <p>Note: The user parameter may be null during new user registration.
+     * When null, password history checking is skipped (since new users have no history).
+     * This is intentional - history checks only apply to existing users changing their passwords.</p>
+     *
+     * @param user            The user (may be null for new registrations)
+     * @param passwordChars   the password as char array to validate
+     * @param usernameOrEmail optional username/email for similarity checks
+     * @param locale          the locale
+     * @return list of error messages if validation fails, empty if valid
+     */
+    public List<String> validate(User user, char[] passwordChars, String usernameOrEmail, Locale locale) {
+        if (passwordChars == null) {
+            return List.of("Password cannot be null");
+        }
+        
+        // Convert to String for validation
+        // Note: We need String for Passay library and password encoder
+        String password = new String(passwordChars);
+        try {
+            return validate(user, password, usernameOrEmail, locale);
+        } finally {
+            // Clear the temporary String from memory (best effort)
+            // Note: String is immutable so this won't actually clear the String,
+            // but it helps signal intent and clears the reference
+            password = null;
+        }
+    }
+
+    /**
      * Build the list of Passay rules based on configuration.
      *
      * @return list of Passay rules
