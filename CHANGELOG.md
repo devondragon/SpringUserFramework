@@ -1,3 +1,74 @@
+## [3.5.1] - 2025-10-26
+### Features
+- New password reset endpoint: /user/savePassword
+  - Implements the missing step in the password reset flow: validates a reset token and saves a new password.
+  - Accepts SavePasswordDto { token, newPassword, confirmPassword } with validation.
+  - Enforces full password policy (length, complexity, common password prevention, history, similarity).
+  - Returns localized messages and a login redirect path on success.
+
+### Fixes
+- Hardened password management and validation
+  - Update password now enforced by policy:
+    - The /updatePassword endpoint validates the new password against the configured policy (history, similarity, complexity) before saving, preventing weak or reused passwords.
+  - Complete password reset flow:
+    - Added /user/savePassword endpoint with full validation and token checks.
+    - Optimized reset token invalidation:
+      - Added PasswordResetTokenRepository.deleteByToken(@Modifying @Query) to delete via a single DELETE statement.
+      - UserService.deletePasswordResetToken() now uses the direct delete method and logs the deletion, reducing DB round trips.
+    - Clarified password matching:
+      - Documented that using String.equals() to compare two user-provided inputs (new vs confirm) is safe; constant-time comparison is needed only when comparing against stored secrets (handled by PasswordEncoder).
+  - Reduced risk of race conditions during password history cleanup:
+    - Added @Transactional(isolation = SERIALIZABLE) to UserService.cleanUpPasswordHistory to ensure atomic trimming of history entries during concurrent updates.
+  - JPA mapping and performance improvements:
+    - Adjusted PasswordHistoryEntry/User relationships for LAZY fetching and cascade delete to reduce unnecessary loads and avoid orphaned entries.
+  - Internationalized messages:
+    - Added message.password.mismatch and message.reset-password.success keys for clearer user feedback.
+
+### Breaking Changes
+- None in API surface. However, behavior is intentionally stricter:
+  - Password updates that previously succeeded with weak/reused passwords will now be rejected per policy.
+  - Applications relying on lax validation may see new 400 responses from /updatePassword and /savePassword until client-side validation and UX are aligned.
+
+### Refactoring
+- Repository-level optimization for token deletion:
+  - Introduced deleteByToken() JPQL delete in PasswordResetTokenRepository and migrated service logic to use it.
+- Minor code comments and documentation improvements in UserAPI for clarity and audit logging.
+
+### Documentation
+- README
+  - Updated dependency examples from 3.4.1 → 3.5.0 and then to 3.5.1 for both Maven and Gradle snippets.
+- DEMO_APP_CHANGES_REQUIRED.md (new)
+  - Detailed steps to fix demo app password reset form:
+    - Change form action to /user/savePassword.
+    - Add name="confirmPassword" to the confirm field to match SavePasswordDto.
+  - Notes on reusing the existing registration password strength meter in reset/update flows; reduced estimated effort (1–2 hours).
+  - Optional consistency update: rename currentPassword → oldPassword in update-password.js to match backend DTO (non-breaking).
+  - Comprehensive testing checklist for reset/update/registration flows.
+- IMPLEMENTATION_PLAN_PASSWORD_FIXES.md (new)
+  - Full analysis and plan covering:
+    - Adding validation to /updatePassword.
+    - Implementing /savePassword with DTO, token checks, and policy enforcement.
+    - Design decision: history checks apply to existing users; registration passes user=null by design.
+    - Transaction isolation choice for history cleanup and concurrent-change considerations.
+
+### Testing
+- All existing tests pass (372 tests), confirming no regressions.
+- The plan documents recommended additional unit and integration tests for reset/update flows; no new test files were added in the provided diffs.
+
+### Other Changes
+- CI/CD and Developer Experience
+  - Added GitHub Actions workflows:
+    - .github/workflows/claude-code-review.yml: Automated PR code reviews using anthropics/claude-code-action@v1 with limited gh tool permissions and review prompts.
+    - .github/workflows/claude.yml: On-demand “@claude” assistant for issues and PRs with permissions to read CI results and repository metadata.
+- Release and versioning
+  - Bumped project version to 3.5.1-SNAPSHOT in gradle.properties to begin the next development iteration.
+
+Notes for integrators
+- Update any client UI that performs password reset:
+  - Post to /user/savePassword with fields: token, newPassword, confirmPassword.
+  - Expect localized error messages and strict validation failures for policy violations.
+- Consider surfacing the same password strength and requirements UX used in registration on reset/update screens to align with backend enforcement.
+
 ## [3.5.0] - 2025-10-26
 ### Features
 - Password policy enforcement integrated into registration and password updates
