@@ -192,6 +192,10 @@ public class UserAPI {
 
 		try {
 			// Validate passwords match
+			// Note: Using equals() is safe here - we're comparing two user-provided strings
+			// from the same request (not comparing against a stored secret), so timing attacks
+			// are not a concern. Constant-time comparison is only needed when comparing
+			// against stored credentials, which is handled by Spring's PasswordEncoder.
 			if (!savePasswordDto.getNewPassword().equals(savePasswordDto.getConfirmPassword())) {
 				return buildErrorResponse(messages.getMessage("message.password.mismatch", null, locale), 1,
 						HttpStatus.BAD_REQUEST);

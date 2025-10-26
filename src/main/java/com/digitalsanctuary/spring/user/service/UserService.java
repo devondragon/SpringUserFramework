@@ -411,6 +411,7 @@ public class UserService {
 
 	/**
 	 * Deletes a password reset token after it has been used.
+	 * Uses a direct DELETE query for efficiency (no SELECT required).
 	 *
 	 * @param token the token string to delete
 	 */
@@ -418,10 +419,9 @@ public class UserService {
 		if (token == null) {
 			return;
 		}
-		PasswordResetToken resetToken = passwordTokenRepository.findByToken(token);
-		if (resetToken != null) {
-			passwordTokenRepository.delete(resetToken);
-			log.debug("Deleted password reset token for user: {}", resetToken.getUser().getEmail());
+		int deletedCount = passwordTokenRepository.deleteByToken(token);
+		if (deletedCount > 0) {
+			log.debug("Deleted password reset token: {}", token);
 		}
 	}
 
