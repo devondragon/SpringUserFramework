@@ -16,6 +16,7 @@ import org.passay.RuleResult;
 import org.passay.dictionary.ArrayWordList;
 import org.passay.dictionary.WordListDictionary;
 import org.passay.dictionary.WordLists;
+import org.passay.dictionary.sort.ArraysSort;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.core.io.Resource;
@@ -100,7 +101,7 @@ public class PasswordPolicyService {
             try (
                     Reader reader = new BufferedReader(
                             new InputStreamReader(commonPasswordsResource.getInputStream()))) {
-                ArrayWordList wordList = WordLists.createFromReader(new Reader[] { reader }, false);
+                ArrayWordList wordList = WordLists.createFromReader(new Reader[] { reader }, false, new ArraysSort());
                 WordListDictionary dictionary = new WordListDictionary(wordList);
                 commonPasswordRule = new DictionaryRule(dictionary);
                 log.info("Common password dictionary initialized successfully.");
