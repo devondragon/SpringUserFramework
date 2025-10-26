@@ -103,6 +103,11 @@ public class UserAPI {
 			log.error("Unexpected error during registration.", ex);
 			logAuditEvent("Registration", "Failure", ex.getMessage(), null, request);
 			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		} finally {
+			// Clear sensitive password data from memory
+			if (userDto != null) {
+				userDto.clearPasswords();
+			}
 		}
 	}
 
@@ -244,6 +249,11 @@ public class UserAPI {
 			log.error("Unexpected error during password reset.", ex);
 			logAuditEvent("PasswordReset", "Failure", ex.getMessage(), null, request);
 			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		} finally {
+			// Clear sensitive password data from memory
+			if (savePasswordDto != null) {
+				savePasswordDto.clearPasswords();
+			}
 		}
 	}
 
@@ -293,6 +303,11 @@ public class UserAPI {
 			log.error("Unexpected error during password update.", ex);
 			logAuditEvent("PasswordUpdate", "Failure", ex.getMessage(), user, request);
 			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		} finally {
+			// Clear sensitive password data from memory
+			if (passwordDto != null) {
+				passwordDto.clearPasswords();
+			}
 		}
 	}
 
