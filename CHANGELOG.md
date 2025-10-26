@@ -1,3 +1,136 @@
+## [3.5.0] - 2025-10-26
+### Features
+- Password policy enforcement integrated into registration and password updates
+  - New PasswordPolicyService enforces configurable rules:
+    - Length limits (min/max), required character classes (uppercase, lowercase, digit, special)
+    - Allowed special characters are fully configurable via user.security.password.special-chars
+    - Common password prevention using a Passay dictionary built from bundled common_passwords.txt
+    - Username/email similarity check using Levenshtein distance with a configurable similarity threshold
+    - Password history reuse prevention using stored password hashes and a configurable history-count
+  - UserAPI now validates passwords on registration and returns HTTP 400 with aggregated error messages if policy fails
+  - Key implementation details:
+    - Passay-based validation with a MessageSource-backed PasswordValidator for localized error messages
+    - Dictionary initialization uses WordListDictionary and ArrayWordList; optimized sorting via ArraysSort for faster startup
+    - Similarity computed with Apache Commons Text LevenshteinDistance; threshold is percentage-based
+    - Password history checks query the latest N hashes via PasswordHistoryRepository.findRecentPasswordHashes(Pageable)
+    - History is recorded automatically on changeUserPassword and during registration where applicable
+
+- Password history persistence and automatic cleanup
+  - New JPA entity PasswordHistoryEntry stores per-user password hashes with timestamps
+  - New repository PasswordHistoryRepository offers:
+    - findRecentPasswordHashes(user, pageable) for efficient reuse checks
+    - findByUserOrderByEntryDateDesc(user) for cleanup
+  - UserService now:
+    - Saves hashed passwords to history on password changes
+    - Cleans up old entries after saves to limit stored history per configured history-count
+
+- Database-level integrity and performance for password history
+  - PasswordHistoryEntry now enforces:
+    - passwordHash length capped at 255 and not null (safe for bcrypt, etc.)
+    - entryDate not null and mapped as entry_date
+  - Indexes added:
+    - idx_user_id on user_id
+    - idx_entry_date on entry_date
+  - Improves performance for queries like findByUserOrderByEntryDateDesc and general cleanup operations
+
+- Build and tooling enhancements
+  - Gradle wrapper updated to 9.1.0
+  - Apache Commons Text upgraded to 1.14.0
+
+### Fixes
+- Correct password history cleanup off-by-one error
+  - Previously kept only historyCount entries; now keeps historyCount + 1 (current + N previous) to actually prevent reuse of the Nth previous password
+  - Implementation: compute maxEntries = historyCount + 1 and delete entries beyond that index
+
+- Robust password policy configuration parsing
+  - Fixed escaping for special characters in dsspringuserconfig.properties
+  - Removed surrounding quotes from user.security.password.special-chars so all characters (including backslash and quotes) parse correctly
+
+- Faster and more predictable common password dictionary initialization
+  - Updated Passay WordLists.createFromReader to use new ArraysSort() for sorting, improving startup performance and consistency
+
+- Stabilized unit tests by properly stubbing PasswordPolicyService in UserAPI tests
+  - Prevented NPE by returning Collections.emptyList() from validate()
+
+### Breaking Changes
+- New required configuration properties for password policy
+  - PasswordPolicyService uses @Value without defaults for multiple properties (e.g., user.security.password.enabled, min-length, max-length, require-* flags, special-chars, prevent-common-passwords, history-count, similarity-threshold).
+  - If you use UserAPI (now depends on PasswordPolicyService), you must supply these properties or import a property source that defines them. Otherwise, application startup may fail.
+  - Behavior change: registration and password updates are now rejected (HTTP 400) when password policy is not met.
+
+- Database schema changes
+  - New table password_history_entry with not-null constraints and indexes
+  - If you manage schema outside of Hibernate auto-DDL, you must add this table, columns, and indexes in your migrations before deploying.
+
+Migration guidance:
+- Add the new properties to your application configuration (example):
+  - user.security.password.enabled=true
+  - user.security.password.min-length=8
+  - user.security.password.max-length=128
+  - user.security.password.require-uppercase=true
+  - user.security.password.require-lowercase=true
+  - user.security.password.require-digit=true
+  - user.security.password.require-special=true
+  - user.security.password.special-chars=~`!@#$%^&*()_-+={}[]|\\:;"'<>,.?/
+  - user.security.password.prevent-common-passwords=true
+  - user.security.password.history-count=3
+  - user.security.password.similarity-threshold=80
+
+- Apply DB migration to create password_history_entry with:
+  - Columns: id (PK), user_id (FK), password_hash VARCHAR(255) NOT NULL, entry_date TIMESTAMP NOT NULL
+  - Indexes: idx_user_id(user_id), idx_entry_date(entry_date)
+
+### Refactoring
+- PasswordPolicyService structure and error handling improved
+  - Extracted validation into cohesive private methods:
+    - buildPassayRules(), createSpecialCharacterRule()
+    - checkPasswordHistory(), checkPasswordSimilarity()
+    - validateWithPassay()
+  - Early returns for failed history/similarity checks to avoid unnecessary work
+  - More detailed debug logging and clearer severe-error logging for dictionary load failures
+  - Optional used for null-safe error signaling from pre-checks
+
+### Documentation
+- Enhanced Spring configuration metadata
+  - additional-spring-configuration-metadata.json updated with meaningful descriptions for the new password policy properties, improving IDE assistance and documentation
+
+### Testing
+- New and updated test coverage
+  - PasswordPolicyServiceIntegrationTest ensures:
+    - Properties load correctly from config file
+    - Allowed special characters are correctly parsed and enforced
+    - Validation behaves as expected in a real Spring context
+  - PasswordPolicyServiceTest fixes
+    - Corrected similarity test to pass username/email to validate(), ensuring the check is truly exercised
+  - UserAPIUnitTest updates
+    - Added a mock PasswordPolicyService and default stubbing to prevent NPEs
+  - Broader test additions from the password policy feature:
+    - New tests for PasswordPolicyService and expanded UserService tests to cover history and policy integration
+
+### Other Changes
+- Versioning and editor configuration
+  - Project version bumped to 3.5.0-SNAPSHOT
+  - Added VS Code Java settings to .vscode/settings.json
+
+- Dependency updates
+  - Runtime:
+    - com.google.guava:guava 33.4.8-jre → 33.5.0-jre
+    - org.apache.commons:commons-text 1.13.1 → 1.14.0
+    - org.springframework.boot 3.5.5 → 3.5.6
+    - org.projectlombok:lombok 1.18.38 → 1.18.42
+  - Test:
+    - com.h2database:h2 2.3.232 → 2.4.240
+    - com.icegreen:greenmail 2.1.5 → 2.1.7
+    - org.assertj:assertj-core 3.27.4 → 3.27.6
+  - Build:
+    - com.github.ben-manes.versions plugin 0.52.0 → 0.53.0
+    - Removed unused dependencyUpdates config and related helper from build.gradle (cleanup)
+
+What this means for you:
+- If you consume this library’s UserAPI endpoints, define the new password policy properties and run DB migrations for password history before upgrading.
+- Expect stricter password handling during registration and updates, with clear, localized error messages reported to clients when policy checks fail.
+- Performance during startup when loading the common password dictionary should improve due to the new ArraysSort usage.
+
 ## [3.4.1] - 2025-09-04
 ### Features
 - No new feature functionality introduced in these commits.
