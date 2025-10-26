@@ -17,8 +17,13 @@ class PasswordDtoCharArrayTest {
         dto.setPassword("TestP@ssw0rd");
         
         char[] passwordChars = dto.getPasswordChars();
-        assertNotNull(passwordChars);
-        assertArrayEquals("TestP@ssw0rd".toCharArray(), passwordChars);
+        char[] expected = "TestP@ssw0rd".toCharArray();
+        try {
+            assertNotNull(passwordChars);
+            assertArrayEquals(expected, passwordChars);
+        } finally {
+            PasswordSecurityUtil.clearPassword(expected);
+        }
     }
 
     @Test
@@ -73,8 +78,13 @@ class PasswordDtoCharArrayTest {
         dto.setOldPassword("OldP@ssw0rd");
         
         char[] passwordChars = dto.getOldPasswordChars();
-        assertNotNull(passwordChars);
-        assertArrayEquals("OldP@ssw0rd".toCharArray(), passwordChars);
+        char[] expected = "OldP@ssw0rd".toCharArray();
+        try {
+            assertNotNull(passwordChars);
+            assertArrayEquals(expected, passwordChars);
+        } finally {
+            PasswordSecurityUtil.clearPassword(expected);
+        }
     }
 
     @Test
@@ -136,8 +146,13 @@ class PasswordDtoCharArrayTest {
         dto.setNewPassword("NewP@ssw0rd");
         
         char[] passwordChars = dto.getNewPasswordChars();
-        assertNotNull(passwordChars);
-        assertArrayEquals("NewP@ssw0rd".toCharArray(), passwordChars);
+        char[] expected = "NewP@ssw0rd".toCharArray();
+        try {
+            assertNotNull(passwordChars);
+            assertArrayEquals(expected, passwordChars);
+        } finally {
+            PasswordSecurityUtil.clearPassword(expected);
+        }
     }
 
     @Test
