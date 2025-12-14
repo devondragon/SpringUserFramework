@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.expression.SecurityExpressionHandler;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -23,9 +22,7 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.FilterInvocation;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
@@ -280,27 +277,15 @@ public class WebSecurityConfig {
 	}
 
 	/**
-	 * The webExpressionHandler method creates a DefaultWebSecurityExpressionHandler object and sets the roleHierarchy for the handler.
-	 *
-	 * @return the DefaultWebSecurityExpressionHandler object
-	 */
-	@Bean
-	public SecurityExpressionHandler<FilterInvocation> webExpressionHandler() {
-		DefaultWebSecurityExpressionHandler defaultWebSecurityExpressionHandler = new DefaultWebSecurityExpressionHandler();
-		defaultWebSecurityExpressionHandler.setRoleHierarchy(roleHierarchy());
-		return defaultWebSecurityExpressionHandler;
-	}
-
-	/**
 	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler. This
 	 * ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
 	 *
 	 * @return the MethodSecurityExpressionHandler object
 	 */
 	@Bean
-	public MethodSecurityExpressionHandler methodSecurityExpressionHandler() {
+	static MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
 		DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
-		expressionHandler.setRoleHierarchy(roleHierarchy());
+		expressionHandler.setRoleHierarchy(roleHierarchy);
 		return expressionHandler;
 	}
 
