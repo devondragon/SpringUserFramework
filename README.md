@@ -19,6 +19,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [Installation](#installation)
     - [Spring Boot 4.0 (Latest)](#spring-boot-40-latest)
     - [Spring Boot 3.5 (Stable)](#spring-boot-35-stable)
+  - [Migration Guide](#migration-guide)
   - [Quick Start](#quick-start)
     - [Prerequisites](#prerequisites)
     - [Step 1: Add Dependencies](#step-1-add-dependencies)
@@ -138,6 +139,8 @@ testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 ```
 
+**Upgrading from 3.x?** See the [Migration Guide](MIGRATION.md) for detailed upgrade instructions.
+
 ### Spring Boot 3.5 (Stable)
 
 For projects using Spring Boot 3.5.x with Java 17+:
@@ -155,6 +158,16 @@ For projects using Spring Boot 3.5.x with Java 17+:
 ```groovy
 implementation 'com.digitalsanctuary:ds-spring-user-framework:3.5.1'
 ```
+
+## Migration Guide
+
+If you're upgrading from a previous version, see the **[Migration Guide](MIGRATION.md)** for:
+
+- Step-by-step upgrade instructions
+- Breaking changes and how to address them
+- Spring Security 7 compatibility requirements
+- Test infrastructure changes
+- Guidance for developers extending the framework
 
 ## Quick Start
 
@@ -709,6 +722,7 @@ We welcome contributions of all kinds! If you'd like to help improve SpringUserF
 ## Reference Documentation
 
 - [API Documentation](https://digitalSanctuary.github.io/SpringUserFramework/)
+- [Migration Guide](MIGRATION.md)
 - [Configuration Guide](CONFIG.md)
 - [Security Guide](SECURITY.md)
 - [Customization Guide](CUSTOMIZATION.md)
