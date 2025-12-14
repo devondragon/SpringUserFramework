@@ -4,7 +4,7 @@ import com.digitalsanctuary.spring.user.test.app.TestApplication;
 import com.digitalsanctuary.spring.user.test.config.BaseTestConfiguration;
 import com.digitalsanctuary.spring.user.test.config.OAuth2TestConfiguration;
 import com.digitalsanctuary.spring.user.test.config.SecurityTestConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
@@ -45,6 +46,7 @@ import org.springframework.security.web.method.annotation.AuthenticationPrincipa
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.util.Collections;
 import java.util.Locale;
@@ -112,6 +114,7 @@ public class UserAPIUnitTest {
         testUserDto.setFirstName("Test");
         testUserDto.setLastName("User");
         testUserDto.setPassword("password123");
+        testUserDto.setMatchingPassword("password123");
         testUserDto.setRole(1);
 
         testUserDetails = new DSUserDetails(testUser);
@@ -227,14 +230,12 @@ public class UserAPIUnitTest {
             // Given
             testUserDto.setEmail(null);
 
-            // When & Then
+            // When & Then - validation should reject null email with 400 Bad Request
             mockMvc.perform(post("/user/registration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto))
                     .with(csrf()))
-                    .andExpect(status().isInternalServerError())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.code").value(5));
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
@@ -243,14 +244,12 @@ public class UserAPIUnitTest {
             // Given
             testUserDto.setPassword(null);
 
-            // When & Then
+            // When & Then - validation should reject null password with 400 Bad Request
             mockMvc.perform(post("/user/registration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto))
                     .with(csrf()))
-                    .andExpect(status().isInternalServerError())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.code").value(5));
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
@@ -487,7 +486,7 @@ public class UserAPIUnitTest {
         @DisplayName("POST /user/updateUser - success")
         void updateUser_success() throws Exception {
             // Given
-            UserDto updateDto = new UserDto();
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
             updateDto.setFirstName("UpdatedFirst");
             updateDto.setLastName("UpdatedLast");
 
@@ -533,7 +532,7 @@ public class UserAPIUnitTest {
         @DisplayName("POST /user/updateUser - not authenticated")
         void updateUser_notAuthenticated() throws Exception {
             // Given
-            UserDto updateDto = new UserDto();
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
             updateDto.setFirstName("UpdatedFirst");
             updateDto.setLastName("UpdatedLast");
 
@@ -546,6 +545,215 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.code").value(401))
                     .andExpect(jsonPath("$.messages[0]").value("User not logged in."));
+        }
+
+        @Test
+        @DisplayName("POST /user/updateUser - validation fails with blank firstName")
+        void updateUser_blankFirstName_fails() throws Exception {
+            // Given
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
+            updateDto.setFirstName("");  // Blank - should fail validation
+            updateDto.setLastName("UpdatedLast");
+
+            // Create a validator for the standalone setup
+            LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+            validator.afterPropertiesSet();
+
+            // Mock the principal resolver to return our test user
+            mockMvc = MockMvcBuilders.standaloneSetup(userAPI)
+                    .setValidator(validator)
+                    .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                        @Override
+                        public boolean supportsParameter(org.springframework.core.MethodParameter parameter) {
+                            return parameter.getParameterType().equals(DSUserDetails.class);
+                        }
+
+                        @Override
+                        public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                                org.springframework.web.method.support.ModelAndViewContainer mavContainer,
+                                org.springframework.web.context.request.NativeWebRequest webRequest,
+                                org.springframework.web.bind.support.WebDataBinderFactory binderFactory) {
+                            return testUserDetails;
+                        }
+                    })
+                    .setControllerAdvice(new TestExceptionHandler())
+                    .build();
+
+            // When & Then - validation should fail
+            mockMvc.perform(post("/user/updateUser")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(updateDto))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            verify(userService, never()).saveRegisteredUser(any(User.class));
+        }
+
+        @Test
+        @DisplayName("POST /user/updateUser - validation fails with blank lastName")
+        void updateUser_blankLastName_fails() throws Exception {
+            // Given
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
+            updateDto.setFirstName("UpdatedFirst");
+            updateDto.setLastName("");  // Blank - should fail validation
+
+            // Create a validator for the standalone setup
+            LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+            validator.afterPropertiesSet();
+
+            // Mock the principal resolver to return our test user
+            mockMvc = MockMvcBuilders.standaloneSetup(userAPI)
+                    .setValidator(validator)
+                    .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                        @Override
+                        public boolean supportsParameter(org.springframework.core.MethodParameter parameter) {
+                            return parameter.getParameterType().equals(DSUserDetails.class);
+                        }
+
+                        @Override
+                        public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                                org.springframework.web.method.support.ModelAndViewContainer mavContainer,
+                                org.springframework.web.context.request.NativeWebRequest webRequest,
+                                org.springframework.web.bind.support.WebDataBinderFactory binderFactory) {
+                            return testUserDetails;
+                        }
+                    })
+                    .setControllerAdvice(new TestExceptionHandler())
+                    .build();
+
+            // When & Then - validation should fail
+            mockMvc.perform(post("/user/updateUser")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(updateDto))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            verify(userService, never()).saveRegisteredUser(any(User.class));
+        }
+
+        @Test
+        @DisplayName("POST /user/updateUser - validation fails with firstName exceeding 50 characters")
+        void updateUser_firstNameTooLong_fails() throws Exception {
+            // Given
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
+            updateDto.setFirstName("A".repeat(51));  // 51 chars - exceeds 50 char limit
+            updateDto.setLastName("UpdatedLast");
+
+            // Create a validator for the standalone setup
+            LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+            validator.afterPropertiesSet();
+
+            // Mock the principal resolver to return our test user
+            mockMvc = MockMvcBuilders.standaloneSetup(userAPI)
+                    .setValidator(validator)
+                    .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                        @Override
+                        public boolean supportsParameter(org.springframework.core.MethodParameter parameter) {
+                            return parameter.getParameterType().equals(DSUserDetails.class);
+                        }
+
+                        @Override
+                        public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                                org.springframework.web.method.support.ModelAndViewContainer mavContainer,
+                                org.springframework.web.context.request.NativeWebRequest webRequest,
+                                org.springframework.web.bind.support.WebDataBinderFactory binderFactory) {
+                            return testUserDetails;
+                        }
+                    })
+                    .setControllerAdvice(new TestExceptionHandler())
+                    .build();
+
+            // When & Then - validation should fail
+            mockMvc.perform(post("/user/updateUser")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(updateDto))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            verify(userService, never()).saveRegisteredUser(any(User.class));
+        }
+
+        @Test
+        @DisplayName("POST /user/updateUser - validation fails with null fields")
+        void updateUser_nullFields_fails() throws Exception {
+            // Given
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
+            // Both fields are null - should fail validation
+
+            // Create a validator for the standalone setup
+            LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+            validator.afterPropertiesSet();
+
+            // Mock the principal resolver to return our test user
+            mockMvc = MockMvcBuilders.standaloneSetup(userAPI)
+                    .setValidator(validator)
+                    .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                        @Override
+                        public boolean supportsParameter(org.springframework.core.MethodParameter parameter) {
+                            return parameter.getParameterType().equals(DSUserDetails.class);
+                        }
+
+                        @Override
+                        public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                                org.springframework.web.method.support.ModelAndViewContainer mavContainer,
+                                org.springframework.web.context.request.NativeWebRequest webRequest,
+                                org.springframework.web.bind.support.WebDataBinderFactory binderFactory) {
+                            return testUserDetails;
+                        }
+                    })
+                    .setControllerAdvice(new TestExceptionHandler())
+                    .build();
+
+            // When & Then - validation should fail
+            mockMvc.perform(post("/user/updateUser")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(updateDto))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            verify(userService, never()).saveRegisteredUser(any(User.class));
+        }
+
+        @Test
+        @DisplayName("POST /user/updateUser - accepts maximum valid length names")
+        void updateUser_maxValidLength_succeeds() throws Exception {
+            // Given
+            UserProfileUpdateDto updateDto = new UserProfileUpdateDto();
+            updateDto.setFirstName("A".repeat(50));  // Exactly 50 chars - should be valid
+            updateDto.setLastName("B".repeat(50));   // Exactly 50 chars - should be valid
+
+            // Mock the principal resolver to return our test user
+            mockMvc = MockMvcBuilders.standaloneSetup(userAPI)
+                    .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                        @Override
+                        public boolean supportsParameter(org.springframework.core.MethodParameter parameter) {
+                            return parameter.getParameterType().equals(DSUserDetails.class);
+                        }
+
+                        @Override
+                        public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                                org.springframework.web.method.support.ModelAndViewContainer mavContainer,
+                                org.springframework.web.context.request.NativeWebRequest webRequest,
+                                org.springframework.web.bind.support.WebDataBinderFactory binderFactory) {
+                            return testUserDetails;
+                        }
+                    })
+                    .setControllerAdvice(new TestExceptionHandler())
+                    .build();
+
+            when(messageSource.getMessage(eq("message.update-user.success"), any(), any(Locale.class)))
+                    .thenReturn("Profile updated successfully");
+            when(userService.saveRegisteredUser(any(User.class))).thenReturn(testUser);
+
+            // When & Then
+            mockMvc.perform(post("/user/updateUser")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(updateDto))
+                    .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(userService).saveRegisteredUser(any(User.class));
         }
     }
 
@@ -603,21 +811,21 @@ public class UserAPIUnitTest {
     class SecurityValidationTests {
 
         @Test
-        @DisplayName("POST /user/registration - CSRF protection")
+        @DisplayName("POST /user/registration - CSRF protection (standalone MockMvc limitation)")
         void registration_csrfProtection() throws Exception {
-            // Note: In standalone MockMvc setup, CSRF protection is not enabled
-            // This test would pass with @WebMvcTest but not with standalone setup
-            // For now, we skip this test for standalone unit testing
-            // CSRF protection should be tested in integration tests instead
-            
-            // Given - simulating missing required fields to get an error
+            // Note: In standalone MockMvc setup, CSRF protection is not enabled by default.
+            // This test verifies basic request handling. Actual CSRF protection should be
+            // tested in integration tests using @WebMvcTest or full Spring context.
+
+            // Given - simulating missing required fields to trigger validation error
             testUserDto.setEmail(null);
-            
-            // When & Then
+
+            // When & Then - without CSRF token, request still reaches validation
+            // which fails with 400 Bad Request for missing email
             mockMvc.perform(post("/user/registration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto)))
-                    .andExpect(status().is5xxServerError());
+                    .andExpect(status().isBadRequest());
         }
 
         @Test

@@ -2,7 +2,9 @@
 
 [![Maven Central](https://img.shields.io/maven-central/v/com.digitalsanctuary/ds-spring-user-framework.svg)](https://central.sonatype.com/artifact/com.digitalsanctuary/ds-spring-user-framework)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Java Version](https://img.shields.io/badge/Java-17%2B-brightgreen)](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+[![Spring Boot 4](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen)](https://spring.io/projects/spring-boot)
+[![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.5-blue)](https://spring.io/projects/spring-boot)
+[![Java Version](https://img.shields.io/badge/Java-17%20|%2021-brightgreen)](https://www.oracle.com/java/technologies/downloads/)
 
 A comprehensive Spring Boot User Management Framework that simplifies the implementation of robust user authentication and management features. Built on top of Spring Security, this library provides ready-to-use solutions for user registration, login, account management, and more.
 
@@ -15,8 +17,9 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)
-    - [Maven](#maven)
-    - [Gradle](#gradle)
+    - [Spring Boot 4.0 (Latest)](#spring-boot-40-latest)
+    - [Spring Boot 3.5 (Stable)](#spring-boot-35-stable)
+  - [Migration Guide](#migration-guide)
   - [Quick Start](#quick-start)
     - [Prerequisites](#prerequisites)
     - [Step 1: Add Dependencies](#step-1-add-dependencies)
@@ -90,8 +93,59 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 
 ## Installation
 
-### Maven
+Choose the version that matches your Spring Boot version:
 
+| Spring Boot Version | Framework Version | Java Version | Spring Security |
+|---------------------|-------------------|--------------|-----------------|
+| 4.0.x               | 4.0.x             | 21+          | 7.x             |
+| 3.5.x               | 3.5.x             | 17+          | 6.x             |
+
+### Spring Boot 4.0 (Latest)
+
+Spring Boot 4.0 brings significant changes including Spring Security 7 and requires Java 21.
+
+**Maven:**
+```xml
+<dependency>
+    <groupId>com.digitalsanctuary</groupId>
+    <artifactId>ds-spring-user-framework</artifactId>
+    <version>4.0.0</version>
+</dependency>
+```
+
+**Gradle:**
+```groovy
+implementation 'com.digitalsanctuary:ds-spring-user-framework:4.0.0'
+```
+
+#### Spring Boot 4.0 Key Changes
+
+When upgrading to Spring Boot 4.0, be aware of these important changes:
+
+- **Java 21 Required**: Spring Boot 4.0 requires Java 21 or higher
+- **Spring Security 7**: Includes breaking changes from Spring Security 6.x
+  - All URL patterns in security configuration must start with `/`
+  - Some deprecated APIs have been removed
+- **Jackson 3**: JSON processing uses Jackson 3.x with some API changes
+- **Modular Test Infrastructure**: Test annotations have moved to new packages:
+  - `@AutoConfigureMockMvc` → `org.springframework.boot.webmvc.test.autoconfigure`
+  - `@DataJpaTest` → `org.springframework.boot.data.jpa.test.autoconfigure`
+  - `@WebMvcTest` → `org.springframework.boot.webmvc.test.autoconfigure`
+
+For testing, you may need these additional dependencies:
+```groovy
+testImplementation 'org.springframework.boot:spring-boot-data-jpa-test'
+testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
+testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+```
+
+**Upgrading from 3.x?** See the [Migration Guide](MIGRATION.md) for detailed upgrade instructions.
+
+### Spring Boot 3.5 (Stable)
+
+For projects using Spring Boot 3.5.x with Java 17+:
+
+**Maven:**
 ```xml
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
@@ -100,11 +154,20 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 </dependency>
 ```
 
-### Gradle
-
+**Gradle:**
 ```groovy
 implementation 'com.digitalsanctuary:ds-spring-user-framework:3.5.1'
 ```
+
+## Migration Guide
+
+If you're upgrading from a previous version, see the **[Migration Guide](MIGRATION.md)** for:
+
+- Step-by-step upgrade instructions
+- Breaking changes and how to address them
+- Spring Security 7 compatibility requirements
+- Test infrastructure changes
+- Guidance for developers extending the framework
 
 ## Quick Start
 
@@ -112,27 +175,23 @@ Follow these steps to get up and running with the Spring User Framework in your 
 
 ### Prerequisites
 
-- Java 17 or higher
-- Spring Boot 3.0+
+- **For Spring Boot 4.0**: Java 21 or higher
+- **For Spring Boot 3.5**: Java 17 or higher
 - A database (MariaDB, PostgreSQL, MySQL, H2, etc.)
 - SMTP server for email functionality (optional but recommended)
 
 ### Step 1: Add Dependencies
 
-1. **Add the main framework dependency**:
+1. **Add the main framework dependency** (see [Installation](#installation) for version selection):
 
-   Maven:
-   ```xml
-   <dependency>
-       <groupId>com.digitalsanctuary</groupId>
-       <artifactId>ds-spring-user-framework</artifactId>
-       <version>3.3.0</version>
-   </dependency>
+   **Spring Boot 4.0 (Java 21+):**
+   ```groovy
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:4.0.0'
    ```
 
-   Gradle:
+   **Spring Boot 3.5 (Java 17+):**
    ```groovy
-   implementation 'com.digitalsanctuary:ds-spring-user-framework:3.3.0'
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:3.5.1'
    ```
 
 2. **Add required dependencies**:
@@ -663,6 +722,7 @@ We welcome contributions of all kinds! If you'd like to help improve SpringUserF
 ## Reference Documentation
 
 - [API Documentation](https://digitalSanctuary.github.io/SpringUserFramework/)
+- [Migration Guide](MIGRATION.md)
 - [Configuration Guide](CONFIG.md)
 - [Security Guide](SECURITY.md)
 - [Customization Guide](CUSTOMIZATION.md)
