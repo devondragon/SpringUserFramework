@@ -1,3 +1,74 @@
+## [4.0.0] - 2025-12-14
+### Features
+- Spring Boot 4.0 and Spring Security 7 enablement
+  - Updated security configuration to align with Spring Security 7:
+    - Removed deprecated DefaultWebSecurityExpressionHandler and SecurityExpressionHandler<FilterInvocation> bean.
+    - MethodSecurityExpressionHandler is now a static bean with RoleHierarchy parameter injection (recommended Spring Security 7 pattern), ensuring method-level security honors role hierarchy.
+- Profile update endpoint simplified
+  - Added UserProfileUpdateDto with validation:
+    - Fields: firstName and lastName only, both @NotBlank and @Size(max = 50).
+  - Updated POST /user/updateUser to accept UserProfileUpdateDto (no longer requires email/password/matchingPassword), allowing users to update their names without password validation friction.
+
+### Fixes
+- Corrected test expectations for registration validation
+  - Updated unit tests to expect 400 Bad Request (not 500) when required registration fields (email/password) are missing, aligning tests with validation behavior.
+
+### Breaking Changes
+- Minimum Java version is now 21
+  - Gradle toolchain updated from Java 17 to Java 21 to meet Spring Boot 4 requirements. Consumers must build and run with JDK 21+.
+- Spring Security 7 behavior changes
+  - All security URL patterns must start with a leading slash (/) in configuration and custom security matchers (e.g., user.security.unprotectedURIs, requestMatchers()).
+  - Deprecated methods removed in Security 7 (e.g., antMatchers(), authorizeRequests())—use authorizeHttpRequests() with requestMatchers().
+- Security bean changes
+  - Removed the webExpressionHandler bean (DefaultWebSecurityExpressionHandler). If downstream applications relied on this bean, they should migrate to the new pattern using RoleHierarchy with method security expressions.
+- Test package relocations (affects consumers’ test code on Spring Boot 4)
+  - Test annotations moved to new modular packages:
+    - @AutoConfigureMockMvc → org.springframework.boot.webmvc.test.autoconfigure
+    - @WebMvcTest → org.springframework.boot.webmvc.test.autoconfigure
+    - @DataJpaTest / @AutoConfigureDataJpa → org.springframework.boot.data.jpa.test.autoconfigure
+    - @AutoConfigureTestDatabase → org.springframework.boot.jdbc.test.autoconfigure
+    - @EntityScan → org.springframework.boot.persistence.autoconfigure
+
+### Refactoring
+- Security configuration cleanup for Spring Security 7
+  - Removed deprecated imports and beans, and updated MethodSecurityExpressionHandler bean declaration to static with RoleHierarchy injection, reducing bean wiring fragility and aligning with current best practices.
+
+### Documentation
+- Added a comprehensive Migration Guide (MIGRATION.md)
+  - Covers Java 21 requirement, Spring Security 7 changes (URL patterns, API removals), test infrastructure modularization, Jackson 3 notes, API changes (profile update DTO), troubleshooting, and a compatibility matrix.
+- README refresh for Spring Boot 4.0
+  - New installation section for Boot 4.0 with Maven/Gradle snippets.
+  - Version compatibility table (Spring Boot, framework version, Java, Spring Security).
+  - Key changes section (Java 21, Security 7, Jackson 3, modular test infrastructure).
+  - Required test dependencies listed for Boot 4.
+  - Quick Start prerequisites updated, and links to Migration Guide added.
+
+### Testing
+- Test infrastructure updated for Spring Boot 4
+  - Switched imports to new modular test annotation packages.
+  - Added Spring Boot 4 modular test starters:
+    - spring-boot-starter-data-jpa-test
+    - spring-boot-webmvc-test
+    - spring-boot-jdbc-test
+- Expanded unit test coverage for profile updates
+  - Updated UserAPIUnitTest to use UserProfileUpdateDto.
+  - Added validation tests for blank/null fields and length constraints; verified acceptance at max valid length.
+  - Added org.hibernate.validator:hibernate-validator to test scope to exercise bean validation.
+  - Adjusted CSRF test expectations and commentary to reflect standalone MockMvc limitations (actual CSRF should be covered by integration tests).
+- Test dependency bump
+  - GreenMail test dependency updated to 2.1.8 for SMTP testing.
+
+### Other Changes
+- Dependency and build updates
+  - Spring Boot upgraded to 4.0.0.
+  - org.apache.commons:commons-text bumped from 1.14.0 to 1.15.0.
+  - spring-retry pinned to 2.0.12 (compileOnly and test) for compatibility.
+  - com.vanniktech.maven.publish plugin upgraded from 0.34.0 to 0.35.0.
+  - Clarified that thymeleaf-extras-springsecurity6 is compatible with Spring Security 7; no springsecurity7 artifact exists yet.
+  - Project version bumped to 4.0.0-SNAPSHOT.
+- CI/Automation
+  - GitHub Action for Claude Code Review now uses ANTHROPIC_API_KEY instead of CLAUDE_CODE_OAUTH_TOKEN and has proper write permissions to comment on PRs and issues.
+
 ## [3.5.1] - 2025-10-26
 ### Features
 - New password reset endpoint: /user/savePassword
