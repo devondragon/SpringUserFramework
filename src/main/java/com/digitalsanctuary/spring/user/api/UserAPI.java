@@ -21,6 +21,7 @@ import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.PasswordResetRequestDto;
 import com.digitalsanctuary.spring.user.dto.SavePasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
@@ -131,24 +132,24 @@ public class UserAPI {
 	}
 
 	/**
-	 * Updates the user's password. This is used when the user is logged in and
-	 * wants to change their password.
+	 * Updates the user's profile (first name, last name). This is used when the
+	 * user is logged in and wants to update their profile information.
 	 *
-	 * @param userDetails the authenticated user details
-	 * @param userDto     the user data transfer object containing user details
-	 * @param request     the HTTP servlet request
-	 * @param locale      the locale
-	 * @return a ResponseEntity containing a JSONResponse with the password update
+	 * @param userDetails      the authenticated user details
+	 * @param profileUpdateDto the profile update DTO containing first and last name
+	 * @param request          the HTTP servlet request
+	 * @param locale           the locale
+	 * @return a ResponseEntity containing a JSONResponse with the profile update
 	 *         result
 	 */
 	@PostMapping("/updateUser")
 	public ResponseEntity<JSONResponse> updateUserAccount(@AuthenticationPrincipal DSUserDetails userDetails,
-			@Valid @RequestBody UserDto userDto,
+			@Valid @RequestBody UserProfileUpdateDto profileUpdateDto,
 			HttpServletRequest request, Locale locale) {
 		validateAuthenticatedUser(userDetails);
 		User user = userDetails.getUser();
-		user.setFirstName(userDto.getFirstName());
-		user.setLastName(userDto.getLastName());
+		user.setFirstName(profileUpdateDto.getFirstName());
+		user.setLastName(profileUpdateDto.getLastName());
 		userService.saveRegisteredUser(user);
 
 		logAuditEvent("ProfileUpdate", "Success", "User profile updated", user, request);
