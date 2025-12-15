@@ -1,3 +1,38 @@
+## [4.0.1] - 2025-12-15
+### Features
+- No user-facing features in this set of commits.
+
+### Fixes
+- No bug fixes in this set of commits.
+
+### Breaking Changes
+- No runtime breaking changes for consumers of the library/app.
+- Potential test-only breaking changes due to major version upgrades:
+  - Testcontainers upgraded to 2.0.2 and the MariaDB module artifact was renamed from org.testcontainers:mariadb to org.testcontainers:testcontainers-mariadb. If you maintain custom build scripts or rely on specific Testcontainers modules in other projects, update coordinates accordingly. Review upstream migration notes for any API/behavior changes that might affect test code.
+  - Rest Assured upgraded to 6.0.0. Tests using Rest Assured may require minor adjustments depending on your usage; consult Rest Assured 6 release notes for API changes.
+  - Hibernate Validator upgraded to 9.1.0.Final (test scope). If your tests interact directly with HV internals, verify compatibility with Jakarta Validation 3.1.1 (still in use).
+
+### Refactoring
+- No refactoring changes.
+
+### Documentation
+- No documentation changes.
+
+### Testing
+- Updated major test dependencies to current versions:
+  - org.hibernate.validator:hibernate-validator: 8.0.2.Final → 9.1.0.Final (testImplementation)
+  - org.testcontainers:testcontainers: 1.21.3 → 2.0.2 (testImplementation)
+  - org.testcontainers:mariadb → org.testcontainers:testcontainers-mariadb, version 2.0.2 (artifact rename and version bump; testImplementation)
+  - io.rest-assured:rest-assured: 5.5.6 → 6.0.0 (testImplementation)
+- Scope of changes is limited to test dependencies (build.gradle only). No production code or runtime dependencies were modified.
+- Rationale/impact:
+  - Brings test stack up-to-date for improved stability and features in containerized integration tests and HTTP testing.
+  - The MariaDB container module’s coordinate change ensures compatibility with Testcontainers 2’s artifact layout.
+
+### Other Changes
+- Version bumped to 4.0.1-SNAPSHOT (gradle.properties) to begin the next development cycle.
+- Merged PR #238 “Update major test dependencies” into main.
+
 ## [4.0.0] - 2025-12-14
 ### Features
 - Spring Boot 4.0 and Spring Security 7 enablement
