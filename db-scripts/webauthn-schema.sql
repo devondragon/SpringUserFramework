@@ -1,21 +1,10 @@
--- =====================================================
--- Spring Security WebAuthn Schema for MariaDB/MySQL
--- =====================================================
 -- This script creates tables for WebAuthn (Passkey) authentication support.
--- Compatible with MariaDB 10.3+ and MySQL 8.0+
---
--- Part of issue #153: Add Passkey Support for SpringUserFramework
 
 -- Sequence structure
 DROP SEQUENCE IF EXISTS `webauthn_user_entity_seq`;
 CREATE SEQUENCE `webauthn_user_entity_seq` START WITH 1 INCREMENT BY 50 CACHE 1000 ENGINE=InnoDB;
 
--- =====================================================
--- Table: webauthn_user_entity
--- =====================================================
--- Maps Spring Security's WebAuthn user entity to application users.
 -- This table links the WebAuthn authentication system to the existing user_account table.
-
 DROP TABLE IF EXISTS `webauthn_user_entity`;
 CREATE TABLE `webauthn_user_entity` (
   `id` BIGINT(20) NOT NULL,
@@ -36,12 +25,7 @@ CREATE TABLE `webauthn_user_entity` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 COMMENT='WebAuthn user entities mapped to application users';
 
--- =====================================================
 -- Table: webauthn_user_credential
--- =====================================================
--- Stores WebAuthn credentials (public keys) for users.
--- Each user can have multiple credentials (e.g., phone, security key, laptop).
-
 DROP TABLE IF EXISTS `webauthn_user_credential`;
 CREATE TABLE `webauthn_user_credential` (
   `id` VARCHAR(255) NOT NULL COMMENT 'Primary key (UUID string)',
@@ -72,14 +56,3 @@ CREATE TABLE `webauthn_user_credential` (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 COMMENT='WebAuthn credentials (public keys) for passkey authentication';
-
--- =====================================================
--- Notes:
--- =====================================================
--- 1. The signature_count is automatically updated by Spring Security after each authentication
---    to prevent cloned authenticator detection
--- 2. The enabled flag allows soft deletion of credentials without removing from database
--- 3. The user_account_id link in webauthn_user_entity allows efficient queries between
---    the WebAuthn system and your existing User entity
--- 4. Credentials are automatically deleted when the associated user is deleted (CASCADE)
--- 5. BLOB fields store binary data (credential IDs, public keys) as base64-decoded bytes
