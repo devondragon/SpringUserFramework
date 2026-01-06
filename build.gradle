@@ -52,6 +52,9 @@ dependencies {
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
     compileOnly 'org.springframework.retry:spring-retry:2.0.12'
 
+    // WebAuthn support (Passkey authentication)
+    implementation 'com.webauthn4j:webauthn4j-core:0.30.2.RELEASE'
+
     // Lombok dependencies
     compileOnly "org.projectlombok:lombok:$lombokVersion"
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
