@@ -15,7 +15,7 @@ package com.digitalsanctuary.spring.user.exceptions;
  */
 public class WebAuthnException extends Exception {
 
-	/** The Constant serialVersionUID. */
+	/** Serial Version UID. */
 	private static final long serialVersionUID = 1L;
 
 	/**
