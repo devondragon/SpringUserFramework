@@ -65,6 +65,37 @@ user:
 - **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
 - **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
 
+## WebAuthn / Passkey Settings
+
+Provides passwordless login using biometrics, security keys, or device authentication. **HTTPS is required** for WebAuthn to function.
+
+- **Enabled (`user.webauthn.enabled`)**: Enable or disable WebAuthn/Passkey support. Defaults to `true`.
+- **Relying Party ID (`user.webauthn.rpId`)**: For development, use `localhost`. For production, use your domain (e.g., `example.com`). Defaults to `localhost`.
+- **Relying Party Name (`user.webauthn.rpName`)**: The display name.
+- **Allowed Origins (`user.webauthn.allowedOrigins`)**: Comma-separated list of allowed origins. Defaults to `https://localhost:8443`.
+
+**Development Example:**
+```properties
+user.webauthn.enabled=true
+user.webauthn.rpId=localhost
+user.webauthn.rpName=My Application
+user.webauthn.allowedOrigins=https://localhost:8443
+```
+
+**Production Example:**
+```properties
+user.webauthn.enabled=true
+user.webauthn.rpId=example.com
+user.webauthn.rpName=My Application
+user.webauthn.allowedOrigins=https://example.com
+```
+
+**Important Notes:**
+- WebAuthn requires HTTPS in production. Generate a proper SSL certificate (Let's Encrypt, commercial CA).
+- For development, generate a self-signed certificate: `keytool -genkeypair -alias localhost -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 3650`
+- Configure SSL in `application.properties`: `server.ssl.enabled=true`, `server.ssl.key-store=classpath:keystore.p12`
+- Users must be authenticated before they can register a passkey. Passkeys enhance existing authentication, not replace initial registration.
+
 ## Mail Configuration
 
 - **From Address (`spring.mail.fromAddress`)**: The email address used as the sender in outgoing emails.
