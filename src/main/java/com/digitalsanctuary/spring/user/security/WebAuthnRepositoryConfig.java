@@ -32,7 +32,7 @@ public class WebAuthnRepositoryConfig {
 	 */
 	@Bean
 	public UserCredentialRepository userCredentialRepository(JdbcTemplate jdbcTemplate) {
-		log.info("Initializing WebAuthn UserCredentialRepository (JDBC/Database)");
+		log.info("Initializing WebAuthn UserCredentialRepository");
 		return new JdbcUserCredentialRepository(jdbcTemplate);
 	}
 
@@ -51,7 +51,7 @@ public class WebAuthnRepositoryConfig {
 	 */
 	@Bean
 	public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(JdbcTemplate jdbcTemplate) {
-		log.info("Initializing WebAuthn PublicKeyCredentialUserEntityRepository (JDBC/Database)");
+		log.info("Initializing WebAuthn PublicKeyCredentialUserEntityRepository");
 		return new JdbcPublicKeyCredentialUserEntityRepository(jdbcTemplate);
 	}
 }
