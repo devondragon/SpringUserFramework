@@ -3,7 +3,9 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -24,6 +26,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
+import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
+import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -111,6 +115,18 @@ public class WebSecurityConfig {
 	@Value("${user.security.rememberMe.key:#{null}}")
 	private String rememberMeKey;
 
+	@Value("${user.webauthn.enabled:true}")
+	private boolean webAuthnEnabled;
+
+	@Value("${user.webauthn.rpId:localhost}")
+	private String webAuthnRpId;
+
+	@Value("${user.webauthn.rpName:Spring User Framework}")
+	private String webAuthnRpName;
+
+	@Value("${user.webauthn.allowedOrigins:https://localhost:8443}")
+	private String webAuthnAllowedOriginsProperty;
+
 
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
@@ -118,6 +134,8 @@ public class WebSecurityConfig {
 	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
+	private final UserCredentialRepository userCredentialRepository;
+	private final PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository;
 
 	/**
 	 *
@@ -158,6 +176,11 @@ public class WebSecurityConfig {
 			setupOAuth2(http);
 		}
 
+		// Configure WebAuthn (Passkey) if enabled
+		if (webAuthnEnabled) {
+			setupWebAuthn(http);
+		}
+
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			// Allow access to unprotected URIs and require authentication for all other requests
@@ -196,6 +219,25 @@ public class WebSecurityConfig {
 					userInfo.userService(dsOAuth2UserService);
 					userInfo.oidcUserService(dsOidcUserService);
 				}));
+	}
+
+	/**
+	 * Setup WebAuthn (Passkey) specific configuration.
+	 *
+	 * @param http the http security object to configure
+	 * @throws Exception the exception
+	 */
+	private void setupWebAuthn(HttpSecurity http) throws Exception {
+		// Parse comma-separated origins into Set
+		Set<String> allowedOrigins = new HashSet<>(Arrays.asList(webAuthnAllowedOriginsProperty.split(",")));
+
+		// Trim whitespace from origins
+		allowedOrigins = allowedOrigins.stream().map(String::trim).collect(java.util.stream.Collectors.toSet());
+
+		log.debug("WebSecurityConfig.setupWebAuthn: rpId={}, rpName={}, allowedOrigins={}", webAuthnRpId, webAuthnRpName, allowedOrigins);
+
+		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnRpName).rpId(webAuthnRpId).allowedOrigins(allowedOrigins)
+				.userCredentialRepository(userCredentialRepository).userEntityRepository(publicKeyCredentialUserEntityRepository));
 	}
 
 	// Commenting this out to try adding /error to the unprotected URIs list instead
