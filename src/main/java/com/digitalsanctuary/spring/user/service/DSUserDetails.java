@@ -199,7 +199,7 @@ public class DSUserDetails implements UserDetails, OidcUser {
 
 	@Override
 	public Map<String, Object> getClaims() {
-		return oidcUserInfo.getClaims();
+		return oidcUserInfo != null ? oidcUserInfo.getClaims() : Map.of();
 	}
 
 	@Override
