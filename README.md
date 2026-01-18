@@ -62,6 +62,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - Registration, with optional email verification.
   - Login and logout functionality.
   - Forgot password flow.
+  - Admin-initiated password reset with optional session invalidation.
   - Database-backed user store using Spring JPA.
   - SSO support for Google
   - SSO support for Facebook
@@ -520,6 +521,43 @@ Users can:
 - Update their profile information
 - Change their password
 - Delete their account (configurable to either disable or fully delete)
+
+### Admin Password Reset
+
+Administrators can trigger password resets for users programmatically:
+
+```java
+@Autowired
+private UserEmailService userEmailService;
+
+// Reset password and invalidate all user sessions
+int sessionsInvalidated = userEmailService.initiateAdminPasswordReset(user, appUrl, true);
+
+// Reset password without invalidating sessions
+userEmailService.initiateAdminPasswordReset(user, appUrl, false);
+
+// Use configured appUrl (from user.admin.appUrl property)
+userEmailService.initiateAdminPasswordReset(user);
+```
+
+**Features:**
+- Requires `ROLE_ADMIN` authorization (`@PreAuthorize`)
+- Optional session invalidation to force re-authentication
+- Sends password reset email with secure token
+- Comprehensive audit logging with correlation IDs
+- Cryptographically secure tokens (256-bit entropy)
+
+**Configuration:**
+```yaml
+user:
+  admin:
+    appUrl: https://myapp.com  # Base URL for password reset links
+```
+
+**Security Notes:**
+- Admin identity is derived from `SecurityContext`, not user input
+- Sessions are invalidated *after* email is sent to prevent lockout
+- URL validation prevents XSS (blocks javascript:, data: schemes)
 
 ## Email Verification
 

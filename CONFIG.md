@@ -29,6 +29,11 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 - **Account Deletion (`user.actuallyDeleteAccount`)**: Set to `true` to enable account deletion. Defaults to `false` where accounts are disabled instead of deleted.
 - **Registration Email Verification (`user.registration.sendVerificationEmail`)**: Enable (`true`) or disable (`false`) sending verification emails post-registration.
 
+## Admin Settings
+
+- **Admin App URL (`user.admin.appUrl`)**: Base URL for admin-initiated password reset emails. Required when using `initiateAdminPasswordReset(user)` without explicit URL. Example: `https://myapp.com`
+- **Session Invalidation Warn Threshold (`user.session.invalidation.warn-threshold`)**: Number of active sessions that triggers a performance warning during session invalidation. Defaults to `1000`.
+
 ## Audit Logging
 
 - **Log File Path (`user.audit.logFilePath`)**: The path to the audit log file.
