@@ -2,9 +2,12 @@ package com.digitalsanctuary.spring.user.service;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,6 +48,12 @@ public class UserEmailService {
     /** The configured app URL for admin-initiated password resets. */
     @Value("${user.admin.appUrl:#{null}}")
     private String configuredAppUrl;
+
+    /** ObjectMapper for JSON serialization in audit events. */
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** SecureRandom for cryptographically strong token generation. */
+    private final SecureRandom secureRandom = new SecureRandom();
 
     /**
      * Send forgot password verification email.
@@ -165,12 +174,15 @@ public class UserEmailService {
     }
 
     /**
-     * Generate random token.
+     * Generates a cryptographically secure random token.
+     * Uses SecureRandom for proper entropy instead of UUID.
      *
-     * @return the string
+     * @return URL-safe Base64 encoded token with 256 bits of entropy
      */
     private String generateToken() {
-        return UUID.randomUUID().toString();
+        byte[] tokenBytes = new byte[32]; // 256 bits of entropy
+        secureRandom.nextBytes(tokenBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
     }
 
     /**
@@ -187,13 +199,16 @@ public class UserEmailService {
     /**
      * Initiates an admin-triggered password reset for a user.
      * This method:
-     * 1. Optionally invalidates all active sessions for the user
-     * 2. Generates a password reset token
-     * 3. Sends the password reset email
+     * 1. Generates a password reset token
+     * 2. Sends the password reset email
+     * 3. Optionally invalidates all active sessions for the user (done last to prevent lockout if earlier steps fail)
      * 4. Publishes an audit event for tracking
      *
      * <p>Note: Email sending is asynchronous with retry. Delivery status is logged
      * but not returned. The audit event provides tracking for admin actions.</p>
+     *
+     * <p><strong>Operation Order:</strong> Session invalidation is performed last to ensure
+     * users are not locked out if token creation or email sending fails.</p>
      *
      * @param user the user to reset password for
      * @param appUrl the application URL for the reset link (must be valid HTTP/HTTPS URL)
@@ -209,18 +224,18 @@ public class UserEmailService {
         log.debug("UserEmailService.initiateAdminPasswordReset: called for user: {} by admin: {} [correlationId={}]",
                 user.getEmail(), adminIdentifier, correlationId);
 
-        // Step 1: Optionally invalidate all user sessions
-        int invalidatedSessions = handleSessionInvalidation(user, invalidateSessions, correlationId);
-
-        // Step 2: Generate token and create password reset token
+        // Step 1: Generate token and create password reset token (must succeed before invalidating sessions)
         final String token = generateToken();
         createPasswordResetTokenForUser(user, token);
 
-        // Step 3: Publish admin-specific audit event
-        publishAdminPasswordResetAuditEvent(user, adminIdentifier, invalidatedSessions, correlationId);
-
-        // Step 4: Send password reset email
+        // Step 2: Send password reset email (must succeed before invalidating sessions)
         sendPasswordResetEmail(user, appUrl, token);
+
+        // Step 3: Invalidate sessions LAST - only after recovery mechanism is in place
+        int invalidatedSessions = handleSessionInvalidation(user, invalidateSessions, correlationId);
+
+        // Step 4: Publish admin-specific audit event
+        publishAdminPasswordResetAuditEvent(user, adminIdentifier, invalidatedSessions, correlationId);
 
         log.info("UserEmailService.initiateAdminPasswordReset: password reset email sent to {} by admin {} [correlationId={}]",
                 user.getEmail(), adminIdentifier, correlationId);
@@ -332,7 +347,7 @@ public class UserEmailService {
 
     /**
      * Builds the audit extra data as a JSON string for easier parsing in audit dashboards.
-     * Uses manual JSON construction for simplicity and to avoid Jackson version dependencies.
+     * Uses Jackson ObjectMapper for proper JSON escaping and security.
      *
      * @param adminIdentifier the admin's identifier
      * @param invalidatedSessions the number of sessions invalidated
@@ -341,30 +356,18 @@ public class UserEmailService {
      */
     private String buildAuditExtraData(final String adminIdentifier, final int invalidatedSessions,
             final String correlationId) {
-        // Escape any special characters in string values for JSON safety
-        String escapedAdminId = escapeJsonString(adminIdentifier);
-        String escapedCorrelationId = escapeJsonString(correlationId);
+        Map<String, Object> data = new HashMap<>();
+        data.put("adminIdentifier", adminIdentifier);
+        data.put("sessionsInvalidated", invalidatedSessions);
+        data.put("correlationId", correlationId);
 
-        return String.format("{\"adminIdentifier\":\"%s\",\"sessionsInvalidated\":%d,\"correlationId\":\"%s\"}",
-                escapedAdminId, invalidatedSessions, escapedCorrelationId);
-    }
-
-    /**
-     * Escapes special characters in a string for safe JSON inclusion.
-     *
-     * @param value the string to escape
-     * @return the escaped string
-     */
-    private String escapeJsonString(final String value) {
-        if (value == null) {
-            return "null";
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JacksonException e) {
+            log.error("Failed to serialize audit extra data", e);
+            // Return minimal safe JSON on failure
+            return "{\"error\":\"serialization_failed\"}";
         }
-        return value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
     }
 
     /**

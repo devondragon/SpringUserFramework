@@ -116,7 +116,8 @@ class UserEmailServiceTest {
             PasswordResetToken savedToken = tokenCaptor.getValue();
             assertThat(savedToken.getUser()).isEqualTo(testUser);
             assertThat(savedToken.getToken()).isNotNull();
-            assertThat(savedToken.getToken()).matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+            // Base64 URL-safe encoded 32-byte token = 43 characters
+            assertThat(savedToken.getToken()).matches("[A-Za-z0-9_-]{43}");
 
             // Verify audit event was published
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
@@ -212,7 +213,8 @@ class UserEmailServiceTest {
             verify(userVerificationService).createVerificationTokenForUser(eq(testUser), tokenCaptor.capture());
             String token = tokenCaptor.getValue();
             assertThat(token).isNotNull();
-            assertThat(token).matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+            // Base64 URL-safe encoded 32-byte token = 43 characters
+            assertThat(token).matches("[A-Za-z0-9_-]{43}");
 
             // Verify email was sent with correct parameters
             ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
@@ -514,7 +516,8 @@ class UserEmailServiceTest {
             // Audit extraData is now JSON format
             assertThat(auditEvent.getExtraData()).contains("\"correlationId\":\"");
             // Verify correlation ID is a UUID format within JSON
-            assertThat(auditEvent.getExtraData()).matches(".*\"correlationId\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\".*");
+            // Correlation ID is also a Base64 URL-safe encoded 32-byte token
+            assertThat(auditEvent.getExtraData()).matches(".*\"correlationId\":\"[A-Za-z0-9_-]{43}\".*");
         }
 
         @Test

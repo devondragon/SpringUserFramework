@@ -70,8 +70,11 @@ public class SessionInvalidationService {
                 for (SessionInformation session : sessions) {
                     session.expireNow();
                     invalidatedCount++;
+                    // Log truncated session ID to avoid exposing full session identifiers
+                    String sessionId = session.getSessionId();
+                    String safeSessionId = sessionId.length() > 8 ? sessionId.substring(0, 8) + "..." : sessionId;
                     log.debug("SessionInvalidationService.invalidateUserSessions: expired session {} for user {}",
-                            session.getSessionId(), user.getEmail());
+                            safeSessionId, user.getEmail());
                 }
             }
         }
