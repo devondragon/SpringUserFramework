@@ -40,6 +40,9 @@ class UserEmailServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private SessionInvalidationService sessionInvalidationService;
+
     @InjectMocks
     private UserEmailService userEmailService;
 
@@ -342,6 +345,110 @@ class UserEmailServiceTest {
                     any(),
                     any()
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("Admin Password Reset Tests")
+    class AdminPasswordResetTests {
+
+        private String adminIdentifier;
+
+        @BeforeEach
+        void setUp() {
+            adminIdentifier = "admin@example.com";
+        }
+
+        @Test
+        @DisplayName("initiateAdminPasswordReset - sends email and invalidates sessions when requested")
+        void initiateAdminPasswordReset_sendsEmailAndInvalidatesSessions() {
+            // Given
+            when(sessionInvalidationService.invalidateUserSessions(testUser)).thenReturn(3);
+
+            // When
+            int invalidatedCount = userEmailService.initiateAdminPasswordReset(testUser, appUrl, adminIdentifier, true);
+
+            // Then
+            assertThat(invalidatedCount).isEqualTo(3);
+
+            // Verify sessions were invalidated
+            verify(sessionInvalidationService).invalidateUserSessions(testUser);
+
+            // Verify password reset token was created
+            ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
+            verify(passwordTokenRepository).save(tokenCaptor.capture());
+            PasswordResetToken savedToken = tokenCaptor.getValue();
+            assertThat(savedToken.getUser()).isEqualTo(testUser);
+
+            // Verify audit event was published with admin info
+            ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+            verify(eventPublisher).publishEvent(auditCaptor.capture());
+            AuditEvent auditEvent = auditCaptor.getValue();
+            assertThat(auditEvent.getAction()).isEqualTo("adminInitiatedPasswordReset");
+            assertThat(auditEvent.getActionStatus()).isEqualTo("Success");
+            assertThat(auditEvent.getMessage()).contains(adminIdentifier);
+            assertThat(auditEvent.getExtraData()).contains("adminIdentifier:" + adminIdentifier);
+            assertThat(auditEvent.getExtraData()).contains("sessionsInvalidated:3");
+
+            // Verify email was sent
+            verify(mailService).sendTemplateMessage(
+                    eq(testUser.getEmail()),
+                    eq("Password Reset"),
+                    any(),
+                    eq("mail/forgot-password-token.html")
+            );
+        }
+
+        @Test
+        @DisplayName("initiateAdminPasswordReset - skips session invalidation when not requested")
+        void initiateAdminPasswordReset_skipsSessionInvalidationWhenNotRequested() {
+            // When
+            int invalidatedCount = userEmailService.initiateAdminPasswordReset(testUser, appUrl, adminIdentifier, false);
+
+            // Then
+            assertThat(invalidatedCount).isEqualTo(0);
+
+            // Verify sessions were NOT invalidated
+            verify(sessionInvalidationService, never()).invalidateUserSessions(any());
+
+            // Verify email was still sent
+            verify(mailService).sendTemplateMessage(
+                    eq(testUser.getEmail()),
+                    eq("Password Reset"),
+                    any(),
+                    eq("mail/forgot-password-token.html")
+            );
+
+            // Verify audit event shows 0 sessions invalidated
+            ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+            verify(eventPublisher).publishEvent(auditCaptor.capture());
+            AuditEvent auditEvent = auditCaptor.getValue();
+            assertThat(auditEvent.getExtraData()).contains("sessionsInvalidated:0");
+        }
+
+        @Test
+        @DisplayName("initiateAdminPasswordReset - creates token and sends email correctly")
+        void initiateAdminPasswordReset_createsTokenAndSendsEmail() {
+            // Given
+            when(sessionInvalidationService.invalidateUserSessions(testUser)).thenReturn(0);
+
+            // When
+            userEmailService.initiateAdminPasswordReset(testUser, appUrl, adminIdentifier, true);
+
+            // Then
+            ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(mailService).sendTemplateMessage(
+                    eq(testUser.getEmail()),
+                    eq("Password Reset"),
+                    variablesCaptor.capture(),
+                    eq("mail/forgot-password-token.html")
+            );
+
+            Map<String, Object> variables = variablesCaptor.getValue();
+            assertThat(variables).containsKey("token");
+            assertThat(variables.get("appUrl")).isEqualTo(appUrl);
+            assertThat(variables.get("confirmationUrl")).asString()
+                    .startsWith(appUrl + "/user/changePassword?token=");
         }
     }
 }
