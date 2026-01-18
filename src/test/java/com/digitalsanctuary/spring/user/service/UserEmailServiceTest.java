@@ -148,26 +148,33 @@ class UserEmailServiceTest {
         }
 
         @Test
-        @DisplayName("sendForgotPasswordVerificationEmail - handles empty app URL")
-        void sendForgotPasswordVerificationEmail_handlesEmptyAppUrl() {
+        @DisplayName("sendForgotPasswordVerificationEmail - rejects empty app URL")
+        void sendForgotPasswordVerificationEmail_rejectsEmptyAppUrl() {
             // Given
             String emptyUrl = "";
 
-            // When
-            userEmailService.sendForgotPasswordVerificationEmail(testUser, emptyUrl);
+            // When/Then
+            assertThatThrownBy(() -> userEmailService.sendForgotPasswordVerificationEmail(testUser, emptyUrl))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid application URL");
+        }
 
-            // Then
-            ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
-            verify(mailService).sendTemplateMessage(
-                    eq(testUser.getEmail()),
-                    eq("Password Reset"),
-                    variablesCaptor.capture(),
-                    eq("mail/forgot-password-token.html")
-            );
+        @Test
+        @DisplayName("sendForgotPasswordVerificationEmail - rejects null app URL")
+        void sendForgotPasswordVerificationEmail_rejectsNullAppUrl() {
+            // When/Then
+            assertThatThrownBy(() -> userEmailService.sendForgotPasswordVerificationEmail(testUser, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid application URL");
+        }
 
-            Map<String, Object> variables = variablesCaptor.getValue();
-            assertThat(variables.get("confirmationUrl")).asString()
-                    .startsWith("/user/changePassword?token=");
+        @Test
+        @DisplayName("sendForgotPasswordVerificationEmail - rejects javascript URL")
+        void sendForgotPasswordVerificationEmail_rejectsJavascriptUrl() {
+            // When/Then
+            assertThatThrownBy(() -> userEmailService.sendForgotPasswordVerificationEmail(testUser, "javascript:alert('xss')"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid application URL");
         }
 
         @Test
@@ -228,24 +235,30 @@ class UserEmailServiceTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationVerificationEmail - handles null app URL")
-        void sendRegistrationVerificationEmail_handlesNullAppUrl() {
-            // When
-            userEmailService.sendRegistrationVerificationEmail(testUser, null);
+        @DisplayName("sendRegistrationVerificationEmail - rejects null app URL")
+        void sendRegistrationVerificationEmail_rejectsNullAppUrl() {
+            // When/Then
+            assertThatThrownBy(() -> userEmailService.sendRegistrationVerificationEmail(testUser, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid application URL");
+        }
 
-            // Then
-            ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
-            verify(mailService).sendTemplateMessage(
-                    eq(testUser.getEmail()),
-                    eq("Registration Confirmation"),
-                    variablesCaptor.capture(),
-                    eq("mail/registration-token.html")
-            );
+        @Test
+        @DisplayName("sendRegistrationVerificationEmail - rejects empty app URL")
+        void sendRegistrationVerificationEmail_rejectsEmptyAppUrl() {
+            // When/Then
+            assertThatThrownBy(() -> userEmailService.sendRegistrationVerificationEmail(testUser, ""))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid application URL");
+        }
 
-            Map<String, Object> variables = variablesCaptor.getValue();
-            assertThat(variables.get("appUrl")).isNull();
-            assertThat(variables.get("confirmationUrl")).asString()
-                    .isEqualTo("null/user/registrationConfirm?token=" + variables.get("token"));
+        @Test
+        @DisplayName("sendRegistrationVerificationEmail - rejects javascript URL")
+        void sendRegistrationVerificationEmail_rejectsJavascriptUrl() {
+            // When/Then
+            assertThatThrownBy(() -> userEmailService.sendRegistrationVerificationEmail(testUser, "javascript:alert('xss')"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid application URL");
         }
 
         @Test
@@ -423,8 +436,9 @@ class UserEmailServiceTest {
             assertThat(auditEvent.getAction()).isEqualTo("adminInitiatedPasswordReset");
             assertThat(auditEvent.getActionStatus()).isEqualTo("Success");
             assertThat(auditEvent.getMessage()).contains(adminUser.getEmail());
-            assertThat(auditEvent.getExtraData()).contains("adminIdentifier:" + adminUser.getEmail());
-            assertThat(auditEvent.getExtraData()).contains("sessionsInvalidated:3");
+            // Audit extraData is now JSON format
+            assertThat(auditEvent.getExtraData()).contains("\"adminIdentifier\":\"" + adminUser.getEmail() + "\"");
+            assertThat(auditEvent.getExtraData()).contains("\"sessionsInvalidated\":3");
 
             // Verify email was sent
             verify(mailService).sendTemplateMessage(
@@ -455,11 +469,11 @@ class UserEmailServiceTest {
                     eq("mail/forgot-password-token.html")
             );
 
-            // Verify audit event shows 0 sessions invalidated
+            // Verify audit event shows 0 sessions invalidated (JSON format)
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
             AuditEvent auditEvent = auditCaptor.getValue();
-            assertThat(auditEvent.getExtraData()).contains("sessionsInvalidated:0");
+            assertThat(auditEvent.getExtraData()).contains("\"sessionsInvalidated\":0");
         }
 
         @Test
@@ -488,7 +502,7 @@ class UserEmailServiceTest {
         }
 
         @Test
-        @DisplayName("initiateAdminPasswordReset - includes correlation ID in audit extraData")
+        @DisplayName("initiateAdminPasswordReset - includes correlation ID in audit extraData as JSON")
         void initiateAdminPasswordReset_includesCorrelationIdInAuditExtraData() {
             // When
             userEmailService.initiateAdminPasswordReset(testUser, appUrl, false);
@@ -497,11 +511,10 @@ class UserEmailServiceTest {
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
             AuditEvent auditEvent = auditCaptor.getValue();
-            assertThat(auditEvent.getExtraData()).contains("correlationId:");
-            // Verify correlation ID is a UUID format
-            String extraData = auditEvent.getExtraData();
-            String correlationId = extraData.substring(extraData.lastIndexOf("correlationId:") + 14);
-            assertThat(correlationId).matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+            // Audit extraData is now JSON format
+            assertThat(auditEvent.getExtraData()).contains("\"correlationId\":\"");
+            // Verify correlation ID is a UUID format within JSON
+            assertThat(auditEvent.getExtraData()).matches(".*\"correlationId\":\"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\".*");
         }
 
         @Test
@@ -514,9 +527,9 @@ class UserEmailServiceTest {
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
             AuditEvent auditEvent = auditCaptor.getValue();
-            // Admin identifier should be from SecurityContext, not a parameter
+            // Admin identifier should be from SecurityContext, not a parameter (JSON format)
             assertThat(auditEvent.getMessage()).contains(adminUser.getEmail());
-            assertThat(auditEvent.getExtraData()).contains("adminIdentifier:" + adminUser.getEmail());
+            assertThat(auditEvent.getExtraData()).contains("\"adminIdentifier\":\"" + adminUser.getEmail() + "\"");
         }
 
         @Test
@@ -532,7 +545,7 @@ class UserEmailServiceTest {
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
             AuditEvent auditEvent = auditCaptor.getValue();
-            assertThat(auditEvent.getExtraData()).contains("adminIdentifier:UNKNOWN_ADMIN");
+            assertThat(auditEvent.getExtraData()).contains("\"adminIdentifier\":\"UNKNOWN_ADMIN\"");
         }
     }
 
@@ -634,7 +647,7 @@ class UserEmailServiceTest {
 
             // Then
             assertThat(annotation).isNotNull();
-            assertThat(annotation.value()).isEqualTo("hasRole('ROLE_ADMIN')");
+            assertThat(annotation.value()).isEqualTo("hasRole('ADMIN')");
         }
 
         @Test
@@ -648,7 +661,7 @@ class UserEmailServiceTest {
 
             // Then
             assertThat(annotation).isNotNull();
-            assertThat(annotation.value()).isEqualTo("hasRole('ROLE_ADMIN')");
+            assertThat(annotation.value()).isEqualTo("hasRole('ADMIN')");
         }
 
         @Test
@@ -662,7 +675,7 @@ class UserEmailServiceTest {
 
             // Then
             assertThat(annotation).isNotNull();
-            assertThat(annotation.value()).isEqualTo("hasRole('ROLE_ADMIN')");
+            assertThat(annotation.value()).isEqualTo("hasRole('ADMIN')");
         }
     }
 
@@ -685,12 +698,12 @@ class UserEmailServiceTest {
             // When
             userEmailService.initiateAdminPasswordReset(testUser, appUrl, ignoredAdminIdentifier, false);
 
-            // Then - admin identifier should be from SecurityContext, not the parameter
+            // Then - admin identifier should be from SecurityContext, not the parameter (JSON format)
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
             AuditEvent auditEvent = auditCaptor.getValue();
             // Should use admin from SecurityContext, not the ignored parameter
-            assertThat(auditEvent.getExtraData()).contains("adminIdentifier:" + adminUser.getEmail());
+            assertThat(auditEvent.getExtraData()).contains("\"adminIdentifier\":\"" + adminUser.getEmail() + "\"");
             assertThat(auditEvent.getExtraData()).doesNotContain(ignoredAdminIdentifier);
         }
 

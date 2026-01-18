@@ -50,7 +50,8 @@ public class UserEmailService {
      * Send forgot password verification email.
      *
      * @param user the user
-     * @param appUrl the app url
+     * @param appUrl the app url (must be a valid HTTP/HTTPS URL)
+     * @throws IllegalArgumentException if appUrl is null, blank, or uses a dangerous scheme
      */
     public void sendForgotPasswordVerificationEmail(final User user, final String appUrl) {
         log.debug("UserEmailService.sendForgotPasswordVerificationEmail: called with user: {}", user);
@@ -62,7 +63,7 @@ public class UserEmailService {
 
         eventPublisher.publishEvent(sendForgotPasswordEmailAuditEvent);
 
-        Map<String, Object> variables = createEmailVariables(user, appUrl, token, "/user/changePassword?token=");
+        Map<String, Object> variables = createEmailVariablesWithValidation(user, appUrl, token, "/user/changePassword?token=");
 
         mailService.sendTemplateMessage(user.getEmail(), "Password Reset", variables, "mail/forgot-password-token.html");
     }
@@ -73,13 +74,14 @@ public class UserEmailService {
      * Create a Verification token for the user, and send the email out.
      *
      * @param user the user
-     * @param appUrl the app url
+     * @param appUrl the app url (must be a valid HTTP/HTTPS URL)
+     * @throws IllegalArgumentException if appUrl is null, blank, or uses a dangerous scheme
      */
     public void sendRegistrationVerificationEmail(final User user, final String appUrl) {
         final String token = generateToken();
         userVerificationService.createVerificationTokenForUser(user, token);
 
-        Map<String, Object> variables = createEmailVariables(user, appUrl, token, "/user/registrationConfirm?token=");
+        Map<String, Object> variables = createEmailVariablesWithValidation(user, appUrl, token, "/user/registrationConfirm?token=");
 
         mailService.sendTemplateMessage(user.getEmail(), "Registration Confirmation", variables, "mail/registration-token.html");
     }
@@ -199,7 +201,7 @@ public class UserEmailService {
      * @return the number of sessions invalidated (0 if invalidateSessions is false)
      * @throws IllegalArgumentException if appUrl is invalid
      */
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public int initiateAdminPasswordReset(final User user, final String appUrl, final boolean invalidateSessions) {
         final String correlationId = generateToken();
         final String adminIdentifier = getCurrentAdminIdentifier();
@@ -236,7 +238,7 @@ public class UserEmailService {
      * @return the number of sessions invalidated
      * @throws IllegalStateException if user.admin.appUrl is not configured
      */
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public int initiateAdminPasswordReset(final User user) {
         if (configuredAppUrl == null || configuredAppUrl.isBlank()) {
             throw new IllegalStateException(
@@ -257,7 +259,7 @@ public class UserEmailService {
      *             The adminIdentifier is now derived from the SecurityContext for security.
      */
     @Deprecated(forRemoval = true)
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public int initiateAdminPasswordReset(final User user, final String appUrl, final String adminIdentifier,
             final boolean invalidateSessions) {
         log.warn("UserEmailService.initiateAdminPasswordReset: adminIdentifier parameter is deprecated and ignored. "
@@ -276,7 +278,7 @@ public class UserEmailService {
      *             The adminIdentifier is now derived from the SecurityContext for security.
      */
     @Deprecated(forRemoval = true)
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public int initiateAdminPasswordReset(final User user, final String adminIdentifier) {
         log.warn("UserEmailService.initiateAdminPasswordReset: adminIdentifier parameter is deprecated and ignored. "
                 + "Admin identity is now derived from SecurityContext.");
@@ -313,17 +315,56 @@ public class UserEmailService {
             final int invalidatedSessions, final String correlationId) {
         String auditMessage = String.format("Admin-initiated password reset by %s. Sessions invalidated: %d",
                 adminIdentifier, invalidatedSessions);
+
+        String extraDataJson = buildAuditExtraData(adminIdentifier, invalidatedSessions, correlationId);
+
         AuditEvent adminPasswordResetAuditEvent = AuditEvent.builder()
                 .source(this)
                 .user(user)
                 .action("adminInitiatedPasswordReset")
                 .actionStatus("Success")
                 .message(auditMessage)
-                .extraData(String.format("adminIdentifier:%s,sessionsInvalidated:%d,correlationId:%s",
-                        adminIdentifier, invalidatedSessions, correlationId))
+                .extraData(extraDataJson)
                 .build();
 
         eventPublisher.publishEvent(adminPasswordResetAuditEvent);
+    }
+
+    /**
+     * Builds the audit extra data as a JSON string for easier parsing in audit dashboards.
+     * Uses manual JSON construction for simplicity and to avoid Jackson version dependencies.
+     *
+     * @param adminIdentifier the admin's identifier
+     * @param invalidatedSessions the number of sessions invalidated
+     * @param correlationId the correlation ID for tracking
+     * @return JSON string containing the audit data
+     */
+    private String buildAuditExtraData(final String adminIdentifier, final int invalidatedSessions,
+            final String correlationId) {
+        // Escape any special characters in string values for JSON safety
+        String escapedAdminId = escapeJsonString(adminIdentifier);
+        String escapedCorrelationId = escapeJsonString(correlationId);
+
+        return String.format("{\"adminIdentifier\":\"%s\",\"sessionsInvalidated\":%d,\"correlationId\":\"%s\"}",
+                escapedAdminId, invalidatedSessions, escapedCorrelationId);
+    }
+
+    /**
+     * Escapes special characters in a string for safe JSON inclusion.
+     *
+     * @param value the string to escape
+     * @return the escaped string
+     */
+    private String escapeJsonString(final String value) {
+        if (value == null) {
+            return "null";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 
     /**
