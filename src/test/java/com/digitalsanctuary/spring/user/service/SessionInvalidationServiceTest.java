@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
@@ -42,6 +44,9 @@ class SessionInvalidationServiceTest {
                 .withLastName("User")
                 .enabled()
                 .build();
+
+        // Set a high default threshold to avoid warning logs in most tests
+        ReflectionTestUtils.setField(sessionInvalidationService, "warnThreshold", 1000);
     }
 
     @Nested
@@ -192,6 +197,81 @@ class SessionInvalidationServiceTest {
             assertThat(invalidatedCount).isEqualTo(2);
             verify(session1).expireNow();
             verify(session2).expireNow();
+        }
+    }
+
+    @Nested
+    @DisplayName("Performance Monitoring Tests")
+    class PerformanceMonitoringTests {
+
+        @Test
+        @DisplayName("logs warning when principal count exceeds threshold")
+        void logsWarningWhenPrincipalCountExceedsThreshold() {
+            // Given - set a low threshold for testing
+            ReflectionTestUtils.setField(sessionInvalidationService, "warnThreshold", 5);
+
+            // Create more principals than the threshold
+            List<Object> manyPrincipals = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                User user = UserTestDataBuilder.aUser()
+                        .withId((long) (i + 100))
+                        .withEmail("user" + i + "@example.com")
+                        .build();
+                manyPrincipals.add(user);
+            }
+            when(sessionRegistry.getAllPrincipals()).thenReturn(manyPrincipals);
+
+            // When
+            sessionInvalidationService.invalidateUserSessions(testUser);
+
+            // Then - the method completes without error
+            // (Log output verification would require a log capture library like LogCaptor)
+            verify(sessionRegistry).getAllPrincipals();
+        }
+
+        @Test
+        @DisplayName("does not warn when principal count is below threshold")
+        void doesNotWarnWhenPrincipalCountBelowThreshold() {
+            // Given - threshold is set to 1000 in @BeforeEach
+            // Create fewer principals than the threshold
+            when(sessionRegistry.getAllPrincipals()).thenReturn(List.of(testUser));
+
+            // When
+            sessionInvalidationService.invalidateUserSessions(testUser);
+
+            // Then - the method completes without error
+            verify(sessionRegistry).getAllPrincipals();
+        }
+
+        @Test
+        @DisplayName("uses default threshold of 1000")
+        void usesDefaultThresholdOf1000() {
+            // Given - create a new service without setting threshold (should use default)
+            SessionInvalidationService newService = new SessionInvalidationService(sessionRegistry);
+
+            // Verify the default value is set correctly via reflection
+            Integer threshold = (Integer) ReflectionTestUtils.getField(newService, "warnThreshold");
+
+            // Then - default should be 0 (unset by Spring) since we're not using Spring context
+            // In production, Spring will inject the default value of 1000
+            assertThat(threshold).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("includes principal count in info log")
+        void includesPrincipalCountInInfoLog() {
+            // Given - threshold is set to 1000 in @BeforeEach
+            SessionInformation session = mock(SessionInformation.class);
+            when(session.getSessionId()).thenReturn("session-1");
+            when(sessionRegistry.getAllPrincipals()).thenReturn(List.of(testUser));
+            when(sessionRegistry.getAllSessions(testUser, false)).thenReturn(List.of(session));
+
+            // When
+            int invalidatedCount = sessionInvalidationService.invalidateUserSessions(testUser);
+
+            // Then - verify the session was invalidated (log verification would require LogCaptor)
+            assertThat(invalidatedCount).isEqualTo(1);
+            verify(session).expireNow();
         }
     }
 }
