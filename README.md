@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Spring Boot 4](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen)](https://spring.io/projects/spring-boot)
 [![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.5-blue)](https://spring.io/projects/spring-boot)
-[![Java Version](https://img.shields.io/badge/Java-17%20|%2021-brightgreen)](https://www.oracle.com/java/technologies/downloads/)
+[![Java Version](https://img.shields.io/badge/Java-17%20|%2021%20|%2025-brightgreen)](https://www.oracle.com/java/technologies/downloads/)
 
 A comprehensive Spring Boot User Management Framework that simplifies the implementation of robust user authentication and management features. Built on top of Spring Security, this library provides ready-to-use solutions for user registration, login, account management, and more.
 
