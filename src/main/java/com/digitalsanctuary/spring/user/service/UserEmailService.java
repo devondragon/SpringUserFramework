@@ -23,7 +23,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserEmailService class provides methods for sending emails to users for various purposes, such as registration verification and password reset.
+ * Service for sending user-related emails.
+ *
+ * <p>Provides methods for sending emails to users for various purposes including
+ * registration verification, password reset (both user-initiated and admin-initiated),
+ * and other account-related notifications. Uses secure token generation and URL validation
+ * to prevent injection attacks.</p>
+ *
+ * <p>Admin-initiated password resets require the {@code ADMIN} role and support optional
+ * session invalidation for enhanced security.</p>
+ *
+ * @author Devon Hillard
+ * @see MailService
+ * @see UserVerificationService
  */
 @Slf4j
 @RequiredArgsConstructor

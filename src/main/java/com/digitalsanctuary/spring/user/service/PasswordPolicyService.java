@@ -39,13 +39,17 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * The PasswordPolicyService enforces configurable password validation rules
- * such as length, character types, similarity checks,
- * dictionary-based rejection, and password history. Built using Passay. More
- * info:
- * https://github.com/devondragon/SpringUserFramework/issues/158
- * 
+ * Service that enforces configurable password validation rules.
+ *
+ * <p>Validates passwords against configurable policies including length requirements,
+ * character type requirements (uppercase, lowercase, digits, special characters),
+ * similarity checks against username/email, dictionary-based rejection of common passwords,
+ * and password history to prevent reuse. Built using the Passay library.</p>
+ *
+ * <p>Configuration is done via {@code user.security.password.*} properties.</p>
+ *
  * @author Edamijueda
+ * @see <a href="https://github.com/devondragon/SpringUserFramework/issues/158">GitHub Issue #158</a>
  */
 @Slf4j
 @RequiredArgsConstructor

@@ -11,8 +11,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The ExpiredTokenCleanJob is a Service which purges expired registration email verification tokens and password reset tokens based on the schedule
- * defined in user.purgetokens.cron.expression in your application.properties.
+ * Scheduled job service that purges expired registration email verification tokens
+ * and password reset tokens. Runs on a cron schedule defined by the
+ * {@code user.purgetokens.cron.expression} property in application configuration.
+ *
+ * @see com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository
+ * @see com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository
  */
 @Slf4j
 @Service

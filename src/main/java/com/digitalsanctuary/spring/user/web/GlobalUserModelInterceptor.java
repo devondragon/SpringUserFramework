@@ -15,7 +15,26 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Interceptor to add the current user to the model for applicable requests.
+ * Spring MVC interceptor that conditionally adds the authenticated user to the model.
+ *
+ * <p>This interceptor supports two modes of operation controlled by
+ * {@link UserWebConfig#globalUserModelOptIn}:</p>
+ *
+ * <ul>
+ *   <li><strong>Opt-In Mode (default, globalUserModelOptIn=false):</strong> User is only added
+ *       to the model for controllers/methods annotated with {@link IncludeUserInModel}.</li>
+ *   <li><strong>Opt-Out Mode (globalUserModelOptIn=true):</strong> User is added to all views
+ *       by default, except those annotated with {@link ExcludeUserFromModel}.</li>
+ * </ul>
+ *
+ * <p>The user object is retrieved from the Spring Security context and added to the model
+ * as the {@code user} attribute when applicable.</p>
+ *
+ * @author Digital Sanctuary
+ * @see UserWebConfig
+ * @see IncludeUserInModel
+ * @see ExcludeUserFromModel
+ * @see org.springframework.web.servlet.HandlerInterceptor
  */
 @Slf4j
 @Component

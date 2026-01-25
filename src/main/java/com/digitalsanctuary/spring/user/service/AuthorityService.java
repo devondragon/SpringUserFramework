@@ -13,8 +13,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The AuthorityService class provides helper methods for generating Spring Security's GrantedAuthority objects from a collection of roles and
- * privileges.
+ * Service for generating Spring Security {@link GrantedAuthority} objects from user roles and privileges.
+ *
+ * <p>This service converts the application's role-based permission model into Spring Security's
+ * authority-based model by extracting privilege names from assigned roles.</p>
+ *
+ * @see GrantedAuthority
+ * @see Role
+ * @see Privilege
  */
 @Slf4j
 @RequiredArgsConstructor

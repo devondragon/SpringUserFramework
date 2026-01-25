@@ -11,23 +11,23 @@ import com.digitalsanctuary.spring.user.profile.BaseUserProfile;
 import lombok.Data;
 
 /**
- * Base class for session-scoped user profile management. This class provides the foundation for maintaining user profile data within the session
- * context of a web application. It is designed to be extended by applications to add custom profile management functionality.
+ * Abstract base class for session-scoped user profile management.
+ * Provides the foundation for maintaining user profile data within the HTTP session
+ * context of a web application. Extend this class to add custom profile management functionality.
  *
  * <p>
- * This class is session-scoped and uses proxy mode TARGET_CLASS to ensure proper session management in a web environment. It maintains a reference to
- * the user's profile and tracks when it was last updated.
+ * This class is session-scoped and uses proxy mode TARGET_CLASS to ensure proper
+ * session management in a web environment. It maintains a reference to the user's
+ * profile and tracks when it was last updated.
  * </p>
  *
  * <p>
  * Example usage:
  * </p>
  *
- * <pre>
- * {@code
+ * <pre>{@code
  * @Component
  * public class CustomSessionProfile extends BaseSessionProfile<CustomUserProfile> {
- *     // Add custom methods for your application
  *     public boolean hasSpecificPermission() {
  *         return getUserProfile().getPermissions().contains("SPECIFIC_PERMISSION");
  *     }
@@ -37,8 +37,7 @@ import lombok.Data;
  * @param <T> the type of user profile, must extend BaseUserProfile
  *
  * @see BaseUserProfile
- * @see WebApplicationContext
- * @see Serializable
+ * @see WebApplicationContext#SCOPE_SESSION
  */
 @Data
 @Component

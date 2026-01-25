@@ -18,24 +18,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
+ * OAuth2 user service implementation for handling OAuth2 authentication (Google, Facebook).
  *
- * This class is an implementation of the OAuth2UserService interface that is used to handle OAuth2 logins for a Spring Security application. It
- * provides methods to handle successful OAuth2 logins, register new users with OAuth2 accounts, update existing users with new OAuth2 information,
- * and retrieve user information from an OAuth2User object. This service is used in conjunction with Spring Security's OAuth2LoginConfigurer to enable
- * OAuth2 login functionality for a web application. The OAuth2LoginConfigurer configures Spring Security to authenticate users with an OAuth2
- * provider, and uses this service to handle the authentication process and retrieve user information from the provider. This class is annotated with
- * the @Service annotation to indicate that it is a Spring service that should be automatically detected and instantiated by the Spring container.
+ * <p>Handles the OAuth2 login flow by processing user information from OAuth2 providers,
+ * registering new users or updating existing ones, and creating the authentication principal.</p>
  *
- * @see org.springframework.security.oauth2.client.registration.ClientRegistration
- * @see org.springframework.security.oauth2.client.userinfo.OAuth2UserService
- * @see org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest
- * @see org.springframework.security.oauth2.core.user.OAuth2User
- * @see org.springframework.security.oauth2.core.user.DefaultOAuth2User
- * @see org.springframework.security.oauth2.core.user.OAuth2UserAuthority
- * @see org.springframework.security.core.userdetails.UserDetails
- * @see org.springframework.security.core.userdetails.User
- * @see com.digitalsanctuary.spring.user.persistence.model.User
- * @see com.digitalsanctuary.spring.user.persistence.repository.UserRepository
+ * <p>Supported providers: Google, Facebook. For OIDC providers like Keycloak, see {@link DSOidcUserService}.</p>
+ *
+ * @see OAuth2UserService
+ * @see DSOidcUserService
+ * @see DSUserDetails
  */
 @Slf4j
 @Service

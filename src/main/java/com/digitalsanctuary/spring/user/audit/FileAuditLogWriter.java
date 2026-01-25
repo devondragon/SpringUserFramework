@@ -12,20 +12,41 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Implementation of {@link AuditLogWriter} that writes audit logs to a file. This class handles the lifecycle of the log file, including opening,
- * writing, and closing the file. It also supports scheduled flushing of the buffer to balance performance with data integrity.
+ * File-based implementation of {@link AuditLogWriter} that writes audit events to a log file.
+ *
+ * <p>This component manages the complete lifecycle of the audit log file, including:
+ * <ul>
+ *   <li>Opening and creating the log file on startup ({@code @PostConstruct})</li>
+ *   <li>Writing formatted audit events with pipe-delimited fields</li>
+ *   <li>Periodic buffer flushing via {@link FileAuditLogFlushScheduler}</li>
+ *   <li>Graceful cleanup on shutdown ({@code @PreDestroy})</li>
+ * </ul>
+ *
+ * <p>If the configured log path is not writable, the writer falls back to a temporary
+ * directory location.
+ *
+ * @see AuditLogWriter
+ * @see AuditConfig
+ * @see FileAuditLogFlushScheduler
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class FileAuditLogWriter implements AuditLogWriter {
 
     private final AuditConfig auditConfig;
     private BufferedWriter bufferedWriter;
+
+    /**
+     * Creates a new FileAuditLogWriter with the required dependencies.
+     *
+     * @param auditConfig the audit configuration
+     */
+    public FileAuditLogWriter(AuditConfig auditConfig) {
+        this.auditConfig = auditConfig;
+    }
 
     /**
      * Initializes the log file writer. This method is called after the bean is constructed. It validates the configuration and opens the log file for

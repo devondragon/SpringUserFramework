@@ -15,7 +15,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserPageController for the user management pages.
+ * MVC controller that serves user management HTML pages.
+ * <p>
+ * Handles page rendering for login, registration, password reset,
+ * profile update, and account management views. Each method returns
+ * a Thymeleaf template name for the corresponding user interface page.
+ * </p>
+ *
+ * @author Digital Sanctuary
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -143,10 +150,12 @@ public class UserPageController {
 
 
 	/**
+	 * Displays the user profile update page with pre-populated user data.
+	 *
 	 * @param userDetails the user details
 	 * @param request the request
 	 * @param model the model
-	 * @return String
+	 * @return the view name for the update user page
 	 */
 	@GetMapping("${user.security.updateUserURI:/user/update-user.html}")
 	public String updateUser(@AuthenticationPrincipal DSUserDetails userDetails, final HttpServletRequest request,

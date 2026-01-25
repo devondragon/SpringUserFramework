@@ -17,7 +17,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The LoginSuccessService is called after a user successfully logs in.
+ * Service that handles successful user authentication events.
+ *
+ * <p>Extends {@link SavedRequestAwareAuthenticationSuccessHandler} to provide custom
+ * post-authentication processing including audit event publishing and redirect handling.
+ * Configurable via {@code user.security.loginSuccessURI} and
+ * {@code user.security.alwaysUseDefaultTargetUrl} properties.</p>
+ *
+ * @author Devon Hillard
+ * @see SavedRequestAwareAuthenticationSuccessHandler
  */
 @Slf4j
 @RequiredArgsConstructor

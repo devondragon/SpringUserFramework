@@ -11,9 +11,18 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * This class is used to listen for authentication events and handle account lockout functionality if needed.
+ * Listens for Spring Security authentication events and manages account lockout functionality.
+ * Handles both successful and failed authentication attempts across different authentication
+ * types including form login, OAuth2, and OIDC.
  *
- * https://github.com/devondragon/SpringUserFramework/issues/29
+ * <p>
+ * This listener integrates with {@link LoginAttemptService} to track login attempts and
+ * enforce brute-force protection policies.
+ * </p>
+ *
+ * @see LoginAttemptService
+ * @see AuthenticationSuccessEvent
+ * @see AbstractAuthenticationFailureEvent
  */
 @Slf4j
 @RequiredArgsConstructor

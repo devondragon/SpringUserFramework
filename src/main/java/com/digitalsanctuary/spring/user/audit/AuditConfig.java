@@ -6,14 +6,30 @@ import org.springframework.stereotype.Component;
 import lombok.Data;
 
 /**
- * The AuditConfig class is a Spring Boot configuration class that provides properties for configuring user audit logging. This class is used to
- * define properties that control the behavior of the audit logging, such as the log file path and the flush rate.
+ * Configuration properties for the user audit logging system.
+ *
+ * <p>This class defines properties that control the behavior of audit logging,
+ * including the log file path, flush behavior, and event logging toggle.
+ * Properties are bound from the {@code user.audit.*} prefix in application configuration.
+ *
+ * <p>The class uses Lombok's {@code @Data} annotation which generates getters, setters,
+ * and a default no-argument constructor.
+ *
+ * @see AuditLogWriter
+ * @see AuditEventListener
  */
 @Data
 @Component
 @PropertySource("classpath:config/dsspringuserconfig.properties")
 @ConfigurationProperties(prefix = "user.audit")
 public class AuditConfig {
+
+    /**
+     * Creates a new AuditConfig instance with default values.
+     */
+    public AuditConfig() {
+        // Default constructor for Spring configuration binding
+    }
 
     /**
      * The enabled flag. If set to false, audit logging will be disabled.

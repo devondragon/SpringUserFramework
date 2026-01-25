@@ -10,8 +10,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * DSUserDetailsService is an implementation of Spring Security's UserDetailsService. It is responsible for loading user-specific data during
- * authentication.
+ * Spring Security {@link UserDetailsService} implementation for loading user authentication data.
+ *
+ * <p>This service retrieves user information from the database by email address and constructs
+ * the {@link DSUserDetails} object used by Spring Security during authentication.</p>
+ *
+ * @see UserDetailsService
+ * @see DSUserDetails
  */
 @Slf4j
 @RequiredArgsConstructor

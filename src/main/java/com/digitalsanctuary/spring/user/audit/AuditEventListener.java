@@ -3,24 +3,42 @@ package com.digitalsanctuary.spring.user.audit;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * This class processes AuditEvents. This class writes the AuditEvent data to a text file on the server. You could easily change the logic to write to
- * a database, send events to a REST API, or anything else.
+ * Spring event listener that processes {@link AuditEvent} instances asynchronously.
+ *
+ * <p>This component listens for audit events and delegates the writing of event data
+ * to an {@link AuditLogWriter} implementation. The processing is asynchronous to avoid
+ * impacting application performance.
+ *
+ * <p>The listener only processes events when audit logging is enabled via
+ * {@code AuditConfig.isLogEvents()}. All exceptions are caught and logged to ensure
+ * audit failures never impact application flow.
  *
  * @see AuditEvent
+ * @see AuditLogWriter
+ * @see AuditConfig
  */
 @Slf4j
 @Async
 @Component
-@RequiredArgsConstructor
 public class AuditEventListener {
 
 	private final AuditConfig auditConfig;
 
 	private final AuditLogWriter auditLogWriter;
+
+	/**
+	 * Creates a new AuditEventListener with the required dependencies.
+	 *
+	 * @param auditConfig the audit configuration
+	 * @param auditLogWriter the audit log writer
+	 */
+	public AuditEventListener(AuditConfig auditConfig, AuditLogWriter auditLogWriter) {
+		this.auditConfig = auditConfig;
+		this.auditLogWriter = auditLogWriter;
+	}
 
 	/**
 	 * Handle the AuditEvents.

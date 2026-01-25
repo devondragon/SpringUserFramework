@@ -8,8 +8,14 @@ import lombok.Data;
 import lombok.ToString;
 
 /**
- * A user dto. This object is used for handling user related form data (registration, forms passing in email addresses,
- * etc...).
+ * Data Transfer Object for user registration and related form data.
+ * <p>
+ * Used for handling user registration forms and related operations. Contains user details
+ * including name, email, password with confirmation, and optional role assignment.
+ * Validated using {@link PasswordMatches} to ensure password confirmation matches.
+ * </p>
+ *
+ * @author Digital Sanctuary
  */
 @Data
 @PasswordMatches

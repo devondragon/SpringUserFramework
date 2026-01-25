@@ -17,24 +17,18 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
 /**
+ * OIDC user service implementation for handling OpenID Connect authentication (Keycloak).
  *
- * This class is an implementation of the OAuth2UserService interface that is used to handle Oidc logins for a Spring Security application. It
- * provides methods to handle successful Oidc logins, register new users with Oidc accounts, update existing users with new Oidc information,
- * and retrieve user information from an OidcUser object. This service is used in conjunction with Spring Security's OAuth2LoginConfigurer to enable
- * Oidc login functionality for a web application. The OAuth2LoginConfigurer configures Spring Security to authenticate users with an Oidc
- * provider, and uses this service to handle the authentication process and retrieve user information from the provider. This class is annotated with
- * the @Service annotation to indicate that it is a Spring service that should be automatically detected and instantiated by the Spring container.
+ * <p>Handles the OIDC login flow by processing user information from OIDC providers,
+ * registering new users or updating existing ones, and creating the authentication principal
+ * with OIDC-specific tokens and claims.</p>
  *
- * @see org.springframework.security.oauth2.client.registration.ClientRegistration
+ * <p>Supported providers: Keycloak. For standard OAuth2 providers like Google and Facebook,
+ * see {@link DSOAuth2UserService}.</p>
+ *
  * @see OAuth2UserService
- * @see OAuth2UserRequest
- * @see OAuth2User
- * @see org.springframework.security.oauth2.core.user.DefaultOAuth2User
- * @see org.springframework.security.oauth2.core.user.OAuth2UserAuthority
- * @see org.springframework.security.core.userdetails.UserDetails
- * @see org.springframework.security.core.userdetails.User
- * @see User
- * @see UserRepository
+ * @see DSOAuth2UserService
+ * @see DSUserDetails
  */
 @Slf4j
 @Service

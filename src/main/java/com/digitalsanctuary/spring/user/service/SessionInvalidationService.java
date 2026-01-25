@@ -10,8 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Service for invalidating user sessions. This is useful for admin-initiated password resets
- * and other security operations that require forcing users to re-authenticate.
+ * Service for invalidating user sessions.
+ *
+ * <p>Provides functionality to invalidate all active sessions for a given user, useful for
+ * admin-initiated password resets and other security operations that require forcing users
+ * to re-authenticate.</p>
  *
  * <p><strong>Race Condition Note:</strong> This service uses Spring's SessionRegistry to track
  * and invalidate sessions. Due to the nature of the SessionRegistry API, there is an inherent
@@ -19,6 +22,9 @@ import lombok.extern.slf4j.Slf4j;
  * but before {@link SessionInformation#expireNow()} completes will not be invalidated. This is
  * a known limitation of the SessionRegistry approach. For most use cases (admin password reset),
  * this is acceptable as the window is very small.</p>
+ *
+ * @author Devon Hillard
+ * @see SessionRegistry
  */
 @Slf4j
 @RequiredArgsConstructor
