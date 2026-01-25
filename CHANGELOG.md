@@ -1,3 +1,95 @@
+## [4.0.2] - 2026-01-25
+### Features
+- Admin-initiated password reset with optional session invalidation
+  - Added SessionInvalidationService to expire all active sessions for a user using Spring Security’s SessionRegistry, with a documented race-condition caveat (sessions created during the sweep may survive).
+  - Extended UserEmailService with new admin reset entry points:
+    - initiateAdminPasswordReset(User user, String appUrl, boolean invalidateSessions)
+    - initiateAdminPasswordReset(User user) – uses configured user.admin.appUrl, defaults to invalidating sessions.
+  - End-to-end flow:
+    - Generates a cryptographically secure, URL-safe Base64 token (256-bit entropy) for reset links.
+    - Sends password reset email with validated app URL and reset link path (/user/changePassword?token=).
+    - Optionally invalidates all user sessions.
+    - Publishes an audit event with action adminInitiatedPasswordReset, correlation ID, admin identity, and session counts.
+  - Security hardening baked into the feature:
+    - @PreAuthorize now uses hasRole('ADMIN') (Spring auto-prefixes ROLE_) on admin APIs.
+    - Admin identity is derived from the SecurityContext (prevents log injection and spoofing).
+    - URL validation rejects dangerous schemes (javascript:, data:) for appUrl.
+    - Operation order improved to avoid accidental lockout: token creation + email send happen before session invalidation.
+  - Configuration support:
+    - user.admin.appUrl for default reset link base URL.
+    - user.session.invalidation.warn-threshold for performance warnings on principal scans.
+  - Extensive tests added covering session invalidation behavior, email content/link generation, authorization metadata, URL validation, audit contents, and token format.
+
+### Fixes
+- Security and robustness improvements in the new admin reset capability
+  - Reordered initiateAdminPasswordReset steps to prevent a user lockout if token creation/email sending fails.
+  - Replaced UUID.randomUUID() tokens with SecureRandom-based 32-byte tokens encoded as URL-safe Base64 (no padding).
+  - Switched audit extraData from CSV-like strings to JSON for safe, predictable parsing.
+  - Replaced ad-hoc JSON-escaping with Jackson ObjectMapper to safely serialize audit metadata.
+  - Truncated session IDs to first 8 characters in debug logs to reduce exposure risk.
+- Authorization annotation correctness
+  - Changed @PreAuthorize("hasRole('ROLE_ADMIN')") to @PreAuthorize("hasRole('ADMIN')") in all admin APIs to match Spring Security’s ROLE_ auto-prefixing.
+- OIDC claim safety
+  - DSUserDetails.getClaims() now guards against null OIDC user info, returning an empty map instead of throwing a NullPointerException.
+
+### Breaking Changes
+- Audit event extraData format changed from ad-hoc CSV to JSON
+  - If any downstream systems parse AuditEvent.extraData, update them to expect JSON (e.g., {"adminIdentifier":"...","sessionsInvalidated":3,"correlationId":"..."}).
+- Token and correlation ID formats
+  - Password reset and verification tokens are now URL-safe Base64 (43 chars for 32 bytes) instead of UUIDs.
+  - The correlationId used in audit extraData was also moved to URL-safe Base64 in later changes. Update any format assumptions in log-processing pipelines.
+- API method deprecations (not removals)
+  - Admin reset overloads taking an explicit adminIdentifier are now deprecated; admin identity is derived from the SecurityContext. No functional break, but planned for removal later.
+
+### Refactoring
+- UserEmailService
+  - Extracted helper methods to align with SRP:
+    - URL validation (isValidAppUrl), password-reset email sending (sendPasswordResetEmail), session invalidation handling (handleSessionInvalidation), and audit emission (publishAdminPasswordResetAuditEvent).
+  - Centralized JSON serialization for audit metadata via ObjectMapper.
+- SessionInvalidationService
+  - Added performance logging and warn threshold configuration.
+  - Documented inherent SessionRegistry race condition and included safer logging for session IDs.
+
+### Documentation
+- Admin password reset documentation
+  - README: Added to Features list, detailed usage examples (with/without session invalidation, using configured appUrl), security notes (role requirements, URL validation, operation ordering), and configuration snippet.
+  - CONFIG.md: New Admin Settings section documenting user.admin.appUrl and user.session.invalidation.warn-threshold.
+- Version and compatibility updates
+  - README install snippets updated to 4.0.2; added Java 25 to supported Java badge.
+- Developer guidance
+  - CLAUDE.md substantially rewritten with architecture overview, package map, entry points, core services, extension points, configuration namespaces, and common commands.
+- JavaDoc quality pass
+  - Added/standardized class-level JavaDoc across 40+ classes; added lombok.config and Javadoc task options to suppress Lombok-generated constructor warnings; restored consistent @RequiredArgsConstructor usage where appropriate.
+
+### Testing
+- New and expanded test coverage
+  - SessionInvalidationServiceTest:
+    - Validates mixed principal types (User and DSUserDetails), correct counting, performance warnings, and resilience on empty/null inputs.
+  - UserEmailServiceTest:
+    - Verifies admin-initiated flow (email sending, token creation, session invalidation counts).
+    - Ensures URL validation rejects null/empty and javascript: schemes.
+    - Confirms @PreAuthorize role expressions are correct (hasRole('ADMIN')).
+    - Validates audit extraData JSON content and correlation ID format.
+    - Updates for token format: assertions now check URL-safe Base64 43-character tokens.
+- Test dependency updates
+  - Testcontainers upgraded from 2.0.2 to 2.0.3 (core and MariaDB modules).
+
+### Other Changes
+- Dependency and build updates
+  - Spring Boot bumped from 4.0.0 to 4.0.1.
+  - com.vanniktech.maven.publish upgraded 0.35.0 → 0.36.0.
+  - Project version set to 4.0.2-SNAPSHOT post-release.
+- CI/CD and workflows
+  - Updated Claude Code Review and PR Assistant GitHub Actions:
+    - Permissions adjusted (read vs write), token input switched to claude_code_oauth_token, documentation links updated, allowed-tools refined.
+- Repository hygiene
+  - Removed obsolete planning docs and boilerplate (DEMO_APP_CHANGES_REQUIRED.md, IMPLEMENTATION_PLAN_PASSWORD_FIXES.md, HELP.md).
+
+Notes for integrators:
+- If you parse audit logs or rely on token/correlation ID formats, update your parsers to expect JSON extraData and URL-safe Base64 tokens/IDs.
+- Ensure the admin role mapping aligns with Spring’s ROLE_ prefixing; the correct expression is hasRole('ADMIN').
+- Configure user.admin.appUrl if using the convenience admin reset method without passing an explicit app URL.
+
 ## [4.0.1] - 2025-12-15
 ### Features
 - No user-facing features in this set of commits.
