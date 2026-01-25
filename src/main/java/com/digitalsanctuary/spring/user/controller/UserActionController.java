@@ -29,7 +29,7 @@ import lombok.extern.slf4j.Slf4j;
  * are typically accessed when users click links in system-generated emails.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  * @see UserService
  * @see UserVerificationService
  */

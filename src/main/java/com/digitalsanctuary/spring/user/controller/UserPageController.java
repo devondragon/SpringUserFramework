@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
  * a Thymeleaf template name for the corresponding user interface page.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  */
 @Slf4j
 @RequiredArgsConstructor

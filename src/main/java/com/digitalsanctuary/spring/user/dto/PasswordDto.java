@@ -12,7 +12,7 @@ import lombok.ToString;
  * Contains the old password, new password, and optional reset token.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  */
 @Data
 public class PasswordDto {

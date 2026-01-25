@@ -12,7 +12,7 @@ import lombok.Data;
  * The email is validated for format and length constraints.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  */
 @Data
 public class PasswordResetRequestDto {

@@ -11,7 +11,7 @@ import lombok.Data;
  * and enters a new password. Contains the reset token and the new password with confirmation.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  */
 @Data
 public class SavePasswordDto {

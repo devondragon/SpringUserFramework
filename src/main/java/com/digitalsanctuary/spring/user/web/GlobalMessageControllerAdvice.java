@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
  * <p>Usage example: Redirect to {@code /somepage?messageKey=user.created.success} and
  * the resolved message will be available as the {@code message} model attribute.</p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  * @see org.springframework.web.bind.annotation.ControllerAdvice
  * @see org.springframework.context.MessageSource
  */

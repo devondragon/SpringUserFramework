@@ -11,7 +11,7 @@ import lombok.Data;
  * Separate from {@link UserDto} to avoid requiring password fields during profile updates.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  */
 @Data
 public class UserProfileUpdateDto {

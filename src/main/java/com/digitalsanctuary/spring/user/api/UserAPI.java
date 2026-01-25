@@ -45,7 +45,7 @@ import lombok.extern.slf4j.Slf4j;
  * {@code /user} and return JSON responses.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  * @see UserService
  * @see UserEmailService
  */

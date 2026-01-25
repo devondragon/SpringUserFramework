@@ -15,7 +15,7 @@ import lombok.ToString;
  * Validated using {@link PasswordMatches} to ensure password confirmation matches.
  * </p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  */
 @Data
 @PasswordMatches

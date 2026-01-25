@@ -30,7 +30,7 @@ import lombok.extern.slf4j.Slf4j;
  * <p>The user object is retrieved from the Spring Security context and added to the model
  * as the {@code user} attribute when applicable.</p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  * @see UserWebConfig
  * @see IncludeUserInModel
  * @see ExcludeUserFromModel

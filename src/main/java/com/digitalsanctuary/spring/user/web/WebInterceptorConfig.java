@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
  * automatic user model injection for MVC controllers. The interceptor is applied to
  * all paths except static resources (CSS, JS, images, etc.).</p>
  *
- * @author Digital Sanctuary
+ * @author Devon Hillard
  * @see GlobalUserModelInterceptor
  * @see org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  */
