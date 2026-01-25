@@ -11,8 +11,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserVerificationService class is a Spring service class that provides methods for managing user verification tokens. This class is used to
- * create, validate, and delete verification tokens for users.
+ * Service for managing user verification tokens.
+ *
+ * <p>Provides methods for creating, validating, and deleting verification tokens used
+ * during user registration and email verification workflows. Handles token expiration
+ * and automatic user enablement upon successful verification.</p>
+ *
+ * @author Devon Hillard
+ * @see VerificationToken
+ * @see UserService
  */
 @Slf4j
 @RequiredArgsConstructor

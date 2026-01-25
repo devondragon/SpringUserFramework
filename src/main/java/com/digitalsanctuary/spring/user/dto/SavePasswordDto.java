@@ -6,8 +6,12 @@ import lombok.Data;
 
 /**
  * Data Transfer Object for saving a new password after password reset.
+ * <p>
  * Used in the password reset flow after the user clicks the link in their email
- * and enters a new password.
+ * and enters a new password. Contains the reset token and the new password with confirmation.
+ * </p>
+ *
+ * @author Devon Hillard
  */
 @Data
 public class SavePasswordDto {

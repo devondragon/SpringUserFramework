@@ -12,9 +12,17 @@ import lombok.extern.slf4j.Slf4j;
 
 
 /**
- * The LoginAttemptService can be used to track successful and failed logins by Username, and can be used to block attacks on user accounts. For IP
- * based blocking and rate limiting see Bucket4J and the Bucket4J Spring Boot Starter. More info can found here -
- * https://github.com/devondragon/SpringUserFramework/issues/57
+ * Service for tracking login attempts and implementing account lockout protection.
+ *
+ * <p>Tracks successful and failed login attempts per user account. When failed attempts exceed the
+ * configured threshold ({@code user.security.failedLoginAttempts}), the account is locked for the
+ * duration specified by {@code user.security.accountLockoutDuration}.</p>
+ *
+ * <p>For IP-based blocking and rate limiting, see Bucket4J and the Bucket4J Spring Boot Starter.
+ * More information: <a href="https://github.com/devondragon/SpringUserFramework/issues/57">GitHub Issue #57</a></p>
+ *
+ * @see User#failedLoginAttempts
+ * @see User#locked
  */
 @Slf4j
 @RequiredArgsConstructor

@@ -7,10 +7,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * This class processes AuditEvents. This class writes the AuditEvent data to a text file on the server. You could easily change the logic to write to
- * a database, send events to a REST API, or anything else.
+ * Spring event listener that processes {@link AuditEvent} instances asynchronously.
+ *
+ * <p>This component listens for audit events and delegates the writing of event data
+ * to an {@link AuditLogWriter} implementation. The processing is asynchronous to avoid
+ * impacting application performance.
+ *
+ * <p>The listener only processes events when audit logging is enabled via
+ * {@code AuditConfig.isLogEvents()}. All exceptions are caught and logged to ensure
+ * audit failures never impact application flow.
  *
  * @see AuditEvent
+ * @see AuditLogWriter
+ * @see AuditConfig
  */
 @Slf4j
 @Async

@@ -10,8 +10,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The LoginHelperService class provides helper methods for authenticating users after login. This class is used by the DSUserDetailsService and
- * DSOAuth2UserService classes to authenticate users after they have been successfully authenticated.
+ * Helper service for post-authentication user processing.
+ *
+ * <p>Provides common functionality used by {@link DSUserDetailsService} and {@link DSOAuth2UserService}
+ * after a user has been authenticated, including updating activity timestamps, checking account
+ * lockout status, and constructing the {@link DSUserDetails} object.</p>
+ *
+ * @see DSUserDetailsService
+ * @see DSOAuth2UserService
+ * @see DSUserDetails
  */
 @Slf4j
 @RequiredArgsConstructor

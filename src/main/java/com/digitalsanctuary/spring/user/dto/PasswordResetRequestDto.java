@@ -6,7 +6,13 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * DTO for password reset requests. Contains only the email field needed for initiating a password reset.
+ * Data Transfer Object for initiating password reset requests.
+ * <p>
+ * Contains only the email field needed to start the password reset flow.
+ * The email is validated for format and length constraints.
+ * </p>
+ *
+ * @author Devon Hillard
  */
 @Data
 public class PasswordResetRequestDto {

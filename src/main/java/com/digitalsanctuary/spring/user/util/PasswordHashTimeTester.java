@@ -10,8 +10,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The PasswordHashTimeTester class is a Spring Boot service class that tests the time it takes to hash a password. This class is used to test the
- * performance of the password hashing algorithm and provide feedback on the security and usability trade-offs of the password hashing configuration.
+ * Service that benchmarks password hashing performance on application startup.
+ * <p>
+ * Measures the time required to hash passwords using the configured {@link PasswordEncoder}
+ * and logs the results. This helps administrators tune the {@code user.security.bcryptStrength}
+ * property to balance security (slower hashing) with usability (reasonable response times).
+ * The target is approximately 1000ms per hash operation.
+ * </p>
  */
 @Slf4j
 @Service

@@ -6,15 +6,14 @@ import lombok.Getter;
 import lombok.Singular;
 
 /**
- * Represents a standardized JSON response for API calls.
+ * Standardized JSON response object for REST API endpoints.
  * <p>
- * This class provides a builder to facilitate the creation of JSON response objects with various attributes.
- * The builder uses the {@code @Singular} annotation on the messages field, which means you can call 
- * {@code .message(String)} multiple times to add messages to the list, and the JSON will serialize 
- * as {@code "messages": ["message1", "message2", ...]}. 
+ * Provides a consistent structure for API responses including success status, messages,
+ * redirect URLs, and data payloads. Use the Lombok-generated builder to construct instances.
  * </p>
  * <p>
  * Example usage:
+ * </p>
  * <pre>
  * JSONResponse response = JSONResponse.builder()
  *     .success(true)
@@ -22,7 +21,6 @@ import lombok.Singular;
  *     .message("Data saved successfully")
  *     .data(resultObject)
  *     .build();
- * // Results in JSON: {"success": true, "messages": ["Operation completed", "Data saved successfully"], ...}
  * </pre>
  *
  * @author Devon Hillard

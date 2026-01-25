@@ -22,8 +22,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserActionController handles non-API, non-Page requests like token
- * validation links from emails.
+ * Controller that handles user action requests triggered by email links.
+ * <p>
+ * This controller processes token-based actions such as email verification
+ * during registration and password reset token validation. These endpoints
+ * are typically accessed when users click links in system-generated emails.
+ * </p>
+ *
+ * @author Devon Hillard
+ * @see UserService
+ * @see UserVerificationService
  */
 @Slf4j
 @RequiredArgsConstructor

@@ -5,10 +5,11 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
 /**
- * Provides a global advice for controllers to include LiveReload configuration details.
+ * Global controller advice that provides LiveReload configuration to all views.
  * <p>
- * This advice will make the LiveReload port available to all controllers and views in the application. It is used on the layout.html template to
- * include the LiveReload script in dev and local environments.
+ * This advice makes the LiveReload port available as a model attribute to all controllers,
+ * enabling the layout template to include the LiveReload script in development environments.
+ * The port is determined based on whether HTTPS is enabled.
  * </p>
  *
  * @author Devon Hillard

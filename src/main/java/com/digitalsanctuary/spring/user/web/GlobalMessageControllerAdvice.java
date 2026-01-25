@@ -9,7 +9,18 @@ import org.springframework.web.context.request.WebRequest;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Global advice to handle common model attributes across all controllers.
+ * Controller advice that provides global model attributes across all MVC controllers.
+ *
+ * <p>This class handles automatic resolution of message keys from request parameters,
+ * allowing controllers to redirect with a {@code messageKey} parameter that gets
+ * automatically resolved to a localized message and added to the model.</p>
+ *
+ * <p>Usage example: Redirect to {@code /somepage?messageKey=user.created.success} and
+ * the resolved message will be available as the {@code message} model attribute.</p>
+ *
+ * @author Devon Hillard
+ * @see org.springframework.web.bind.annotation.ControllerAdvice
+ * @see org.springframework.context.MessageSource
  */
 @ControllerAdvice(annotations = Controller.class)
 @RequiredArgsConstructor

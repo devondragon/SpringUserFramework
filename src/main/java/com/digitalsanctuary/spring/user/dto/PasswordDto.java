@@ -6,8 +6,13 @@ import lombok.Data;
 import lombok.ToString;
 
 /**
- * A new password dto. This object is used for password form actions (change password, forgot password token, save
- * password, etc..).
+ * Data Transfer Object for password change operations.
+ * <p>
+ * Used for password form actions including change password and forgot password token flows.
+ * Contains the old password, new password, and optional reset token.
+ * </p>
+ *
+ * @author Devon Hillard
  */
 @Data
 public class PasswordDto {

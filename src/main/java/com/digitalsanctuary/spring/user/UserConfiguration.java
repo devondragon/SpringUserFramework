@@ -11,9 +11,11 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The UserConfiguration class is a Spring Boot configuration class that provides configuration for the DigitalSanctuary Spring Boot User Framework
- * Library. This class is used to configure the user framework library, including enabling asynchronous processing and scheduling, and scanning for
- * components and repositories.
+ * Main auto-configuration class for the DigitalSanctuary Spring Boot User Framework Library.
+ * Enables asynchronous processing, retry support, scheduling, method-level security,
+ * and component scanning for the user framework package.
+ *
+ * @see UserAutoConfigurationRegistrar
  */
 @Slf4j
 @Configuration

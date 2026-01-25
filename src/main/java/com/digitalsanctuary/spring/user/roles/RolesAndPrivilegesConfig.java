@@ -27,9 +27,12 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The RolesAndPrivilegesConfig class is a Spring Boot configuration class that provides properties for configuring user roles and privileges. This
- * class is used to define properties that control the behavior of the user roles and privileges, such as the role hierarchy and the mapping of roles
- * to privileges.
+ * Configuration properties for user roles and privileges.
+ * <p>
+ * Binds to properties with the {@code user.roles} prefix and provides mappings of roles
+ * to their associated privileges, as well as role hierarchy definitions. The Lombok
+ * {@code @Data} annotation generates a default no-argument constructor for property binding.
+ * </p>
  */
 @Slf4j
 @Data

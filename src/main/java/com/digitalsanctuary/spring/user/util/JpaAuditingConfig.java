@@ -12,7 +12,13 @@ import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Configuration class for JPA Auditing. Enables JPA Auditing and provides an implementation of AuditorAware to capture the current auditor.
+ * Configuration class for JPA Auditing.
+ * <p>
+ * Enables JPA Auditing and provides an implementation of {@link AuditorAware} to capture
+ * the current auditor from the Spring Security context. This allows JPA entities using
+ * {@code @CreatedBy} and {@code @LastModifiedBy} annotations to automatically track
+ * which user created or modified them.
+ * </p>
  */
 @Slf4j
 @Configuration

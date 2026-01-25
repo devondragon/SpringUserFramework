@@ -13,8 +13,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Global exception handler for validation errors. This class handles validation exceptions
- * and returns appropriate error responses for API endpoints.
+ * Global exception handler for validation errors across all API endpoints.
+ * Handles {@link MethodArgumentNotValidException} thrown by {@code @Valid} annotations
+ * and returns structured error responses with field-level validation details.
  */
 @Slf4j
 @ControllerAdvice

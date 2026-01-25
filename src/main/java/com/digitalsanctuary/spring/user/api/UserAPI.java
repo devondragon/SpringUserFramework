@@ -38,8 +38,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * REST controller for managing user-related operations. This class handles user
- * registration, account deletion, and other user-related endpoints.
+ * REST API controller for user management operations.
+ * <p>
+ * Provides JSON endpoints for user registration, authentication, profile updates,
+ * password management, and account deletion. All endpoints are mapped under
+ * {@code /user} and return JSON responses.
+ * </p>
+ *
+ * @author Devon Hillard
+ * @see UserService
+ * @see UserEmailService
  */
 @Slf4j
 @RequiredArgsConstructor

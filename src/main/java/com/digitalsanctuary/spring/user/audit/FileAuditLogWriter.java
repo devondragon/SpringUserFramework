@@ -16,8 +16,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Implementation of {@link AuditLogWriter} that writes audit logs to a file. This class handles the lifecycle of the log file, including opening,
- * writing, and closing the file. It also supports scheduled flushing of the buffer to balance performance with data integrity.
+ * File-based implementation of {@link AuditLogWriter} that writes audit events to a log file.
+ *
+ * <p>This component manages the complete lifecycle of the audit log file, including:
+ * <ul>
+ *   <li>Opening and creating the log file on startup ({@code @PostConstruct})</li>
+ *   <li>Writing formatted audit events with pipe-delimited fields</li>
+ *   <li>Periodic buffer flushing via {@link FileAuditLogFlushScheduler}</li>
+ *   <li>Graceful cleanup on shutdown ({@code @PreDestroy})</li>
+ * </ul>
+ *
+ * <p>If the configured log path is not writable, the writer falls back to a temporary
+ * directory location.
+ *
+ * @see AuditLogWriter
+ * @see AuditConfig
+ * @see FileAuditLogFlushScheduler
  */
 @Slf4j
 @Component

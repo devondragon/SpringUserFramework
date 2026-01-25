@@ -6,7 +6,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Web configuration class for setting up interceptors
+ * Spring MVC configuration class that registers web interceptors for the user framework.
+ *
+ * <p>This configuration registers the {@link GlobalUserModelInterceptor} to handle
+ * automatic user model injection for MVC controllers. The interceptor is applied to
+ * all paths except static resources (CSS, JS, images, etc.).</p>
+ *
+ * @author Devon Hillard
+ * @see GlobalUserModelInterceptor
+ * @see org.springframework.web.servlet.config.annotation.WebMvcConfigurer
  */
 @Configuration
 @RequiredArgsConstructor

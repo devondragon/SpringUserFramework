@@ -17,7 +17,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The LogoutSuccessService is called when a user logs out successfully.
+ * Service that handles successful user logout events.
+ *
+ * <p>Extends {@link SimpleUrlLogoutSuccessHandler} to provide custom post-logout processing
+ * including audit event publishing and redirect handling. Configurable via the
+ * {@code user.security.logoutSuccessURI} property.</p>
+ *
+ * @author Devon Hillard
+ * @see SimpleUrlLogoutSuccessHandler
  */
 @Slf4j
 @RequiredArgsConstructor

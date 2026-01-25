@@ -122,6 +122,12 @@ tasks.named('jar') {
     archiveClassifier.set('')
 }
 
+// Configure Javadoc to suppress warnings for missing constructor documentation
+// This is necessary because Lombok generates constructors that cannot be documented
+tasks.withType(Javadoc).configureEach {
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+}
+
 def registerJdkTestTask(name, jdkVersion) {
     tasks.register(name, Test) {
         javaLauncher.set(javaToolchains.launcherFor {

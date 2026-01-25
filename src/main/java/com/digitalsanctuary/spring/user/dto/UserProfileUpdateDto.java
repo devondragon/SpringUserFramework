@@ -5,8 +5,13 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * DTO for updating user profile information (first name, last name).
- * This is separate from UserDto to avoid requiring password fields during profile updates.
+ * Data Transfer Object for updating user profile information.
+ * <p>
+ * Contains only the editable profile fields (first name, last name).
+ * Separate from {@link UserDto} to avoid requiring password fields during profile updates.
+ * </p>
+ *
+ * @author Devon Hillard
  */
 @Data
 public class UserProfileUpdateDto {

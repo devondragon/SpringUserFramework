@@ -10,9 +10,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * This listener handles OnRegistrationCompleteEvents, and sends a password verification email, if that feature is enabled.
+ * Listens for user registration events and sends verification emails when enabled.
+ * This listener handles {@link OnRegistrationCompleteEvent} instances asynchronously
+ * to avoid blocking the registration flow.
+ *
+ * <p>
+ * Email verification is controlled by the {@code user.registration.sendVerificationEmail}
+ * configuration property.
+ * </p>
  *
  * @see OnRegistrationCompleteEvent
+ * @see UserEmailService
  */
 @Slf4j
 @RequiredArgsConstructor

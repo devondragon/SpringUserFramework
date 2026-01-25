@@ -17,7 +17,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * A service to set up roles and privileges from a configuration when the application starts.
+ * Service that initializes roles and privileges from configuration on application startup.
+ * <p>
+ * Listens for {@link ContextRefreshedEvent} and creates or updates roles and privileges
+ * in the database based on the {@link RolesAndPrivilegesConfig} settings. This ensures
+ * that the configured role/privilege structure exists before the application handles requests.
+ * </p>
  */
 @Slf4j
 @Data
