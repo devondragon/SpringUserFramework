@@ -15,8 +15,6 @@ import lombok.extern.slf4j.Slf4j;
  * Enables asynchronous processing, retry support, scheduling, method-level security,
  * and component scanning for the user framework package.
  *
- * <p>Default constructor creates an instance of this configuration.</p>
- *
  * @see UserAutoConfigurationRegistrar
  */
 @Slf4j

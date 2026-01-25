@@ -25,13 +25,6 @@ import lombok.Data;
 public class AuditConfig {
 
     /**
-     * Creates a new AuditConfig instance with default values.
-     */
-    public AuditConfig() {
-        // Default constructor for Spring configuration binding
-    }
-
-    /**
      * The enabled flag. If set to false, audit logging will be disabled.
      */
     private boolean logEvents;

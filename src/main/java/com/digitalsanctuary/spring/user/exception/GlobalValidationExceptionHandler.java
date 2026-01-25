@@ -16,8 +16,6 @@ import lombok.extern.slf4j.Slf4j;
  * Global exception handler for validation errors across all API endpoints.
  * Handles {@link MethodArgumentNotValidException} thrown by {@code @Valid} annotations
  * and returns structured error responses with field-level validation details.
- *
- * <p>Default constructor creates an instance of this controller advice.</p>
  */
 @Slf4j
 @ControllerAdvice

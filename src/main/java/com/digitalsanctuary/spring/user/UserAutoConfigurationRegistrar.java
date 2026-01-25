@@ -24,8 +24,6 @@ import org.springframework.core.type.AnnotationMetadata;
  * <p>
  * <b>Note:</b> This solution leverages {@link AutoConfigurationPackages#register} to dynamically register the library's package during the
  * auto-configuration phase, ensuring compatibility with Spring Boot's component scanning and auto-configuration mechanisms.
- *
- * <p>Default constructor creates an instance of this registrar.</p>
  */
 public class UserAutoConfigurationRegistrar implements ImportBeanDefinitionRegistrar {
 

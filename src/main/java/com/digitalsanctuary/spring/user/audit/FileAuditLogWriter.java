@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -34,19 +35,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class FileAuditLogWriter implements AuditLogWriter {
 
     private final AuditConfig auditConfig;
     private BufferedWriter bufferedWriter;
-
-    /**
-     * Creates a new FileAuditLogWriter with the required dependencies.
-     *
-     * @param auditConfig the audit configuration
-     */
-    public FileAuditLogWriter(AuditConfig auditConfig) {
-        this.auditConfig = auditConfig;
-    }
 
     /**
      * Initializes the log file writer. This method is called after the bean is constructed. It validates the configuration and opens the log file for

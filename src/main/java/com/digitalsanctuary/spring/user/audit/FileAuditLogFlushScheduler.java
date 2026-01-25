@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.audit;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -27,18 +28,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @ConditionalOnExpression("${user.audit.logEvents:true} && !${user.audit.flushOnWrite:true}")
+@RequiredArgsConstructor
 public class FileAuditLogFlushScheduler {
 
     private final FileAuditLogWriter fileAuditLogWriter;
-
-    /**
-     * Creates a new FileAuditLogFlushScheduler with the required dependencies.
-     *
-     * @param fileAuditLogWriter the file audit log writer to flush
-     */
-    public FileAuditLogFlushScheduler(FileAuditLogWriter fileAuditLogWriter) {
-        this.fileAuditLogWriter = fileAuditLogWriter;
-    }
 
     /**
      * Flushes the audit log buffer to the file. This method is called on a schedule to ensure that the buffer is flushed periodically to balance

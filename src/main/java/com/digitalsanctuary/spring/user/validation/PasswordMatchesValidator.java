@@ -8,8 +8,6 @@ import jakarta.validation.ConstraintValidatorContext;
  * Validator implementation for the {@link PasswordMatches} constraint annotation.
  * Validates that the password and matchingPassword fields in a {@link UserDto} are equal.
  *
- * <p>Default constructor creates an instance of this validator.</p>
- *
  * @see PasswordMatches
  * @see UserDto
  */
