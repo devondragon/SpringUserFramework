@@ -129,8 +129,8 @@ class UserActionControllerTest {
             mockMvc.perform(get("/user/changePassword")
                     .param("token", token))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/index.html?messageKey=auth.message.invalid_token"))
-                    .andExpect(model().attribute("messageKey", "auth.message.invalid_token"));
+                    .andExpect(redirectedUrl("/index.html?messageKey=auth.message.invalidToken"))
+                    .andExpect(model().attribute("messageKey", "auth.message.invalidToken"));
         }
         
         @Test
@@ -187,7 +187,7 @@ class UserActionControllerTest {
             mockMvc.perform(get("/user/registrationConfirm")
                     .param("token", token))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/user/request-new-verification-email.html?lang=en&messageKey=auth.message.EXPIRED&expired=true&token=" + token))
+                    .andExpect(redirectedUrl("/user/request-new-verification-email.html?lang=en&messageKey=auth.message.expired&expired=true&token=" + token))
                     .andExpect(model().attribute("expired", true))
                     .andExpect(model().attribute("token", token));
             
@@ -207,7 +207,7 @@ class UserActionControllerTest {
             mockMvc.perform(get("/user/registrationConfirm")
                     .param("token", token))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrl("/user/request-new-verification-email.html?lang=en&messageKey=auth.message.INVALID_TOKEN&expired=false&token=" + token))
+                    .andExpect(redirectedUrl("/user/request-new-verification-email.html?lang=en&messageKey=auth.message.invalidToken&expired=false&token=" + token))
                     .andExpect(model().attribute("expired", false))
                     .andExpect(model().attribute("token", token));
         }
