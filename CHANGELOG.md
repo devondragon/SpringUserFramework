@@ -1,3 +1,49 @@
+## [4.0.3] - 2026-01-26
+### Features
+- Internationalization resilience and defaults
+  - User-facing messages now provide sensible default text when a translation is missing. All MessageSource.getMessage(...) calls in UserAPI were updated to use the overload with a default message, e.g., "Password updated successfully", "Invalid old password", "Passwords do not match", etc., ensuring users never see an empty message due to missing bundle entries.
+  - GlobalMessageControllerAdvice now falls back to the messageKey itself if no translation is found when resolving messages for views, preventing errors and guaranteeing some feedback is shown.
+
+### Fixes
+- Password update and profile update reliability (detached entity bug)
+  - In UserAPI.updatePassword and UserAPI.updateUserAccount, the user is re-fetched from the database via userService.findUserByEmail(...) instead of relying on the DSUserDetails’ user instance, which could be detached from the JPA session. This prevents persistence issues when saving changes.
+  - If the user cannot be re-fetched (e.g., missing from DB), the API now logs the issue and returns HTTP 400 with a localized "User not found" message.
+- More robust token handling and consistent message keys
+  - TokenValidationResult message keys are now generated using TokenValidationResult.getValue() rather than name()/toString(). This standardizes keys to camelCase (e.g., invalidToken, expired) and aligns all code paths.
+  - Reset password flow now:
+    - Builds error messages using the standardized auth.message.<value> form with default fallbacks (e.g., "Invalid or expired token", "Invalid token").
+    - Returns clear, localized success and error messages with appropriate HTTP 400 statuses for validation failures (password mismatch, invalid token, invalid old password).
+- Improved user-facing feedback across APIs
+  - Success responses for profile updates, password updates, and password resets use localized messages with safe defaults to avoid exposing raw keys.
+  - Error responses consistently return HTTP 400 for validation issues with localized messaging and defaults.
+
+### Breaking Changes
+- Message key values in redirects have changed to camelCase
+  - Redirects that include messageKey query parameters (e.g., in UserActionController) now use camelCase values derived from TokenValidationResult.getValue(), such as:
+    - auth.message.invalidToken (was sometimes auth.message.invalid_token or auth.message.INVALID_TOKEN)
+    - auth.message.expired (was auth.message.EXPIRED)
+  - If front-end code or integrations depend on the exact messageKey values, update them to the new camelCase forms.
+
+### Refactoring
+- Internal consistency updates around message resolution:
+  - Centralized use of MessageSource.getMessage with default messages and consistent message key construction.
+
+### Documentation
+- No documentation changes in this set.
+
+### Testing
+- UserActionControllerTest updated to expect the new camelCase message keys in redirects and model attributes:
+  - invalidToken instead of invalid_token/INVALID_TOKEN
+  - expired instead of EXPIRED
+- UserAPIUnitTest updates:
+  - Mocks updated to use the 4-argument getMessage(...) signature with a default message parameter.
+  - Tests now mock userService.findUserByEmail(...) to reflect the new re-fetch pattern in updatePassword and updateUserAccount.
+  - Assertions aligned to the new success/error message paths.
+
+### Other Changes
+- Build/Version
+  - Bumped project version to 4.0.3-SNAPSHOT in gradle.properties.
+
 ## [4.0.2] - 2026-01-25
 ### Features
 - Admin-initiated password reset with optional session invalidation
