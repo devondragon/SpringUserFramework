@@ -162,7 +162,7 @@ public class UserAPI {
 
 		logAuditEvent("ProfileUpdate", "Success", "User profile updated", user, request);
 
-		return buildSuccessResponse(messages.getMessage("message.update-user.success", null, locale), null);
+		return buildSuccessResponse(messages.getMessage("message.update-user.success", null, "Profile updated successfully", locale), null);
 	}
 
 	/**
@@ -206,7 +206,7 @@ public class UserAPI {
 			// are not a concern. Constant-time comparison is only needed when comparing
 			// against stored credentials, which is handled by Spring's PasswordEncoder.
 			if (!savePasswordDto.getNewPassword().equals(savePasswordDto.getConfirmPassword())) {
-				return buildErrorResponse(messages.getMessage("message.password.mismatch", null, locale), 1,
+				return buildErrorResponse(messages.getMessage("message.password.mismatch", null, "Passwords do not match", locale), 1,
 						HttpStatus.BAD_REQUEST);
 			}
 
@@ -216,14 +216,14 @@ public class UserAPI {
 
 			if (tokenResult != UserService.TokenValidationResult.VALID) {
 				String messageKey = "auth.message." + tokenResult.getValue();
-				return buildErrorResponse(messages.getMessage(messageKey, null, locale), 2, HttpStatus.BAD_REQUEST);
+				return buildErrorResponse(messages.getMessage(messageKey, null, "Invalid or expired token", locale), 2, HttpStatus.BAD_REQUEST);
 			}
 
 			// Get user by token
 			Optional<User> userOptional = userService.getUserByPasswordResetToken(savePasswordDto.getToken());
 
 			if (userOptional.isEmpty()) {
-				return buildErrorResponse(messages.getMessage("auth.message.invalid", null, locale), 3,
+				return buildErrorResponse(messages.getMessage("auth.message.invalid", null, "Invalid token", locale), 3,
 						HttpStatus.BAD_REQUEST);
 			}
 
@@ -246,7 +246,7 @@ public class UserAPI {
 
 			logAuditEvent("PasswordReset", "Success", "Password reset completed", user, request);
 
-			return buildSuccessResponse(messages.getMessage("message.reset-password.success", null, locale),
+			return buildSuccessResponse(messages.getMessage("message.reset-password.success", null, "Password has been reset successfully", locale),
 					"/user/login.html");
 
 		} catch (Exception ex) {
@@ -298,10 +298,10 @@ public class UserAPI {
 			userService.changeUserPassword(user, passwordDto.getNewPassword());
 			logAuditEvent("PasswordUpdate", "Success", "User password updated", user, request);
 
-			return buildSuccessResponse(messages.getMessage("message.update-password.success", null, locale), null);
+			return buildSuccessResponse(messages.getMessage("message.update-password.success", null, "Password updated successfully", locale), null);
 		} catch (InvalidOldPasswordException ex) {
 			logAuditEvent("PasswordUpdate", "Failure", "Invalid old password", user, request);
-			return buildErrorResponse(messages.getMessage("message.update-password.invalid-old", null, locale), 1,
+			return buildErrorResponse(messages.getMessage("message.update-password.invalid-old", null, "Invalid old password", locale), 1,
 					HttpStatus.BAD_REQUEST);
 		} catch (Exception ex) {
 			log.error("Unexpected error during password update.", ex);

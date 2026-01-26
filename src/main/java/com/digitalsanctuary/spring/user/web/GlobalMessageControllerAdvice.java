@@ -39,7 +39,8 @@ public class GlobalMessageControllerAdvice {
         String messageKey = request.getParameter("messageKey");
         if (messageKey != null) {
             Locale locale = request.getLocale();
-            String message = messages.getMessage(messageKey, null, locale);
+            // Use the messageKey itself as the default if no translation is found
+            String message = messages.getMessage(messageKey, null, messageKey, locale);
             model.addAttribute("message", message);
         }
     }
