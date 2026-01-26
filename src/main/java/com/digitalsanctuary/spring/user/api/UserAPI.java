@@ -155,7 +155,12 @@ public class UserAPI {
 			@Valid @RequestBody UserProfileUpdateDto profileUpdateDto,
 			HttpServletRequest request, Locale locale) {
 		validateAuthenticatedUser(userDetails);
-		User user = userDetails.getUser();
+		// Re-fetch user from database to ensure we have an attached entity
+		User user = userService.findUserByEmail(userDetails.getUser().getEmail());
+		if (user == null) {
+			log.error("User not found in database: {}", userDetails.getUser().getEmail());
+			return buildErrorResponse(messages.getMessage("message.user.not-found", null, "User not found", locale), 1, HttpStatus.BAD_REQUEST);
+		}
 		user.setFirstName(profileUpdateDto.getFirstName());
 		user.setLastName(profileUpdateDto.getLastName());
 		userService.saveRegisteredUser(user);
@@ -276,7 +281,7 @@ public class UserAPI {
 		User user = userService.findUserByEmail(userDetails.getUser().getEmail());
 		if (user == null) {
 			log.error("User not found in database: {}", userDetails.getUser().getEmail());
-			return buildErrorResponse("User not found", 1, HttpStatus.BAD_REQUEST);
+			return buildErrorResponse(messages.getMessage("message.user.not-found", null, "User not found", locale), 1, HttpStatus.BAD_REQUEST);
 		}
 
 		try {
