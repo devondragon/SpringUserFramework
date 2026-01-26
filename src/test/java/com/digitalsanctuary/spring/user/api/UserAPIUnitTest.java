@@ -400,7 +400,8 @@ public class UserAPIUnitTest {
                     .setControllerAdvice(new TestExceptionHandler())
                     .build();
 
-            when(messageSource.getMessage(eq("message.update-password.success"), any(), any(Locale.class)))
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(messageSource.getMessage(eq("message.update-password.success"), any(), any(), any(Locale.class)))
                     .thenReturn("Password updated successfully");
             when(userService.checkIfValidOldPassword(any(User.class), eq("oldPassword"))).thenReturn(true);
 
@@ -443,7 +444,8 @@ public class UserAPIUnitTest {
                     .setControllerAdvice(new TestExceptionHandler())
                     .build();
 
-            when(messageSource.getMessage(eq("message.update-password.invalid-old"), any(), any(Locale.class)))
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(messageSource.getMessage(eq("message.update-password.invalid-old"), any(), any(), any(Locale.class)))
                     .thenReturn("Invalid old password");
             when(userService.checkIfValidOldPassword(any(User.class), eq("wrongPassword"))).thenReturn(false);
 
@@ -509,7 +511,8 @@ public class UserAPIUnitTest {
                     .setControllerAdvice(new TestExceptionHandler())
                     .build();
 
-            when(messageSource.getMessage(eq("message.update-user.success"), any(), any(Locale.class)))
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(messageSource.getMessage(eq("message.update-user.success"), any(), any(), any(Locale.class)))
                     .thenReturn("Profile updated successfully");
             when(userService.saveRegisteredUser(any(User.class))).thenReturn(testUser);
 
@@ -522,8 +525,8 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.messages[0]").value("Profile updated successfully"));
 
-            verify(userService).saveRegisteredUser(argThat(user -> 
-                user.getFirstName().equals("UpdatedFirst") && 
+            verify(userService).saveRegisteredUser(argThat(user ->
+                user.getFirstName().equals("UpdatedFirst") &&
                 user.getLastName().equals("UpdatedLast")
             ));
         }
@@ -741,7 +744,8 @@ public class UserAPIUnitTest {
                     .setControllerAdvice(new TestExceptionHandler())
                     .build();
 
-            when(messageSource.getMessage(eq("message.update-user.success"), any(), any(Locale.class)))
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(messageSource.getMessage(eq("message.update-user.success"), any(), any(), any(Locale.class)))
                     .thenReturn("Profile updated successfully");
             when(userService.saveRegisteredUser(any(User.class))).thenReturn(testUser);
 

@@ -92,7 +92,7 @@ public class UserActionController {
 			String redirectString = "redirect:" + forgotPasswordChangeURI;
 			return new ModelAndView(redirectString, model);
 		} else {
-			String messageKey = AUTH_MESSAGE_PREFIX + result.name().toLowerCase();
+			String messageKey = AUTH_MESSAGE_PREFIX + result.getValue();
 			model.addAttribute("messageKey", messageKey);
 			return new ModelAndView("redirect:/index.html", model);
 		}
@@ -137,7 +137,7 @@ public class UserActionController {
 			return new ModelAndView(redirectString, model);
 		}
 
-		model.addAttribute("messageKey", AUTH_MESSAGE_PREFIX + result.toString());
+		model.addAttribute("messageKey", AUTH_MESSAGE_PREFIX + result.getValue());
 		model.addAttribute("expired", result == TokenValidationResult.EXPIRED);
 		model.addAttribute("token", token);
 		log.debug("UserAPI.confirmRegistration: failed.  Token not found or expired.");
