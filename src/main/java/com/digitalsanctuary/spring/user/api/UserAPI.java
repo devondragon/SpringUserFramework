@@ -272,7 +272,12 @@ public class UserAPI {
 	public ResponseEntity<JSONResponse> updatePassword(@AuthenticationPrincipal DSUserDetails userDetails,
 			@Valid @RequestBody PasswordDto passwordDto, HttpServletRequest request, Locale locale) {
 		validateAuthenticatedUser(userDetails);
-		User user = userDetails.getUser();
+		// Re-fetch user from database to ensure we have an attached entity
+		User user = userService.findUserByEmail(userDetails.getUser().getEmail());
+		if (user == null) {
+			log.error("User not found in database: {}", userDetails.getUser().getEmail());
+			return buildErrorResponse("User not found", 1, HttpStatus.BAD_REQUEST);
+		}
 
 		try {
 			// Verify old password is correct
