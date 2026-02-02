@@ -89,11 +89,13 @@ public class GdprDeletionService {
      * <p>If {@code exportBeforeDeletion} is enabled in configuration, the user's
      * data is exported and included in the result before deletion.
      *
+     * <p>Note: Export is performed OUTSIDE the transaction to avoid holding
+     * the transaction open during potentially slow export operations.
+     *
      * @param user the user to delete
      * @return the result of the deletion operation
      * @throws IllegalArgumentException if user is null
      */
-    @Transactional
     public DeletionResult deleteUser(User user) {
         return deleteUser(user, gdprConfig.isExportBeforeDeletion());
     }
@@ -101,59 +103,76 @@ public class GdprDeletionService {
     /**
      * Deletes a user and all associated data, with explicit export control.
      *
+     * <p>Note: Export is performed OUTSIDE the transaction to avoid holding
+     * the transaction open during potentially slow export operations.
+     *
      * @param user the user to delete
      * @param exportBeforeDeletion whether to export data before deletion
      * @return the result of the deletion operation
      * @throws IllegalArgumentException if user is null
      */
-    @Transactional
     public DeletionResult deleteUser(User user, boolean exportBeforeDeletion) {
         if (user == null) {
             throw new IllegalArgumentException("User cannot be null");
         }
 
         Long userId = user.getId();
-        String userEmail = user.getEmail();
 
-        log.info("GdprDeletionService.deleteUser: Starting GDPR deletion for user {}", userEmail);
+        log.info("GdprDeletionService.deleteUser: Starting GDPR deletion for user {}", userId);
 
         GdprExportDTO exportedData = null;
 
         try {
-            // Step 1: Export data if configured
+            // Step 1: Export data OUTSIDE transaction (avoids holding transaction during slow I/O)
             if (exportBeforeDeletion) {
-                log.debug("GdprDeletionService.deleteUser: Exporting data before deletion for user {}", userEmail);
+                log.debug("GdprDeletionService.deleteUser: Exporting data before deletion for user {}", userId);
                 exportedData = gdprExportService.exportUserData(user);
             }
 
-            // Step 2: Notify all GdprDataContributors to prepare for deletion
-            prepareContributorsForDeletion(user);
-
-            // Step 3: Publish UserPreDeleteEvent for additional cleanup
-            log.debug("GdprDeletionService.deleteUser: Publishing UserPreDeleteEvent for user {}", userEmail);
-            eventPublisher.publishEvent(new UserPreDeleteEvent(this, user));
-
-            // Step 4: Delete framework-managed data
-            deleteFrameworkData(user);
-
-            // Step 5: Delete the user entity
-            log.debug("GdprDeletionService.deleteUser: Deleting user entity for {}", userEmail);
-            userRepository.delete(user);
-
-            log.info("GdprDeletionService.deleteUser: Successfully deleted user {}", userEmail);
-
-            // Step 6: Publish UserDeletedEvent after successful deletion
-            eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail, exportBeforeDeletion));
-
-            return exportBeforeDeletion
-                    ? DeletionResult.successWithExport(exportedData)
-                    : DeletionResult.success(null);
+            // Step 2: Perform deletion in transaction
+            return executeUserDeletion(user, exportedData, exportBeforeDeletion);
 
         } catch (Exception e) {
             log.error("GdprDeletionService.deleteUser: Failed to delete user {}: {}",
-                    userEmail, e.getMessage(), e);
+                    userId, e.getMessage(), e);
             return DeletionResult.failure("Failed to delete user: " + e.getMessage());
         }
+    }
+
+    /**
+     * Internal transactional method that performs the actual user deletion.
+     *
+     * @param user the user to delete
+     * @param exportedData the pre-exported data (may be null)
+     * @param wasExported whether export was performed
+     * @return the result of the deletion operation
+     */
+    @Transactional
+    protected DeletionResult executeUserDeletion(User user, GdprExportDTO exportedData, boolean wasExported) {
+        Long userId = user.getId();
+
+        // Step 2: Notify all GdprDataContributors to prepare for deletion
+        prepareContributorsForDeletion(user);
+
+        // Step 3: Publish UserPreDeleteEvent for additional cleanup
+        log.debug("GdprDeletionService.deleteUser: Publishing UserPreDeleteEvent for user {}", userId);
+        eventPublisher.publishEvent(new UserPreDeleteEvent(this, user));
+
+        // Step 4: Delete framework-managed data
+        deleteFrameworkData(user);
+
+        // Step 5: Delete the user entity
+        log.debug("GdprDeletionService.deleteUser: Deleting user entity for {}", userId);
+        userRepository.delete(user);
+
+        log.info("GdprDeletionService.deleteUser: Successfully deleted user {}", userId);
+
+        // Step 6: Publish UserDeletedEvent after successful deletion
+        eventPublisher.publishEvent(new UserDeletedEvent(this, userId, user.getEmail(), wasExported));
+
+        return wasExported
+                ? DeletionResult.successWithExport(exportedData)
+                : DeletionResult.success(null);
     }
 
     /**
@@ -187,7 +206,7 @@ public class GdprDeletionService {
         VerificationToken verificationToken = verificationTokenRepository.findByUser(user);
         if (verificationToken != null) {
             log.debug("GdprDeletionService.deleteFrameworkData: Deleting verification token for user {}",
-                    user.getEmail());
+                    user.getId());
             verificationTokenRepository.delete(verificationToken);
         }
 
@@ -195,7 +214,7 @@ public class GdprDeletionService {
         PasswordResetToken passwordResetToken = passwordResetTokenRepository.findByUser(user);
         if (passwordResetToken != null) {
             log.debug("GdprDeletionService.deleteFrameworkData: Deleting password reset token for user {}",
-                    user.getEmail());
+                    user.getId());
             passwordResetTokenRepository.delete(passwordResetToken);
         }
 

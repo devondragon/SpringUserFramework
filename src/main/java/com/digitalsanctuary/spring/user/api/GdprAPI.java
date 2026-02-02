@@ -103,7 +103,7 @@ public class GdprAPI {
                     .build());
         } catch (Exception e) {
             log.error("GdprAPI.exportUserData: Failed to export data for user {}: {}",
-                    user.getEmail(), e.getMessage(), e);
+                    user.getId(), e.getMessage(), e);
             logAuditEvent("GdprExport", "Failure", e.getMessage(), user, request);
             return buildErrorResponse("Failed to export data", 5, HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -150,12 +150,12 @@ public class GdprAPI {
                 return ResponseEntity.ok(responseBuilder.build());
             } else {
                 log.error("GdprAPI.deleteAccount: Deletion failed for user {}: {}",
-                        user.getEmail(), result.getMessage());
+                        user.getId(), result.getMessage());
                 return buildErrorResponse(result.getMessage(), 2, HttpStatus.INTERNAL_SERVER_ERROR);
             }
         } catch (Exception e) {
             log.error("GdprAPI.deleteAccount: Failed to delete account for user {}: {}",
-                    user.getEmail(), e.getMessage(), e);
+                    user.getId(), e.getMessage(), e);
             logAuditEvent("GdprDelete", "Failure", e.getMessage(), user, request);
             return buildErrorResponse("Failed to delete account", 5, HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -221,7 +221,7 @@ public class GdprAPI {
                     .build());
         } catch (Exception e) {
             log.error("GdprAPI.recordConsent: Failed to record consent for user {}: {}",
-                    user.getEmail(), e.getMessage(), e);
+                    user.getId(), e.getMessage(), e);
             return buildErrorResponse("Failed to record consent", 5, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -256,7 +256,7 @@ public class GdprAPI {
                     .build());
         } catch (Exception e) {
             log.error("GdprAPI.getConsentStatus: Failed to get consent status for user {}: {}",
-                    user.getEmail(), e.getMessage(), e);
+                    user.getId(), e.getMessage(), e);
             return buildErrorResponse("Failed to get consent status", 5, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
