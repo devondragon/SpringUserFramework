@@ -18,6 +18,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [Features](#features)
   - [Installation](#installation)
     - [Spring Boot 4.0 (Latest)](#spring-boot-40-latest)
+      - [Spring Boot 4.0 Key Changes](#spring-boot-40-key-changes)
     - [Spring Boot 3.5 (Stable)](#spring-boot-35-stable)
   - [Migration Guide](#migration-guide)
   - [Quick Start](#quick-start)
@@ -41,6 +42,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [User Management](#user-management)
     - [Registration](#registration)
     - [Profile Management](#profile-management)
+    - [Admin Password Reset](#admin-password-reset)
   - [Email Verification](#email-verification)
   - [Authentication](#authentication)
     - [Local Authentication](#local-authentication)
@@ -111,7 +113,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 Choose the version that matches your Spring Boot version:
 
 | Spring Boot Version | Framework Version | Java Version | Spring Security |
-|---------------------|-------------------|--------------|-----------------|
+| ------------------- | ----------------- | ------------ | --------------- |
 | 4.0.x               | 4.0.x             | 21+          | 7.x             |
 | 3.5.x               | 3.5.x             | 17+          | 6.x             |
 
@@ -124,13 +126,13 @@ Spring Boot 4.0 brings significant changes including Spring Security 7 and requi
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>4.0.2</version>
+    <version>4.1.0</version>
 </dependency>
 ```
 
 **Gradle:**
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:4.0.2'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:4.1.0'
 ```
 
 #### Spring Boot 4.0 Key Changes
@@ -201,7 +203,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
 
    **Spring Boot 4.0 (Java 21+):**
    ```groovy
-   implementation 'com.digitalsanctuary:ds-spring-user-framework:4.0.2'
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:4.1.0'
    ```
 
    **Spring Boot 3.5 (Java 17+):**
@@ -779,12 +781,12 @@ user:
 
 When enabled, the following REST endpoints become available (all require authentication):
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/user/gdpr/export` | GET | Export all user data as JSON |
-| `/user/gdpr/delete` | POST | Request account deletion |
-| `/user/gdpr/consent` | POST | Record consent grant or withdrawal |
-| `/user/gdpr/consent/status` | GET | Get current consent status |
+| Endpoint                    | Method | Description                        |
+| --------------------------- | ------ | ---------------------------------- |
+| `/user/gdpr/export`         | GET    | Export all user data as JSON       |
+| `/user/gdpr/delete`         | POST   | Request account deletion           |
+| `/user/gdpr/consent`        | POST   | Record consent grant or withdrawal |
+| `/user/gdpr/consent/status` | GET    | Get current consent status         |
 
 ### Data Export (Right of Access)
 
@@ -915,12 +917,12 @@ public class OrderDataContributor implements GdprDataContributor {
 
 The framework publishes Spring events for GDPR operations:
 
-| Event | When Published | Use Case |
-|-------|----------------|----------|
-| `UserPreDeleteEvent` | Before user deletion (in transaction) | Clean up related database records |
-| `UserDeletedEvent` | After successful deletion | External API cleanup, notifications |
-| `UserDataExportedEvent` | After data export | Audit logging, analytics |
-| `ConsentChangedEvent` | After consent grant/withdrawal | Trigger consent-dependent workflows |
+| Event                   | When Published                        | Use Case                            |
+| ----------------------- | ------------------------------------- | ----------------------------------- |
+| `UserPreDeleteEvent`    | Before user deletion (in transaction) | Clean up related database records   |
+| `UserDeletedEvent`      | After successful deletion             | External API cleanup, notifications |
+| `UserDataExportedEvent` | After data export                     | Audit logging, analytics            |
+| `ConsentChangedEvent`   | After consent grant/withdrawal        | Trigger consent-dependent workflows |
 
 **Example: External Cleanup After Deletion**
 ```java
