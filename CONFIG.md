@@ -38,6 +38,26 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 
 - **Log File Path (`user.audit.logFilePath`)**: The path to the audit log file.
 - **Flush on Write (`user.audit.flushOnWrite`)**: Set to `true` for immediate log flushing. Defaults to `false` for performance.
+- **Max Query Results (`user.audit.maxQueryResults`)**: Maximum number of audit events returned from queries. Prevents memory issues with large logs. Defaults to `10000`.
+
+## GDPR Compliance
+
+GDPR features are disabled by default and must be explicitly enabled.
+
+- **Enable GDPR (`user.gdpr.enabled`)**: Master toggle for all GDPR features. When `false`, all GDPR endpoints return 404. Defaults to `false`.
+- **Export Before Deletion (`user.gdpr.exportBeforeDeletion`)**: When `true`, user data is automatically exported and included in the deletion response. Defaults to `true`.
+- **Consent Tracking (`user.gdpr.consentTracking`)**: Enable consent grant/withdrawal tracking via the audit system. Defaults to `true`.
+
+**Example configuration:**
+```yaml
+user:
+  gdpr:
+    enabled: true
+    exportBeforeDeletion: true
+    consentTracking: true
+```
+
+**Note**: When GDPR is enabled, ensure you have a `UserPreDeleteEvent` listener configured to clean up application-specific user data before deletion. See the README for details.
 
 ## Security Settings
 

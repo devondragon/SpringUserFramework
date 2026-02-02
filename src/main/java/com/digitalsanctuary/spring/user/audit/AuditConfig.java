@@ -47,4 +47,12 @@ public class AuditConfig {
      */
     private int flushRate;
 
+    /**
+     * Maximum number of audit events to return from a single query.
+     * This prevents unbounded memory usage when querying large audit logs.
+     * Set to 0 or negative to disable the limit (not recommended for production).
+     * Default is 10000.
+     */
+    private int maxQueryResults = 10000;
+
 }
