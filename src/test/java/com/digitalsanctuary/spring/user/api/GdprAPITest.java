@@ -42,9 +42,11 @@ import com.digitalsanctuary.spring.user.gdpr.GdprDeletionService;
 import com.digitalsanctuary.spring.user.gdpr.GdprExportService;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.SessionInvalidationService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Unit tests for GdprAPI REST controller.
@@ -58,7 +60,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class GdprAPITest {
 
     private MockMvc mockMvc;
-    private ObjectMapper objectMapper = new ObjectMapper();
+    private ObjectMapper objectMapper = JsonMapper.builder().build();
 
     @Mock
     private GdprConfig gdprConfig;
@@ -74,6 +76,9 @@ class GdprAPITest {
 
     @Mock
     private UserService userService;
+
+    @Mock
+    private SessionInvalidationService sessionInvalidationService;
 
     @Mock
     private MessageSource messages;

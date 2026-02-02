@@ -21,6 +21,7 @@ import com.digitalsanctuary.spring.user.gdpr.GdprDeletionService;
 import com.digitalsanctuary.spring.user.gdpr.GdprExportService;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.SessionInvalidationService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
@@ -60,6 +61,7 @@ public class GdprAPI {
     private final GdprDeletionService gdprDeletionService;
     private final ConsentAuditService consentAuditService;
     private final UserService userService;
+    private final SessionInvalidationService sessionInvalidationService;
     private final MessageSource messages;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -136,7 +138,7 @@ public class GdprAPI {
 
             if (result.isSuccess()) {
                 logAuditEvent("GdprDelete", "Success", "User account deleted", null, request);
-                logoutUser(request);
+                logoutUser(user, request);
 
                 JSONResponse.JSONResponseBuilder responseBuilder = JSONResponse.builder()
                         .success(true)
@@ -273,10 +275,22 @@ public class GdprAPI {
     }
 
     /**
-     * Logs out the current user.
+     * Logs out the user from all sessions and clears the current security context.
+     *
+     * <p>This method invalidates ALL sessions for the user across all devices/browsers,
+     * not just the current session. This is critical for GDPR account deletion to ensure
+     * no orphaned sessions remain with references to the deleted user.
+     *
+     * @param user the user to log out (used for invalidating all sessions)
+     * @param request the current HTTP request
      */
-    private void logoutUser(HttpServletRequest request) {
+    private void logoutUser(User user, HttpServletRequest request) {
         try {
+            // Invalidate all user sessions across all devices
+            int invalidatedCount = sessionInvalidationService.invalidateUserSessions(user);
+            log.debug("GdprAPI.logoutUser: Invalidated {} sessions for user {}", invalidatedCount, user.getId());
+
+            // Clear current context and logout current session
             SecurityContextHolder.clearContext();
             request.logout();
         } catch (ServletException e) {
