@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.gdpr;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,8 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Service for tracking user consent via the audit system.
@@ -52,6 +55,9 @@ public class ConsentAuditService {
     private final GdprConfig gdprConfig;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogQueryService auditLogQueryService;
+
+    /** ObjectMapper for JSON serialization/deserialization of consent extra data. */
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Records that a user has granted consent.
@@ -129,7 +135,7 @@ public class ConsentAuditService {
                 ConsentChangedEvent.ChangeType.GRANTED));
 
         log.info("ConsentAuditService.recordConsentGranted: Recorded consent grant for user {} - type {}",
-                user.getEmail(), record.getEffectiveTypeName());
+                user.getId(), record.getEffectiveTypeName());
 
         return record;
     }
@@ -207,7 +213,7 @@ public class ConsentAuditService {
                 ConsentChangedEvent.ChangeType.WITHDRAWN));
 
         log.info("ConsentAuditService.recordConsentWithdrawn: Recorded consent withdrawal for user {} - type {}",
-                user.getEmail(), record.getEffectiveTypeName());
+                user.getId(), record.getEffectiveTypeName());
 
         return record;
     }
@@ -217,6 +223,7 @@ public class ConsentAuditService {
      *
      * <p>This method queries the audit log to determine which consents
      * are currently active (granted but not withdrawn) for the user.
+     * Events are fetched once and processed in a single pass for efficiency.
      *
      * @param user the user to check
      * @return map of consent type names to their current status
@@ -229,34 +236,36 @@ public class ConsentAuditService {
         Map<String, ConsentStatus> statusMap = new LinkedHashMap<>();
 
         try {
-            // Get all consent events
+            // Fetch all consent events in a single combined list
             List<AuditEventDTO> grantedEvents = auditLogQueryService.findByUserAndAction(user, ACTION_CONSENT_GRANTED);
             List<AuditEventDTO> withdrawnEvents = auditLogQueryService.findByUserAndAction(user, ACTION_CONSENT_WITHDRAWN);
 
-            // Process grants (most recent first)
-            for (AuditEventDTO event : grantedEvents) {
-                String typeName = extractConsentType(event.getExtraData());
-                if (typeName != null && !statusMap.containsKey(typeName)) {
-                    statusMap.put(typeName, new ConsentStatus(typeName, true, event.getTimestamp(), null));
-                }
-            }
+            // Combine and sort by timestamp (most recent first)
+            List<AuditEventDTO> allEvents = new ArrayList<>(grantedEvents.size() + withdrawnEvents.size());
+            allEvents.addAll(grantedEvents);
+            allEvents.addAll(withdrawnEvents);
+            allEvents.sort(Comparator.comparing(AuditEventDTO::getTimestamp,
+                    Comparator.nullsLast(Comparator.reverseOrder())));
 
-            // Process withdrawals
-            for (AuditEventDTO event : withdrawnEvents) {
+            // Process in one pass - most recent event per type determines status
+            for (AuditEventDTO event : allEvents) {
                 String typeName = extractConsentType(event.getExtraData());
-                if (typeName != null) {
-                    ConsentStatus existing = statusMap.get(typeName);
-                    if (existing != null && (existing.getWithdrawnAt() == null ||
-                            event.getTimestamp().isAfter(existing.getGrantedAt()))) {
-                        statusMap.put(typeName, new ConsentStatus(typeName, false,
-                                existing.getGrantedAt(), event.getTimestamp()));
-                    }
+                if (typeName == null || statusMap.containsKey(typeName)) {
+                    continue; // Skip if no type or already processed (newer event wins)
+                }
+
+                boolean isGrant = ACTION_CONSENT_GRANTED.equals(event.getAction());
+                if (isGrant) {
+                    statusMap.put(typeName, new ConsentStatus(typeName, true, event.getTimestamp(), null));
+                } else {
+                    // Withdrawal without a prior grant - still record it
+                    statusMap.put(typeName, new ConsentStatus(typeName, false, null, event.getTimestamp()));
                 }
             }
 
         } catch (Exception e) {
             log.warn("ConsentAuditService.getConsentStatus: Failed to get consent status for user {}: {}",
-                    user.getEmail(), e.getMessage());
+                    user.getId(), e.getMessage());
         }
 
         return statusMap;
@@ -288,68 +297,67 @@ public class ConsentAuditService {
             }
         } catch (Exception e) {
             log.warn("ConsentAuditService.getConsentRecords: Failed to get consent records for user {}: {}",
-                    user.getEmail(), e.getMessage());
+                    user.getId(), e.getMessage());
         }
 
         return records;
     }
 
     /**
-     * Builds the extraData JSON string for an audit event.
-     * Uses simple string building to avoid Jackson dependency at compile time.
+     * Builds the extraData JSON string for an audit event using Jackson serialization.
+     *
+     * @param record the consent record to serialize
+     * @return JSON string representation of consent extra data
      */
     private String buildExtraData(ConsentRecord record) {
-        StringBuilder sb = new StringBuilder("{");
-        sb.append("\"consentType\":\"").append(escapeJson(record.getEffectiveTypeName())).append("\"");
-        if (record.getPolicyVersion() != null) {
-            sb.append(",\"policyVersion\":\"").append(escapeJson(record.getPolicyVersion())).append("\"");
+        try {
+            ConsentExtraData extraData = ConsentExtraData.builder()
+                    .consentType(record.getEffectiveTypeName())
+                    .policyVersion(record.getPolicyVersion())
+                    .method(record.getMethod())
+                    .build();
+            return objectMapper.writeValueAsString(extraData);
+        } catch (JacksonException e) {
+            log.warn("ConsentAuditService.buildExtraData: Failed to serialize consent extra data", e);
+            return "{}";
         }
-        if (record.getMethod() != null) {
-            sb.append(",\"method\":\"").append(escapeJson(record.getMethod())).append("\"");
-        }
-        sb.append("}");
-        return sb.toString();
     }
 
     /**
-     * Escapes special characters in a string for JSON.
-     */
-    private String escapeJson(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
-    }
-
-    /**
-     * Extracts the consent type from audit event extra data.
-     * Uses simple string parsing to avoid Jackson dependency at compile time.
+     * Extracts the consent type from audit event extra data using Jackson deserialization.
+     *
+     * @param extraData the JSON string to parse
+     * @return the consent type name, or null if parsing fails
      */
     private String extractConsentType(String extraData) {
         if (extraData == null || extraData.isEmpty()) {
             return null;
         }
-        // Parse "consentType":"value" from JSON
-        String key = "\"consentType\":\"";
-        int start = extraData.indexOf(key);
-        if (start == -1) {
-            // Try without quotes around key
-            key = "consentType\":\"";
-            start = extraData.indexOf(key);
-        }
-        if (start == -1) {
+        try {
+            ConsentExtraData data = objectMapper.readValue(extraData, ConsentExtraData.class);
+            return data.getConsentType();
+        } catch (JacksonException e) {
+            log.debug("ConsentAuditService.extractConsentType: Failed to parse extra data: {}", extraData);
             return null;
         }
-        start += key.length();
-        int end = extraData.indexOf("\"", start);
-        if (end > start) {
-            return extraData.substring(start, end);
+    }
+
+    /**
+     * Parses consent extra data from JSON string.
+     *
+     * @param extraData the JSON string to parse
+     * @return the parsed ConsentExtraData, or null if parsing fails
+     */
+    private ConsentExtraData parseExtraData(String extraData) {
+        if (extraData == null || extraData.isEmpty()) {
+            return null;
         }
-        return null;
+        try {
+            return objectMapper.readValue(extraData, ConsentExtraData.class);
+        } catch (JacksonException e) {
+            log.debug("ConsentAuditService.parseExtraData: Failed to parse extra data: {}", extraData);
+            return null;
+        }
     }
 
     /**

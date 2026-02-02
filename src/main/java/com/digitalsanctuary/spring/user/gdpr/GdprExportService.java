@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.gdpr;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,8 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Service for exporting user data in GDPR-compliant format.
@@ -55,6 +58,9 @@ public class GdprExportService {
     private final List<GdprDataContributor> dataContributors;
     private final ApplicationEventPublisher eventPublisher;
 
+    /** ObjectMapper for JSON deserialization of consent extra data. */
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * Exports all GDPR-relevant data for a user.
      *
@@ -67,7 +73,7 @@ public class GdprExportService {
             throw new IllegalArgumentException("User cannot be null");
         }
 
-        log.info("GdprExportService.exportUserData: Starting export for user {}", user.getEmail());
+        log.info("GdprExportService.exportUserData: Starting export for user {}", user.getId());
 
         GdprExportDTO export = GdprExportDTO.builder()
                 .metadata(buildMetadata())
@@ -81,7 +87,7 @@ public class GdprExportService {
         // Publish event after successful export
         eventPublisher.publishEvent(new UserDataExportedEvent(this, user, export));
 
-        log.info("GdprExportService.exportUserData: Completed export for user {}", user.getEmail());
+        log.info("GdprExportService.exportUserData: Completed export for user {}", user.getId());
         return export;
     }
 
@@ -128,13 +134,14 @@ public class GdprExportService {
             return auditLogQueryService.findByUser(user);
         } catch (Exception e) {
             log.warn("GdprExportService.exportAuditHistory: Failed to export audit history for user {}: {}",
-                    user.getEmail(), e.getMessage());
+                    user.getId(), e.getMessage());
             return new ArrayList<>();
         }
     }
 
     /**
      * Exports the user's consent records from audit logs.
+     * Fetches all consent events once and processes together for efficiency.
      */
     private List<ConsentRecord> exportConsents(User user) {
         if (!gdprConfig.isConsentTracking()) {
@@ -142,27 +149,41 @@ public class GdprExportService {
         }
 
         try {
-            // Get all consent-related audit events
+            // Fetch all consent-related audit events
             List<AuditEventDTO> grantedEvents = auditLogQueryService.findByUserAndAction(user, "CONSENT_GRANTED");
             List<AuditEventDTO> withdrawnEvents = auditLogQueryService.findByUserAndAction(user, "CONSENT_WITHDRAWN");
 
-            // Build consent records from audit events
+            // Combine and sort by timestamp (oldest first for chronological processing)
+            List<AuditEventDTO> allEvents = new ArrayList<>(grantedEvents.size() + withdrawnEvents.size());
+            allEvents.addAll(grantedEvents);
+            allEvents.addAll(withdrawnEvents);
+            allEvents.sort(Comparator.comparing(AuditEventDTO::getTimestamp,
+                    Comparator.nullsFirst(Comparator.naturalOrder())));
+
+            // Build consent records from audit events (process in chronological order)
             Map<String, ConsentRecord> consentMap = new LinkedHashMap<>();
 
-            // Process granted consents
-            for (AuditEventDTO event : grantedEvents) {
-                ConsentRecord record = parseConsentFromAuditEvent(event, true);
-                if (record != null) {
-                    consentMap.put(record.getEffectiveTypeName(), record);
+            for (AuditEventDTO event : allEvents) {
+                boolean isGrant = "CONSENT_GRANTED".equals(event.getAction());
+                ConsentRecord record = parseConsentFromAuditEvent(event, isGrant);
+                if (record == null) {
+                    continue;
                 }
-            }
 
-            // Process withdrawals (update existing records)
-            for (AuditEventDTO event : withdrawnEvents) {
-                ConsentRecord record = parseConsentFromAuditEvent(event, false);
-                if (record != null) {
-                    String key = record.getEffectiveTypeName();
-                    ConsentRecord existing = consentMap.get(key);
+                String key = record.getEffectiveTypeName();
+                ConsentRecord existing = consentMap.get(key);
+
+                if (isGrant) {
+                    // Grant: create new or update existing
+                    if (existing != null) {
+                        existing.setGrantedAt(record.getGrantedAt());
+                        existing.setPolicyVersion(record.getPolicyVersion());
+                        existing.setMethod(record.getMethod());
+                    } else {
+                        consentMap.put(key, record);
+                    }
+                } else {
+                    // Withdrawal: update existing or create new
                     if (existing != null) {
                         existing.setWithdrawnAt(record.getWithdrawnAt());
                     } else {
@@ -174,13 +195,13 @@ public class GdprExportService {
             return new ArrayList<>(consentMap.values());
         } catch (Exception e) {
             log.warn("GdprExportService.exportConsents: Failed to export consents for user {}: {}",
-                    user.getEmail(), e.getMessage());
+                    user.getId(), e.getMessage());
             return new ArrayList<>();
         }
     }
 
     /**
-     * Parses a consent record from an audit event.
+     * Parses a consent record from an audit event using Jackson deserialization.
      */
     private ConsentRecord parseConsentFromAuditEvent(AuditEventDTO event, boolean isGrant) {
         if (event == null || event.getExtraData() == null) {
@@ -188,33 +209,17 @@ public class GdprExportService {
         }
 
         try {
-            // Parse extraData JSON (simplified - assumes key=value format or JSON)
-            String extraData = event.getExtraData();
-            ConsentType type = ConsentType.CUSTOM;
-            String customType = null;
-            String policyVersion = null;
-            String method = null;
+            ConsentExtraData extraData = objectMapper.readValue(event.getExtraData(), ConsentExtraData.class);
 
-            // Basic parsing of extraData
-            if (extraData.contains("consentType=")) {
-                String typeValue = extractValue(extraData, "consentType");
-                type = ConsentType.fromValue(typeValue);
-                if (type == ConsentType.CUSTOM) {
-                    customType = typeValue;
-                }
-            }
-            if (extraData.contains("policyVersion=")) {
-                policyVersion = extractValue(extraData, "policyVersion");
-            }
-            if (extraData.contains("method=")) {
-                method = extractValue(extraData, "method");
-            }
+            String typeValue = extraData.getConsentType();
+            ConsentType type = ConsentType.fromValue(typeValue);
+            String customType = (type == ConsentType.CUSTOM) ? typeValue : null;
 
             ConsentRecord.ConsentRecordBuilder builder = ConsentRecord.builder()
                     .type(type)
                     .customType(customType)
-                    .policyVersion(policyVersion)
-                    .method(method)
+                    .policyVersion(extraData.getPolicyVersion())
+                    .method(extraData.getMethod())
                     .ipAddress(event.getIpAddress());
 
             if (isGrant) {
@@ -224,29 +229,10 @@ public class GdprExportService {
             }
 
             return builder.build();
-        } catch (Exception e) {
+        } catch (JacksonException e) {
             log.debug("GdprExportService.parseConsentFromAuditEvent: Failed to parse consent from event", e);
             return null;
         }
-    }
-
-    /**
-     * Extracts a value from a simple key=value string.
-     */
-    private String extractValue(String data, String key) {
-        int start = data.indexOf(key + "=");
-        if (start == -1) {
-            return null;
-        }
-        start += key.length() + 1;
-        int end = data.indexOf(",", start);
-        if (end == -1) {
-            end = data.indexOf("}", start);
-        }
-        if (end == -1) {
-            end = data.length();
-        }
-        return data.substring(start, end).trim().replace("\"", "");
     }
 
     /**
