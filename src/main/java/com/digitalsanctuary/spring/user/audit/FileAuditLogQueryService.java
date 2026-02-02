@@ -1,6 +1,5 @@
 package com.digitalsanctuary.spring.user.audit;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,11 +8,13 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +72,7 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
 
     /**
      * Internal method to find audit events with optional filtering.
+     * Uses Java Streams for efficient memory handling with large log files.
      *
      * @param user the user to filter by
      * @param since optional timestamp filter
@@ -88,55 +90,25 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
             return Collections.emptyList();
         }
 
-        List<AuditEventDTO> results = new ArrayList<>();
         String userEmail = user.getEmail();
         String userId = user.getId() != null ? user.getId().toString() : null;
 
-        try (BufferedReader reader = Files.newBufferedReader(logPath)) {
-            String line;
-            boolean isFirstLine = true;
-
-            while ((line = reader.readLine()) != null) {
-                // Skip header line
-                if (isFirstLine) {
-                    isFirstLine = false;
-                    if (line.startsWith("Date|Action")) {
-                        continue;
-                    }
-                }
-
-                AuditEventDTO event = parseLine(line);
-                if (event == null) {
-                    continue;
-                }
-
-                // Filter by user
-                if (!matchesUser(event, userEmail, userId)) {
-                    continue;
-                }
-
-                // Filter by timestamp if specified
-                if (since != null && event.getTimestamp() != null && event.getTimestamp().isBefore(since)) {
-                    continue;
-                }
-
-                // Filter by action if specified
-                if (action != null && !action.equals(event.getAction())) {
-                    continue;
-                }
-
-                results.add(event);
-            }
+        try (Stream<String> lines = Files.lines(logPath)) {
+            return lines
+                    .skip(1) // Skip header line
+                    .map(this::parseLine)
+                    .filter(Objects::nonNull)
+                    .filter(event -> matchesUser(event, userEmail, userId))
+                    .filter(event -> since == null || event.getTimestamp() == null ||
+                            !event.getTimestamp().isBefore(since))
+                    .filter(event -> action == null || action.equals(event.getAction()))
+                    .sorted(Comparator.comparing(AuditEventDTO::getTimestamp,
+                            Comparator.nullsLast(Comparator.reverseOrder())))
+                    .collect(Collectors.toList());
         } catch (IOException e) {
             log.error("FileAuditLogQueryService.findByUser: Error reading audit log file", e);
             return Collections.emptyList();
         }
-
-        // Sort by timestamp descending (most recent first)
-        results.sort(Comparator.comparing(AuditEventDTO::getTimestamp,
-                Comparator.nullsLast(Comparator.reverseOrder())));
-
-        return results;
     }
 
     /**
