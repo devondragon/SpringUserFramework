@@ -2,6 +2,8 @@ package com.digitalsanctuary.spring.user.dto;
 
 import com.digitalsanctuary.spring.user.gdpr.ConsentType;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,7 +30,10 @@ public class ConsentRequestDto {
     /**
      * For CUSTOM consent type, specifies the custom consent type name.
      * Required when consentType is CUSTOM.
+     * Must contain only alphanumeric characters, underscores, and hyphens.
      */
+    @Size(max = 100, message = "Custom type must not exceed 100 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9_-]*$", message = "Custom type can only contain letters, numbers, underscores, and hyphens")
     private String customType;
 
     /**
