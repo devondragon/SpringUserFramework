@@ -43,7 +43,7 @@ public enum ConsentType {
     ANALYTICS("analytics"),
 
     /**
-     * Custom consent type. Use {@link ConsentRecord#getCustomType()}
+     * Custom consent type. Use {@link ConsentRecord#customType}
      * to specify the actual consent type name.
      */
     CUSTOM("custom");
