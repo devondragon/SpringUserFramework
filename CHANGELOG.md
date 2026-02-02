@@ -1,3 +1,88 @@
+## [4.1.0] - 2026-02-02
+### Features
+- GDPR compliance (opt‑in, disabled by default)
+  - New REST API under /user/gdpr/* (auth required; 404 when disabled):
+    - GET /user/gdpr/export – Full JSON export of user data (account, audit history, consents, token metadata, and custom data via contributors)
+    - POST /user/gdpr/delete – Orchestrated account deletion (hard delete)
+    - POST /user/gdpr/consent – Record consent grant/withdrawal (built‑in types + custom)
+    - GET /user/gdpr/consent/status – Current consent state
+  - Services and types:
+    - GdprExportService – Aggregates export data (Article 15), includes audit events and consent history
+    - GdprDeletionService – Executes deletion workflow (Article 17) and publishes lifecycle events
+    - ConsentAuditService – Tracks consent changes via audit logging
+    - GdprDataContributor – Extension point for apps to contribute domain data to exports and to clean up during deletion
+    - DTOs and enums: GdprExportDTO, ConsentRecord, ConsentType, ConsentExtraData, ConsentRequestDto (validated)
+  - Audit log query infrastructure:
+    - AuditLogQueryService + FileAuditLogQueryService – Streamed, filterable file‑based audit reader for GDPR export
+    - Supports filtering by user, timestamp, and action; handles pipe‑delimited format, unescaped pipes, zone‑less timestamps
+  - Application events for GDPR lifecycle:
+    - UserDataExportedEvent, UserDeletedEvent (post‑transaction), ConsentChangedEvent; plus existing UserPreDeleteEvent usage
+  - Configuration (defaults in dsspringuserconfig.properties):
+    - user.gdpr.enabled=false, user.gdpr.exportBeforeDeletion=true, user.gdpr.consentTracking=true
+    - user.audit.maxQueryResults=10000 (cap for file‑based audit queries)
+  - Deletion flow hardens security and consistency:
+    - Invalidates all sessions across all devices before deletion
+    - Publishes pre/post deletion events, deletes framework artifacts (tokens, password history), logs out current session
+  - ObjectMapper is injected (respects app Jackson config) for stable JSON handling across services
+
+### Fixes
+- Security and data integrity
+  - Replaced manual string JSON handling with Jackson serialization/deserialization to remove injection risks
+  - Removed PII (emails) from GDPR logs; log user IDs; sanitized custom consent type names in logs (avoid leaking identifiers)
+  - Added strict input validation for custom consent types in ConsentRequestDto:
+    - @Size(max = 100), @Pattern allowing only alphanumeric, underscore, hyphen; regex updated to require non‑empty value
+  - Invalidate all user sessions (not just current) on GDPR deletion via SessionInvalidationService
+  - Preserve user identity in GDPR deletion audit event; pass user object during audit logging
+  - Use getSession(false) for GDPR audit logging to avoid creating sessions during logging
+- Performance and stability
+  - FileAuditLogQueryService now streams file lines (Files.lines) to avoid unbounded memory usage
+  - Added configurable query cap user.audit.maxQueryResults (default 10000) and enforced it in stream processing
+  - Defensive parsing for unescaped pipes in audit lines; tolerant timestamp parsing:
+    - Fallback from ZonedDateTime to LocalDateTime (system default zone) for zone‑less dates
+- Correctness
+  - When a consent is re‑granted, withdrawnAt is cleared to reflect active consent
+  - Javadoc and docs fixes (see Documentation)
+
+### Breaking Changes
+- None. GDPR features are disabled by default and are only exposed when explicitly enabled. Existing APIs and behavior remain unchanged.
+
+### Refactoring
+- Code quality improvements:
+  - Centralized JSON handling via Spring‑configured ObjectMapper in GdprExportService and ConsentAuditService
+  - Shared client IP resolution via UserUtils.getClientIP()
+
+### Documentation
+- Comprehensive GDPR documentation added to README and CONFIG:
+  - Enabling features, configuration examples, endpoint usage, consent management, export/deletion flows, events
+  - Extending exports via GdprDataContributor with transaction safety guidance (perform external cleanup after commit using UserDeletedEvent)
+  - Rate limiting recommendations for export/delete endpoints
+- README improvements:
+  - “GDPR Compliance” added to Features
+  - Updated dependency coordinates to 4.1.0 in Maven/Gradle snippets for Spring Boot 4.0
+  - New anchors: Spring Boot 4.0 Key Changes; Admin Password Reset; table formatting consistency
+- Javadoc fix:
+  - Corrected ConsentType CUSTOM reference to ConsentRecord#customType
+
+### Testing
+- New unit test suites:
+  - GdprAPI – Auth flows, GDPR toggle behavior, consent validation, export and deletion endpoints
+  - FileAuditLogQueryService – Streaming, filtering, timestamp parsing, cap enforcement
+  - ConsentChangedEvent, UserDeletedEvent – Event publication/fields
+  - ConsentAuditService – Parsing and aggregation logic
+  - GdprDeletionService – Deletion orchestration and edge cases
+  - GdprExportService – Export composition, consent re‑grant behavior
+- Test dependency update:
+  - org.assertj:assertj-core bumped 3.27.6 → 3.27.7
+
+### Other Changes
+- Build and tooling
+  - Gradle Wrapper updated: 9.1.0 → 9.3.0 → 9.3.1
+  - Spring Boot Gradle plugin updated: 4.0.1 → 4.0.2
+  - Version bumps:
+    - gradle.properties: 4.0.3 → 4.0.4-SNAPSHOT, then 4.1.0-SNAPSHOT
+- Repository housekeeping
+  - Added context7.json verification file (service verification; no runtime impact)
+
 ## [4.0.3] - 2026-01-26
 ### Features
 - Internationalization resilience and defaults
