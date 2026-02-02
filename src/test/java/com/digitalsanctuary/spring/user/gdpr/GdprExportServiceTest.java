@@ -16,7 +16,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.springframework.context.ApplicationEventPublisher;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.digitalsanctuary.spring.user.audit.AuditEventDTO;
 import com.digitalsanctuary.spring.user.audit.AuditLogQueryService;
 import com.digitalsanctuary.spring.user.dto.GdprExportDTO;
@@ -47,6 +50,9 @@ class GdprExportServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Spy
+    private ObjectMapper objectMapper = JsonMapper.builder().build();
 
     @InjectMocks
     private GdprExportService gdprExportService;

@@ -55,9 +55,7 @@ public class ConsentAuditService {
     private final GdprConfig gdprConfig;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogQueryService auditLogQueryService;
-
-    /** ObjectMapper for JSON serialization/deserialization of consent extra data. */
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     /**
      * Records that a user has granted consent.
@@ -134,8 +132,10 @@ public class ConsentAuditService {
         eventPublisher.publishEvent(new ConsentChangedEvent(this, user, record,
                 ConsentChangedEvent.ChangeType.GRANTED));
 
+        // Log consent type safely - avoid exposing custom type names which could contain PII
+        String logTypeName = record.getType() == ConsentType.CUSTOM ? "CUSTOM" : record.getEffectiveTypeName();
         log.info("ConsentAuditService.recordConsentGranted: Recorded consent grant for user {} - type {}",
-                user.getId(), record.getEffectiveTypeName());
+                user.getId(), logTypeName);
 
         return record;
     }
@@ -212,8 +212,10 @@ public class ConsentAuditService {
         eventPublisher.publishEvent(new ConsentChangedEvent(this, user, record,
                 ConsentChangedEvent.ChangeType.WITHDRAWN));
 
+        // Log consent type safely - avoid exposing custom type names which could contain PII
+        String logTypeName = record.getType() == ConsentType.CUSTOM ? "CUSTOM" : record.getEffectiveTypeName();
         log.info("ConsentAuditService.recordConsentWithdrawn: Recorded consent withdrawal for user {} - type {}",
-                user.getId(), record.getEffectiveTypeName());
+                user.getId(), logTypeName);
 
         return record;
     }

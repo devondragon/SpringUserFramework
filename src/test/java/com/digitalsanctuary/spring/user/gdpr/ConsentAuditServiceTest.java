@@ -15,7 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.springframework.context.ApplicationEventPublisher;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.audit.AuditLogQueryService;
 import com.digitalsanctuary.spring.user.event.ConsentChangedEvent;
@@ -37,6 +40,9 @@ class ConsentAuditServiceTest {
 
     @Mock
     private AuditLogQueryService auditLogQueryService;
+
+    @Spy
+    private ObjectMapper objectMapper = JsonMapper.builder().build();
 
     @Mock
     private HttpServletRequest request;

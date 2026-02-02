@@ -57,9 +57,7 @@ public class GdprExportService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final List<GdprDataContributor> dataContributors;
     private final ApplicationEventPublisher eventPublisher;
-
-    /** ObjectMapper for JSON deserialization of consent extra data. */
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     /**
      * Exports all GDPR-relevant data for a user.

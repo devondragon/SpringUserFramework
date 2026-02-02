@@ -104,8 +104,10 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
         String userEmail = user.getEmail();
         String userId = user.getId() != null ? user.getId().toString() : null;
 
+        int maxResults = auditConfig.getMaxQueryResults();
+
         try (Stream<String> lines = Files.lines(logPath)) {
-            return lines
+            Stream<AuditEventDTO> stream = lines
                     .skip(1) // Skip header line
                     .map(this::parseLine)
                     .filter(Objects::nonNull)
@@ -114,8 +116,14 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
                             !event.getTimestamp().isBefore(since))
                     .filter(event -> action == null || action.equals(event.getAction()))
                     .sorted(Comparator.comparing(AuditEventDTO::getTimestamp,
-                            Comparator.nullsLast(Comparator.reverseOrder())))
-                    .collect(Collectors.toList());
+                            Comparator.nullsLast(Comparator.reverseOrder())));
+
+            // Apply limit if configured to prevent unbounded memory usage
+            if (maxResults > 0) {
+                stream = stream.limit(maxResults);
+            }
+
+            return stream.collect(Collectors.toList());
         } catch (IOException e) {
             log.error("FileAuditLogQueryService.findByUser: Error reading audit log file", e);
             return Collections.emptyList();
