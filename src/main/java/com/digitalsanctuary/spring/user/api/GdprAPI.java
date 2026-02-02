@@ -77,6 +77,11 @@ public class GdprAPI {
      *   <li>Data from registered GdprDataContributors</li>
      * </ul>
      *
+     * <p><b>Rate Limiting:</b> This endpoint performs resource-intensive operations
+     * (file I/O, JSON parsing, data aggregation). Consider implementing rate limiting
+     * at the infrastructure level (e.g., API gateway, Spring Security rate limiter,
+     * or reverse proxy) to prevent abuse.
+     *
      * @param userDetails the authenticated user
      * @param request the HTTP request
      * @return the complete data export as JSON
@@ -116,6 +121,10 @@ public class GdprAPI {
      *
      * <p>If configured, exports user data before deletion and includes
      * it in the response. After deletion, the user is logged out.
+     *
+     * <p><b>Rate Limiting:</b> This endpoint performs destructive, resource-intensive
+     * operations. Consider implementing rate limiting at the infrastructure level
+     * to prevent abuse or accidental repeated deletion attempts.
      *
      * @param userDetails the authenticated user
      * @param request the HTTP request
@@ -306,7 +315,7 @@ public class GdprAPI {
         AuditEvent event = AuditEvent.builder()
                 .source(this)
                 .user(user)
-                .sessionId(request.getSession().getId())
+                .sessionId(request.getSession(false) != null ? request.getSession(false).getId() : null)
                 .ipAddress(UserUtils.getClientIP(request))
                 .userAgent(request.getHeader("User-Agent"))
                 .action(action)

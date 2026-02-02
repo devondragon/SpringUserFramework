@@ -178,6 +178,13 @@ public class GdprDeletionService {
 
     /**
      * Notifies all GdprDataContributors to prepare for deletion.
+     * <p>
+     * <b>IMPORTANT:</b> Contributors MUST only delete data within the same transactional context
+     * (i.e., database records in the same database). Avoid calling external APIs or services
+     * that could succeed while the main transaction fails, leading to partial deletion.
+     * <p>
+     * If external data needs cleanup, consider implementing async event listeners for
+     * {@link com.digitalsanctuary.spring.user.event.UserDeletedEvent} instead.
      */
     private void prepareContributorsForDeletion(User user) {
         if (dataContributors == null || dataContributors.isEmpty()) {

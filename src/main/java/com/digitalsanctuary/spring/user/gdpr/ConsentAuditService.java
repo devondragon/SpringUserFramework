@@ -13,6 +13,7 @@ import com.digitalsanctuary.spring.user.audit.AuditEventDTO;
 import com.digitalsanctuary.spring.user.audit.AuditLogQueryService;
 import com.digitalsanctuary.spring.user.event.ConsentChangedEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -393,14 +394,7 @@ public class ConsentAuditService {
      * Gets the client IP address from the request.
      */
     private String getClientIP(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return UserUtils.getClientIP(request);
     }
 
     /**

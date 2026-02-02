@@ -159,6 +159,11 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
     /**
      * Parses a single line from the audit log file.
      *
+     * <p><b>Note:</b> This parser assumes the audit log writer properly escapes
+     * pipe characters in message content. If audit messages contain unescaped pipes,
+     * parsing may be corrupted. Consider migrating to a structured format (JSON lines)
+     * for production deployments with untrusted input.
+     *
      * @param line the line to parse
      * @return the parsed AuditEventDTO, or null if parsing fails
      */
@@ -169,8 +174,25 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
 
         String[] parts = line.split("\\|", -1); // -1 to keep trailing empty strings
         if (parts.length < 10) {
-            log.debug("FileAuditLogQueryService.parseLine: Invalid line format, expected 10 fields: {}", line);
+            log.debug("FileAuditLogQueryService.parseLine: Invalid line format, expected 10 fields but got {}: {}",
+                    parts.length, line);
             return null;
+        }
+
+        // Defensive: If more than 10 fields exist due to unescaped pipes in message,
+        // join the extra parts back into the message field
+        if (parts.length > 10) {
+            log.debug("FileAuditLogQueryService.parseLine: Line has {} fields (expected 10), " +
+                    "likely due to unescaped pipes in message content", parts.length);
+            // Join parts[7] through parts[parts.length-3] as the message
+            StringBuilder messageBuilder = new StringBuilder(parts[7]);
+            for (int i = 8; i < parts.length - 2; i++) {
+                messageBuilder.append("|").append(parts[i]);
+            }
+            parts[7] = messageBuilder.toString();
+            // Shift the last two fields (userAgent and extraData) to their expected positions
+            parts[8] = parts[parts.length - 2];
+            parts[9] = parts[parts.length - 1];
         }
 
         try {
