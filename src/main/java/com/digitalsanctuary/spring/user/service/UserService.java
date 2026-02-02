@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
@@ -344,6 +345,10 @@ public class UserService {
 		log.debug("UserService.deleteOrDisableUser: called with user: {}", user);
 		if (actuallyDeleteAccount) {
 			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user);
+			// Capture user details before deletion for the post-delete event
+			Long userId = user.getId();
+			String userEmail = user.getEmail();
+
 			// Publish the UserPreDeleteEvent before deleting the user
 			// This allows any listeners to perform actions before the user is deleted
 			log.debug("Publishing UserPreDeleteEvent");
@@ -361,6 +366,10 @@ public class UserService {
 			}
 			// Delete the user
 			userRepository.delete(user);
+
+			// Publish UserDeletedEvent after successful deletion
+			log.debug("Publishing UserDeletedEvent");
+			eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail));
 		} else {
 			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user);
 			user.setEnabled(false);
