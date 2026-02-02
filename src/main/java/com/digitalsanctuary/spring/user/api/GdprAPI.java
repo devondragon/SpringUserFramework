@@ -137,7 +137,8 @@ public class GdprAPI {
             GdprDeletionService.DeletionResult result = gdprDeletionService.deleteUser(user);
 
             if (result.isSuccess()) {
-                logAuditEvent("GdprDelete", "Success", "User account deleted", null, request);
+                // Log audit event with user info before logout (user still in memory)
+                logAuditEvent("GdprDelete", "Success", "User account deleted", user, request);
                 logoutUser(user, request);
 
                 JSONResponse.JSONResponseBuilder responseBuilder = JSONResponse.builder()

@@ -177,6 +177,8 @@ public class GdprExportService {
                         existing.setGrantedAt(record.getGrantedAt());
                         existing.setPolicyVersion(record.getPolicyVersion());
                         existing.setMethod(record.getMethod());
+                        // Clear any previous withdrawal - consent is now active again
+                        existing.setWithdrawnAt(null);
                     } else {
                         consentMap.put(key, record);
                     }

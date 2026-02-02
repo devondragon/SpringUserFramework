@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -201,11 +203,20 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
             return null;
         }
 
-        // Try each formatter
+        // Try each formatter - first as ZonedDateTime, then as LocalDateTime
         for (DateTimeFormatter formatter : DATE_FORMATTERS) {
+            // Try parsing as ZonedDateTime (for formats with timezone info)
             try {
                 ZonedDateTime zdt = ZonedDateTime.parse(dateStr.trim(), formatter);
                 return zdt.toInstant();
+            } catch (DateTimeParseException e) {
+                // Try next approach
+            }
+
+            // Try parsing as LocalDateTime (for formats without timezone info like MessageFormat output)
+            try {
+                LocalDateTime ldt = LocalDateTime.parse(dateStr.trim(), formatter);
+                return ldt.atZone(ZoneId.systemDefault()).toInstant();
             } catch (DateTimeParseException e) {
                 // Try next formatter
             }
