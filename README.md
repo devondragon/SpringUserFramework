@@ -51,6 +51,13 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Handling User Account Deletion and Profile Cleanup](#handling-user-account-deletion-and-profile-cleanup)
       - [Enabling Actual Deletion](#enabling-actual-deletion)
     - [SSO OAuth2 with Google and Facebook](#sso-oauth2-with-google-and-facebook)
+  - [GDPR Compliance](#gdpr-compliance)
+    - [Enabling GDPR Features](#enabling-gdpr-features)
+    - [Data Export (Right of Access)](#data-export-right-of-access)
+    - [Account Deletion (Right to be Forgotten)](#account-deletion-right-to-be-forgotten)
+    - [Consent Management](#consent-management)
+    - [Extending GDPR Exports](#extending-gdpr-exports)
+    - [GDPR Events](#gdpr-events)
   - [Examples](#examples)
   - [Contributing](#contributing)
   - [Reference Documentation](#reference-documentation)
@@ -91,6 +98,13 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - Configuration-driven features
   - Comprehensive documentation
   - Demo application for reference
+
+- **GDPR Compliance** (opt-in)
+  - Data export (Right of Access - Article 15)
+  - Account deletion (Right to be Forgotten - Article 17)
+  - Consent tracking and management (Article 7)
+  - Extensible data contributor system for custom data
+  - Audit trail for all GDPR operations
 
 ## Installation
 
@@ -746,6 +760,182 @@ By implementing such a listener, your application ensures data integrity when th
 ### SSO OAuth2 with Google and Facebook
 The framework supports SSO OAuth2 with Google, Facebook and Keycloak.  To enable this you need to configure the client id and secret for each provider.  This is done in the application.yml (or application.properties) file using the [Spring Security OAuth2 properties](https://docs.spring.io/spring-security/reference/servlet/oauth2/login/core.html). You can see the example configuration in the Demo Project's `application.yml` file.
 
+
+## GDPR Compliance
+
+The framework provides opt-in GDPR compliance features to help your application meet European data protection requirements. These features are **disabled by default** and must be explicitly enabled.
+
+### Enabling GDPR Features
+
+Add the following to your `application.yml`:
+
+```yaml
+user:
+  gdpr:
+    enabled: true                    # Master toggle for all GDPR features
+    exportBeforeDeletion: true       # Automatically export data before deletion
+    consentTracking: true            # Enable consent grant/withdrawal tracking
+```
+
+When enabled, the following REST endpoints become available (all require authentication):
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/user/gdpr/export` | GET | Export all user data as JSON |
+| `/user/gdpr/delete` | POST | Request account deletion |
+| `/user/gdpr/consent` | POST | Record consent grant or withdrawal |
+| `/user/gdpr/consent/status` | GET | Get current consent status |
+
+### Data Export (Right of Access)
+
+Users can request a complete export of their data via the `/user/gdpr/export` endpoint. The export includes:
+
+- **User account data**: Name, email, registration date, roles
+- **Audit history**: Login events, password changes, profile updates
+- **Consent records**: All consent grants and withdrawals with timestamps
+- **Token metadata**: Verification and password reset token expiry (not actual tokens)
+- **Custom data**: Any data contributed by registered `GdprDataContributor` beans
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "exportedAt": "2024-01-15T10:30:00Z",
+    "user": {
+      "id": 123,
+      "email": "user@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "createdDate": "2023-06-01T08:00:00Z",
+      "roles": ["ROLE_USER"]
+    },
+    "auditHistory": [...],
+    "consents": [...],
+    "customData": {}
+  }
+}
+```
+
+### Account Deletion (Right to be Forgotten)
+
+Users can request complete deletion of their account via the `/user/gdpr/delete` endpoint. The deletion process:
+
+1. **Exports data** (if `exportBeforeDeletion=true`) and includes it in the response
+2. **Notifies contributors** via `GdprDataContributor.prepareForDeletion()`
+3. **Publishes `UserPreDeleteEvent`** for custom cleanup listeners
+4. **Deletes framework data**: Verification tokens, password reset tokens, password history
+5. **Deletes user entity** from database
+6. **Publishes `UserDeletedEvent`** for post-deletion processing
+7. **Invalidates all sessions** across all devices
+8. **Logs out** the current session
+
+**Important**: This performs a hard delete. Ensure you have the `UserPreDeleteEvent` listener configured (see [Handling User Account Deletion](#handling-user-account-deletion-and-profile-cleanup)) to clean up related data.
+
+### Consent Management
+
+Track user consent for various purposes (marketing, analytics, data processing, etc.):
+
+**Recording Consent:**
+```bash
+# Grant consent
+curl -X POST /user/gdpr/consent \
+  -H "Content-Type: application/json" \
+  -d '{"consentType": "MARKETING", "granted": true}'
+
+# Withdraw consent
+curl -X POST /user/gdpr/consent \
+  -H "Content-Type: application/json" \
+  -d '{"consentType": "MARKETING", "granted": false}'
+
+# Custom consent type
+curl -X POST /user/gdpr/consent \
+  -H "Content-Type: application/json" \
+  -d '{"consentType": "CUSTOM", "customType": "newsletter_weekly", "granted": true}'
+```
+
+**Built-in Consent Types:**
+- `MARKETING` - Marketing communications
+- `ANALYTICS` - Analytics and tracking
+- `THIRD_PARTY` - Third-party data sharing
+- `PROFILING` - User profiling
+- `CUSTOM` - Application-specific (requires `customType` field)
+
+**Checking Consent Status:**
+```bash
+curl /user/gdpr/consent/status?type=MARKETING
+```
+
+All consent changes are recorded in the audit log with timestamps, IP addresses, and user agent information.
+
+### Extending GDPR Exports
+
+To include your application's custom data in GDPR exports, implement the `GdprDataContributor` interface:
+
+```java
+@Component
+public class OrderDataContributor implements GdprDataContributor {
+
+    private final OrderRepository orderRepository;
+
+    public OrderDataContributor(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
+    }
+
+    @Override
+    public String getDataKey() {
+        return "orders";  // Key in the export JSON
+    }
+
+    @Override
+    public Object contributeData(User user) {
+        // Return data to include in export (will be serialized to JSON)
+        return orderRepository.findByUserId(user.getId())
+            .stream()
+            .map(this::toExportDto)
+            .toList();
+    }
+
+    @Override
+    public void prepareForDeletion(User user) {
+        // Clean up data before user deletion (runs within transaction)
+        // WARNING: Only delete LOCAL database data here, not external APIs
+        orderRepository.deleteByUserId(user.getId());
+    }
+
+    private OrderExportDto toExportDto(Order order) {
+        // Map to DTO for export
+    }
+}
+```
+
+**Important**: The `prepareForDeletion()` method runs within the same database transaction as user deletion. Only perform local database operations here. For external API cleanup, use a `UserDeletedEvent` listener instead.
+
+### GDPR Events
+
+The framework publishes Spring events for GDPR operations:
+
+| Event | When Published | Use Case |
+|-------|----------------|----------|
+| `UserPreDeleteEvent` | Before user deletion (in transaction) | Clean up related database records |
+| `UserDeletedEvent` | After successful deletion | External API cleanup, notifications |
+| `UserDataExportedEvent` | After data export | Audit logging, analytics |
+| `ConsentChangedEvent` | After consent grant/withdrawal | Trigger consent-dependent workflows |
+
+**Example: External Cleanup After Deletion**
+```java
+@Component
+public class ExternalCleanupListener {
+
+    @EventListener
+    @Async  // Run asynchronously after transaction commits
+    public void onUserDeleted(UserDeletedEvent event) {
+        // Safe to call external APIs here
+        externalCrmService.deleteCustomer(event.getUserEmail());
+        analyticsService.anonymizeUser(event.getUserId());
+    }
+}
+```
 
 ## Examples
 
