@@ -26,8 +26,19 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>This implementation reads and parses the entire log file for each query,
  * filtering results by user email or ID. While suitable for small to medium
- * audit volumes, applications with high audit volumes should consider implementing
- * a database-backed query service.
+ * audit volumes (&lt;50MB, &lt;100K events), applications with high audit volumes
+ * or frequent export requests should consider implementing a database-backed
+ * query service for better performance.
+ *
+ * <p><strong>Performance Note:</strong> GDPR export operations call this service
+ * multiple times (findByUser, findByUserAndAction) which results in reading
+ * and parsing the entire log file for each call. For production deployments
+ * with large audit logs, consider:
+ * <ul>
+ *   <li>Implementing a database-backed {@link AuditLogQueryService}</li>
+ *   <li>Adding log rotation to keep file sizes manageable</li>
+ *   <li>Using indexed storage for audit events</li>
+ * </ul>
  *
  * <p>The log file format is:
  * {@code Date|Action|ActionStatus|UserId|Email|IPAddress|SessionId|Message|UserAgent|ExtraData}

@@ -150,6 +150,7 @@ public class GdprDeletionService {
     @Transactional
     protected DeletionResult executeUserDeletion(User user, GdprExportDTO exportedData, boolean wasExported) {
         Long userId = user.getId();
+        String userEmail = user.getEmail();
 
         // Step 2: Notify all GdprDataContributors to prepare for deletion
         prepareContributorsForDeletion(user);
@@ -168,7 +169,7 @@ public class GdprDeletionService {
         log.info("GdprDeletionService.deleteUser: Successfully deleted user {}", userId);
 
         // Step 6: Publish UserDeletedEvent after successful deletion
-        eventPublisher.publishEvent(new UserDeletedEvent(this, userId, user.getEmail(), wasExported));
+        eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail, wasExported));
 
         return wasExported
                 ? DeletionResult.successWithExport(exportedData)

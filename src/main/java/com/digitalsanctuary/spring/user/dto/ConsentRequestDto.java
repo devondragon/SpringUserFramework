@@ -33,7 +33,7 @@ public class ConsentRequestDto {
      * Must contain only alphanumeric characters, underscores, and hyphens.
      */
     @Size(max = 100, message = "Custom type must not exceed 100 characters")
-    @Pattern(regexp = "^[a-zA-Z0-9_-]*$", message = "Custom type can only contain letters, numbers, underscores, and hyphens")
+    @Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "Custom type can only contain letters, numbers, underscores, and hyphens")
     private String customType;
 
     /**
