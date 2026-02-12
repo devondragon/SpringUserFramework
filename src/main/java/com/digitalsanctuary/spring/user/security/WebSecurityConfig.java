@@ -26,8 +26,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
-import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
-import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -134,8 +132,6 @@ public class WebSecurityConfig {
 	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
-	private final UserCredentialRepository userCredentialRepository;
-	private final PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository;
 
 	/**
 	 *
@@ -229,15 +225,12 @@ public class WebSecurityConfig {
 	 */
 	private void setupWebAuthn(HttpSecurity http) throws Exception {
 		// Parse comma-separated origins into Set
-		Set<String> allowedOrigins = new HashSet<>(Arrays.asList(webAuthnAllowedOriginsProperty.split(",")));
-
-		// Trim whitespace from origins
-		allowedOrigins = allowedOrigins.stream().map(String::trim).collect(java.util.stream.Collectors.toSet());
+		Set<String> allowedOrigins = Arrays.stream(webAuthnAllowedOriginsProperty.split(",")).map(String::trim)
+				.collect(java.util.stream.Collectors.toSet());
 
 		log.debug("WebSecurityConfig.setupWebAuthn: rpId={}, rpName={}, allowedOrigins={}", webAuthnRpId, webAuthnRpName, allowedOrigins);
 
-		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnRpName).rpId(webAuthnRpId).allowedOrigins(allowedOrigins)
-				.userCredentialRepository(userCredentialRepository).userEntityRepository(publicKeyCredentialUserEntityRepository));
+		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnRpName).rpId(webAuthnRpId).allowedOrigins(allowedOrigins));
 	}
 
 	// Commenting this out to try adding /error to the unprotected URIs list instead

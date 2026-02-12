@@ -53,6 +53,7 @@ dependencies {
     compileOnly 'org.springframework.retry:spring-retry:2.0.12'
 
     // WebAuthn support (Passkey authentication)
+    compileOnly 'org.springframework.security:spring-security-webauthn'
     implementation 'com.webauthn4j:webauthn4j-core:0.30.2.RELEASE'
 
     // Lombok dependencies
@@ -73,6 +74,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.security:spring-security-webauthn'
     testImplementation 'org.springframework.retry:spring-retry:2.0.12'
     testImplementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     testImplementation 'org.hibernate.validator:hibernate-validator:9.1.0.Final'

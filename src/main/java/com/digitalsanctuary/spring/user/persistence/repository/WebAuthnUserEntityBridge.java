@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.persistence.repository;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.web.webauthn.api.Bytes;
 import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
 import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEntity;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
@@ -40,9 +41,9 @@ public class WebAuthnUserEntityBridge {
 		}
 
 		// Check if user entity already exists
-		Optional<PublicKeyCredentialUserEntity> existing = baseRepository.findByUsername(username);
-		if (existing.isPresent()) {
-			return existing;
+		PublicKeyCredentialUserEntity existing = baseRepository.findByUsername(username);
+		if (existing != null) {
+			return Optional.of(existing);
 		}
 
 		// User entity doesn't exist yet - check if application user exists
@@ -67,7 +68,7 @@ public class WebAuthnUserEntityBridge {
 	 */
 	@Transactional
 	public PublicKeyCredentialUserEntity createUserEntity(User user) {
-		byte[] userId = longToBytes(user.getId());
+		Bytes userId = new Bytes(longToBytes(user.getId()));
 		String displayName = user.getFullName();
 
 		PublicKeyCredentialUserEntity entity = ImmutablePublicKeyCredentialUserEntity.builder().name(user.getEmail()).id(userId)
