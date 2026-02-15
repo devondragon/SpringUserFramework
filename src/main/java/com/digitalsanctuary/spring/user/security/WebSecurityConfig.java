@@ -230,7 +230,16 @@ public class WebSecurityConfig {
 
 		log.debug("WebSecurityConfig.setupWebAuthn: rpId={}, rpName={}, allowedOrigins={}", webAuthnRpId, webAuthnRpName, allowedOrigins);
 
-		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnRpName).rpId(webAuthnRpId).allowedOrigins(allowedOrigins));
+		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnRpName).rpId(webAuthnRpId).allowedOrigins(allowedOrigins)
+				.withObjectPostProcessor(
+						new org.springframework.security.config.ObjectPostProcessor<org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter>() {
+							@Override
+							public <O extends org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter> O postProcess(
+									O filter) {
+								filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService));
+								return filter;
+							}
+						}));
 	}
 
 	// Commenting this out to try adding /error to the unprotected URIs list instead

@@ -35,7 +35,4 @@ public class WebAuthnCredentialInfo {
 
 	/** Whether credential is currently backed up. */
 	private Boolean backupState;
-
-	/** Whether credential is enabled. */
-	private Boolean enabled;
 }

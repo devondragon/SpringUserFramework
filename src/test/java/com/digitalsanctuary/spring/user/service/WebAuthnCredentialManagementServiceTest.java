@@ -48,7 +48,7 @@ class WebAuthnCredentialManagementServiceTest {
 		@DisplayName("should return credentials for user")
 		void shouldReturnCredentialsForUser() {
 			// Given
-			WebAuthnCredentialInfo cred = WebAuthnCredentialInfo.builder().id("cred-123").label("My iPhone").enabled(true)
+			WebAuthnCredentialInfo cred = WebAuthnCredentialInfo.builder().id("cred-123").label("My iPhone")
 					.created(Instant.now()).build();
 
 			when(credentialQueryRepository.findCredentialsByUserId(testUser.getId())).thenReturn(List.of(cred));
@@ -186,7 +186,7 @@ class WebAuthnCredentialManagementServiceTest {
 		@DisplayName("should delete credential when user has multiple passkeys")
 		void shouldDeleteWhenMultiplePasskeys() throws WebAuthnException {
 			// Given
-			when(credentialQueryRepository.countEnabledCredentials(testUser.getId())).thenReturn(2L);
+			when(credentialQueryRepository.countCredentials(testUser.getId())).thenReturn(2L);
 			when(credentialQueryRepository.deleteCredential("cred-123", testUser.getId())).thenReturn(1);
 
 			// When
@@ -200,7 +200,7 @@ class WebAuthnCredentialManagementServiceTest {
 		@DisplayName("should delete last credential when user has a password")
 		void shouldDeleteLastCredentialWhenUserHasPassword() throws WebAuthnException {
 			// Given - user has password set (from TestFixtures)
-			when(credentialQueryRepository.countEnabledCredentials(testUser.getId())).thenReturn(1L);
+			when(credentialQueryRepository.countCredentials(testUser.getId())).thenReturn(1L);
 			when(credentialQueryRepository.deleteCredential("cred-123", testUser.getId())).thenReturn(1);
 
 			// When
@@ -215,7 +215,7 @@ class WebAuthnCredentialManagementServiceTest {
 		void shouldBlockDeletionOfLastPasskeyWithoutPassword() {
 			// Given
 			testUser.setPassword(null);
-			when(credentialQueryRepository.countEnabledCredentials(testUser.getId())).thenReturn(1L);
+			when(credentialQueryRepository.countCredentials(testUser.getId())).thenReturn(1L);
 
 			// When/Then
 			assertThatThrownBy(() -> service.deleteCredential("cred-123", testUser)).isInstanceOf(WebAuthnException.class)
@@ -229,7 +229,7 @@ class WebAuthnCredentialManagementServiceTest {
 		void shouldBlockDeletionOfLastPasskeyWithEmptyPassword() {
 			// Given
 			testUser.setPassword("");
-			when(credentialQueryRepository.countEnabledCredentials(testUser.getId())).thenReturn(1L);
+			when(credentialQueryRepository.countCredentials(testUser.getId())).thenReturn(1L);
 
 			// When/Then
 			assertThatThrownBy(() -> service.deleteCredential("cred-123", testUser)).isInstanceOf(WebAuthnException.class)
@@ -242,7 +242,7 @@ class WebAuthnCredentialManagementServiceTest {
 		@DisplayName("should throw when credential not found")
 		void shouldThrowWhenCredentialNotFound() {
 			// Given
-			when(credentialQueryRepository.countEnabledCredentials(testUser.getId())).thenReturn(2L);
+			when(credentialQueryRepository.countCredentials(testUser.getId())).thenReturn(2L);
 			when(credentialQueryRepository.deleteCredential("cred-999", testUser.getId())).thenReturn(0);
 
 			// When/Then

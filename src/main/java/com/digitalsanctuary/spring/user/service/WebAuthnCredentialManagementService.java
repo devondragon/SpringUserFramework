@@ -82,7 +82,7 @@ public class WebAuthnCredentialManagementService {
 	 * Delete a credential with last-credential protection.
 	 *
 	 * <p>
-	 * Soft-deletes a credential by marking it as disabled. This operation includes important safety logic:
+	 * Deletes a credential. This operation includes important safety logic:
 	 * </p>
 	 * <ul>
 	 * <li>If this is the user's last passkey AND the user has no password, deletion is blocked</li>
@@ -101,7 +101,7 @@ public class WebAuthnCredentialManagementService {
 	@Transactional
 	public void deleteCredential(String credentialId, User user) throws WebAuthnException {
 		// Check if this is the last credential and user has no password
-		long enabledCount = credentialQueryRepository.countEnabledCredentials(user.getId());
+		long enabledCount = credentialQueryRepository.countCredentials(user.getId());
 
 		if (enabledCount == 1 && (user.getPassword() == null || user.getPassword().isEmpty())) {
 			throw new WebAuthnException(

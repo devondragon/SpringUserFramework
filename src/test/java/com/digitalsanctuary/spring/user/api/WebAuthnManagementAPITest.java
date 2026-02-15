@@ -62,7 +62,7 @@ class WebAuthnManagementAPITest {
 		void shouldReturnCredentials() {
 			// Given
 			WebAuthnCredentialInfo cred = WebAuthnCredentialInfo.builder().id("cred-1").label("My iPhone").created(Instant.now())
-					.enabled(true).build();
+					.build();
 
 			when(credentialManagementService.getUserCredentials(testUser)).thenReturn(List.of(cred));
 
