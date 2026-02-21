@@ -60,26 +60,16 @@ class FileAuditLogQueryServiceTest {
         }
 
         @Test
-        @DisplayName("returns empty list when log file does not exist")
+        @DisplayName("returns empty list when log file path is not configured")
         void returnsEmptyList_whenLogFileDoesNotExist() {
-            // Given
-            setupLogFilePath();
-            // Log file not created
-            String originalTmpDir = System.getProperty("java.io.tmpdir");
-            System.setProperty("java.io.tmpdir", tempDir.toString());
-            try {
-                // When
-                List<AuditEventDTO> result = queryService.findByUser(testUser);
+            // Given - null path causes early return before tmpdir fallback
+            when(auditConfig.getLogFilePath()).thenReturn(null);
 
-                // Then
-                assertThat(result).isEmpty();
-            } finally {
-                if (originalTmpDir == null) {
-                    System.clearProperty("java.io.tmpdir");
-                } else {
-                    System.setProperty("java.io.tmpdir", originalTmpDir);
-                }
-            }
+            // When
+            List<AuditEventDTO> result = queryService.findByUser(testUser);
+
+            // Then
+            assertThat(result).isEmpty();
         }
 
         @Test
@@ -125,22 +115,23 @@ class FileAuditLogQueryServiceTest {
         @Test
         @DisplayName("returns events sorted by timestamp descending")
         void returnsEvents_sortedByTimestampDescending() throws IOException {
-            // Given
+            // Given - use ISO timestamps for reliable parsing across JDKs
             setupLogFilePath();
             String logContent = """
                 Date|Action|Action Status|User ID|Email|IP Address|SessionId|Message|User Agent|Extra Data
-                Thu Jan 15 08:00:00 EST 2025|Login|Success|1|test@example.com|127.0.0.1|sess1|First|Mozilla/5.0|null
-                Thu Jan 15 12:00:00 EST 2025|Logout|Success|1|test@example.com|127.0.0.1|sess2|Third|Mozilla/5.0|null
-                Thu Jan 15 10:00:00 EST 2025|PasswordUpdate|Success|1|test@example.com|127.0.0.1|sess3|Second|Mozilla/5.0|null
+                2025-01-15T08:00:00Z|Login|Success|1|test@example.com|127.0.0.1|sess1|First|Mozilla/5.0|null
+                2025-01-15T12:00:00Z|Logout|Success|1|test@example.com|127.0.0.1|sess2|Third|Mozilla/5.0|null
+                2025-01-15T10:00:00Z|PasswordUpdate|Success|1|test@example.com|127.0.0.1|sess3|Second|Mozilla/5.0|null
                 """;
             Files.writeString(logFile, logContent);
 
             // When
             List<AuditEventDTO> result = queryService.findByUser(testUser);
 
-            // Then - should be sorted newest first
+            // Then - should be sorted newest first: Logout (12:00), PasswordUpdate (10:00), Login (08:00)
             assertThat(result).hasSize(3);
-            // The order should be: Logout (12:00), PasswordUpdate (10:00), Login (08:00)
+            assertThat(result).extracting(AuditEventDTO::getAction)
+                    .containsExactly("Logout", "PasswordUpdate", "Login");
         }
     }
 
