@@ -107,7 +107,7 @@ public class WebAuthnManagementAPI {
 	 * </p>
 	 *
 	 * <p>
-	 * The label must be non-empty and no more than 255 characters.
+	 * The label must be non-empty and no more than 64 characters.
 	 * </p>
 	 *
 	 * @param id the credential ID to rename

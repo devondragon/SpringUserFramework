@@ -46,6 +46,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [Email Verification](#email-verification)
   - [Authentication](#authentication)
     - [Local Authentication](#local-authentication)
+    - [WebAuthn / Passkeys](#webauthn--passkeys)
     - [OAuth2/SSO](#oauth2sso)
       - [**SSO OIDC with Keycloak**](#sso-oidc-with-keycloak)
   - [Extensibility](#extensibility)
@@ -76,6 +77,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - SSO support for Google
   - SSO support for Facebook
   - SSO support for Keycloak
+  - WebAuthn/Passkey support for passwordless login (biometrics, security keys, device authentication)
   - Configuration options to control anonymous access, whitelist URIs, and protect specific URIs requiring a logged-in user session.
   - CSRF protection enabled by default, with example jQuery AJAX calls passing the CSRF token from the Thymeleaf page context.
   - Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
@@ -88,6 +90,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - Account lockout after failed login attempts
   - Audit logging for security events
   - CSRF protection out of the box
+  - WebAuthn/Passkey credential management (register, rename, delete)
 
 - **Extensible Architecture**
   - Easily extend user profiles with custom data
@@ -594,6 +597,51 @@ Username/password authentication with:
 - Secure password hashing (bcrypt)
 - Account lockout protection
 - Remember-me functionality
+
+### WebAuthn / Passkeys
+
+Passwordless authentication using biometrics (Touch ID, Face ID, Windows Hello), security keys (YubiKey), or device-based credentials. Built on Spring Security's WebAuthn support.
+
+**Features:**
+- Passwordless login via platform authenticators and roaming security keys
+- Passkey management REST API (list, rename, delete credentials)
+- Last-credential protection (prevents lockout if user has no password)
+- Synced passkey support (iCloud Keychain, Google Password Manager, etc.)
+
+**Setup:**
+
+1. Enable WebAuthn in your configuration:
+   ```yaml
+   user:
+     webauthn:
+       enabled: true
+       rpId: localhost                           # Your domain in production
+       rpName: My Application
+       allowedOrigins: https://localhost:8443    # Must match browser origin
+   ```
+
+2. Add the WebAuthn authentication endpoints to your unprotected URIs:
+   ```yaml
+   user:
+     security:
+       unprotectedURIs: ...,/webauthn/authenticate/**,/login/webauthn
+   ```
+
+3. Create the required database tables. If using `ddl-auto: update`, Hibernate will create them automatically. Otherwise, apply the schema manually (see `db-scripts/mariadb-schema.sql`).
+
+**Requirements:**
+- HTTPS is required in production (HTTP works on `localhost` for development)
+- Users must be authenticated before registering a passkey
+- See the [Configuration Guide](CONFIG.md) for all WebAuthn settings
+
+**Management API Endpoints** (all require authentication):
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/user/webauthn/credentials` | GET | List user's passkeys |
+| `/user/webauthn/has-credentials` | GET | Check if user has passkeys |
+| `/user/webauthn/credentials/{id}/label` | PUT | Rename a passkey (max 64 chars) |
+| `/user/webauthn/credentials/{id}` | DELETE | Delete a passkey |
 
 ### OAuth2/SSO
 

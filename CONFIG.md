@@ -90,11 +90,19 @@ user.webauthn.rpName=My Application
 user.webauthn.allowedOrigins=https://example.com
 ```
 
+**Database Schema:**
+
+WebAuthn requires two additional tables: `user_entities` and `user_credentials`. If using `ddl-auto: update`, Hibernate will create them automatically. For manual schema management, see `db-scripts/mariadb-schema.sql`.
+
 **Important Notes:**
-- WebAuthn requires HTTPS in production. Generate a proper SSL certificate (Let's Encrypt, commercial CA).
-- For development, generate a self-signed certificate: `keytool -genkeypair -alias localhost -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 3650`
+- WebAuthn is **disabled by default** and must be explicitly enabled along with the required database tables.
+- WebAuthn requires HTTPS in production. HTTP is allowed on `localhost` for development.
+- For local HTTPS development, generate a self-signed certificate: `keytool -genkeypair -alias localhost -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 3650`
 - Configure SSL in `application.properties`: `server.ssl.enabled=true`, `server.ssl.key-store=classpath:keystore.p12`
+- Alternatively, use ngrok (`ngrok http 8080`) for HTTPS without certificates. Note: HTTP also works on localhost with most browsers.
 - Users must be authenticated before they can register a passkey. Passkeys enhance existing authentication, not replace initial registration.
+- You must add `/webauthn/authenticate/**` and `/login/webauthn` to your `unprotectedURIs` for passkey login to work.
+- Passkey labels are limited to 64 characters.
 
 ## Mail Configuration
 
