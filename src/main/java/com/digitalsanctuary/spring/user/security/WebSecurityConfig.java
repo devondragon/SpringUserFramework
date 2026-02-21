@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
@@ -113,7 +112,7 @@ public class WebSecurityConfig {
 	@Value("${user.security.rememberMe.key:#{null}}")
 	private String rememberMeKey;
 
-	@Value("${user.webauthn.enabled:true}")
+	@Value("${user.webauthn.enabled:false}")
 	private boolean webAuthnEnabled;
 
 	@Value("${user.webauthn.rpId:localhost}")

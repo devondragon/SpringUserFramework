@@ -29,5 +29,5 @@ public class WebAuthnConfigProperties {
 	/**
 	 * Whether Passkey support is enabled.
 	 */
-	private boolean enabled = true;
+	private boolean enabled = false;
 }

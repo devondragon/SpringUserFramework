@@ -69,7 +69,7 @@ user:
 
 Provides passwordless login using biometrics, security keys, or device authentication. **HTTPS is required** for WebAuthn to function.
 
-- **Enabled (`user.webauthn.enabled`)**: Enable or disable WebAuthn/Passkey support. Defaults to `true`.
+- **Enabled (`user.webauthn.enabled`)**: Enable or disable WebAuthn/Passkey support. Defaults to `false`. Must be explicitly enabled along with the required database schema.
 - **Relying Party ID (`user.webauthn.rpId`)**: For development, use `localhost`. For production, use your domain (e.g., `example.com`). Defaults to `localhost`.
 - **Relying Party Name (`user.webauthn.rpName`)**: The display name.
 - **Allowed Origins (`user.webauthn.allowedOrigins`)**: Comma-separated list of allowed origins. Defaults to `https://localhost:8443`.
