@@ -23,6 +23,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * REST API for WebAuthn credential management.
@@ -46,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/user/webauthn")
 @ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
+@Validated
 public class WebAuthnManagementAPI {
 
 	private final WebAuthnCredentialManagementService credentialManagementService;
@@ -94,7 +96,8 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity with success message or error
 	 */
 	@PutMapping("/credentials/{id}/label")
-	public ResponseEntity<GenericResponse> renameCredential(@PathVariable String id, @RequestBody @Valid RenameCredentialRequest request,
+	public ResponseEntity<GenericResponse> renameCredential(@PathVariable @Size(max = 512) String id,
+			@RequestBody @Valid RenameCredentialRequest request,
 			@AuthenticationPrincipal UserDetails userDetails) throws WebAuthnException {
 		User user = findAuthenticatedUser(userDetails);
 		credentialManagementService.renameCredential(id, request.label(), user);
@@ -118,8 +121,8 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity with success message or error
 	 */
 	@DeleteMapping("/credentials/{id}")
-	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable String id, @AuthenticationPrincipal UserDetails userDetails)
-			throws WebAuthnException {
+	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable @Size(max = 512) String id,
+			@AuthenticationPrincipal UserDetails userDetails) throws WebAuthnException {
 		User user = findAuthenticatedUser(userDetails);
 		credentialManagementService.deleteCredential(id, user);
 		return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));
