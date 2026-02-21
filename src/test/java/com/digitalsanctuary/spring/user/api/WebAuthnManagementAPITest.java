@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -21,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
@@ -59,7 +61,6 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should return credentials for authenticated user")
-		@SuppressWarnings("unchecked")
 		void shouldReturnCredentials() {
 			// Given
 			WebAuthnCredentialInfo cred = WebAuthnCredentialInfo.builder().id("cred-1").label("My iPhone").created(Instant.now())
@@ -68,43 +69,37 @@ class WebAuthnManagementAPITest {
 			when(credentialManagementService.getUserCredentials(testUser)).thenReturn(List.of(cred));
 
 			// When
-			ResponseEntity<?> response = api.getCredentials(userDetails);
+			ResponseEntity<List<WebAuthnCredentialInfo>> response = api.getCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			List<WebAuthnCredentialInfo> body = (List<WebAuthnCredentialInfo>) response.getBody();
-			assertThat(body).hasSize(1);
-			assertThat(body.get(0).getLabel()).isEqualTo("My iPhone");
+			assertThat(response.getBody()).hasSize(1);
+			assertThat(response.getBody().get(0).getLabel()).isEqualTo("My iPhone");
 		}
 
 		@Test
 		@DisplayName("should return empty list when no credentials")
-		@SuppressWarnings("unchecked")
 		void shouldReturnEmptyList() {
 			// Given
 			when(credentialManagementService.getUserCredentials(testUser)).thenReturn(Collections.emptyList());
 
 			// When
-			ResponseEntity<?> response = api.getCredentials(userDetails);
+			ResponseEntity<List<WebAuthnCredentialInfo>> response = api.getCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			List<WebAuthnCredentialInfo> body = (List<WebAuthnCredentialInfo>) response.getBody();
-			assertThat(body).isEmpty();
+			assertThat(response.getBody()).isEmpty();
 		}
 
 		@Test
-		@DisplayName("should return bad request when user not found")
-		void shouldReturnBadRequestWhenUserNotFound() {
+		@DisplayName("should throw not found when user not found")
+		void shouldThrowNotFoundWhenUserNotFound() {
 			// Given
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
 			// When
-			ResponseEntity<?> response = api.getCredentials(userDetails);
-
-			// Then
-			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-			assertThat(((GenericResponse) response.getBody()).getMessage()).contains("User not found");
+			assertThatThrownBy(() -> api.getCredentials(userDetails)).isInstanceOf(WebAuthnUserNotFoundException.class)
+					.hasMessageContaining("User not found");
 		}
 	}
 
@@ -119,11 +114,11 @@ class WebAuthnManagementAPITest {
 			when(credentialManagementService.hasCredentials(testUser)).thenReturn(true);
 
 			// When
-			ResponseEntity<?> response = api.hasCredentials(userDetails);
+			ResponseEntity<Boolean> response = api.hasCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			assertThat((Boolean) response.getBody()).isTrue();
+			assertThat(response.getBody()).isTrue();
 		}
 
 		@Test
@@ -133,11 +128,23 @@ class WebAuthnManagementAPITest {
 			when(credentialManagementService.hasCredentials(testUser)).thenReturn(false);
 
 			// When
-			ResponseEntity<?> response = api.hasCredentials(userDetails);
+			ResponseEntity<Boolean> response = api.hasCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			assertThat((Boolean) response.getBody()).isFalse();
+			assertThat(response.getBody()).isFalse();
+		}
+
+		@Test
+		@DisplayName("should throw not found when user not found")
+		void shouldThrowNotFoundWhenUserNotFound() {
+			// Given
+			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
+
+			// When
+			assertThatThrownBy(() -> api.hasCredentials(userDetails)).isInstanceOf(WebAuthnUserNotFoundException.class)
+					.hasMessageContaining("User not found");
+			verify(credentialManagementService, never()).hasCredentials(any());
 		}
 	}
 
@@ -161,19 +168,29 @@ class WebAuthnManagementAPITest {
 		}
 
 		@Test
-		@DisplayName("should return bad request when rename fails")
-		void shouldReturnBadRequestOnFailure() throws WebAuthnException {
+		@DisplayName("should throw when rename fails")
+		void shouldThrowOnFailure() throws WebAuthnException {
 			// Given
 			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name");
 			doThrow(new WebAuthnException("Credential not found or access denied")).when(credentialManagementService)
 					.renameCredential(eq("cred-999"), eq("New Name"), any(User.class));
 
 			// When
-			ResponseEntity<GenericResponse> response = api.renameCredential("cred-999", request, userDetails);
+			assertThatThrownBy(() -> api.renameCredential("cred-999", request, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("not found");
+		}
 
-			// Then
-			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-			assertThat(response.getBody().getMessage()).contains("not found");
+		@Test
+		@DisplayName("should throw not found when user not found")
+		void shouldThrowNotFoundWhenUserNotFound() throws WebAuthnException {
+			// Given
+			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name");
+			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
+
+			// When
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails))
+					.isInstanceOf(WebAuthnUserNotFoundException.class).hasMessageContaining("User not found");
+			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 		}
 	}
 
@@ -194,32 +211,26 @@ class WebAuthnManagementAPITest {
 		}
 
 		@Test
-		@DisplayName("should return bad request when delete fails")
-		void shouldReturnBadRequestOnFailure() throws WebAuthnException {
+		@DisplayName("should throw when delete fails")
+		void shouldThrowOnFailure() throws WebAuthnException {
 			// Given
 			doThrow(new WebAuthnException("Cannot delete last passkey")).when(credentialManagementService).deleteCredential(eq("cred-1"),
 					any(User.class));
 
 			// When
-			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", userDetails);
-
-			// Then
-			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-			assertThat(response.getBody().getMessage()).contains("Cannot delete last passkey");
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Cannot delete last passkey");
 		}
 
 		@Test
-		@DisplayName("should return bad request when user not found")
-		void shouldReturnBadRequestWhenUserNotFound() throws WebAuthnException {
+		@DisplayName("should throw not found when user not found")
+		void shouldThrowNotFoundWhenUserNotFound() throws WebAuthnException {
 			// Given
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
 			// When
-			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", userDetails);
-
-			// Then
-			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-			assertThat(response.getBody().getMessage()).contains("User not found");
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", userDetails))
+					.isInstanceOf(WebAuthnUserNotFoundException.class).hasMessageContaining("User not found");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
 		}
 	}
