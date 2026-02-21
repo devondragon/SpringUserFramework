@@ -135,8 +135,8 @@ public class WebAuthnCredentialManagementService {
 		if (label == null || label.trim().isEmpty()) {
 			throw new WebAuthnException("Credential label cannot be empty");
 		}
-		if (label.length() > 255) {
-			throw new WebAuthnException("Credential label too long (max 255 characters)");
+		if (label.length() > 64) {
+			throw new WebAuthnException("Credential label too long (max 64 characters)");
 		}
 	}
 }

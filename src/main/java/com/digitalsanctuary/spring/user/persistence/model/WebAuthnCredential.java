@@ -78,6 +78,6 @@ public class WebAuthnCredential {
 	private Instant lastUsed;
 
 	/** User-friendly name (e.g., "My iPhone", "YubiKey"). */
-	@Column(length = 1000, nullable = false)
+	@Column(length = 64, nullable = false)
 	private String label;
 }

@@ -165,10 +165,10 @@ class WebAuthnCredentialManagementServiceTest {
 		}
 
 		@Test
-		@DisplayName("should throw when label exceeds 255 characters")
+		@DisplayName("should throw when label exceeds 64 characters")
 		void shouldThrowWhenLabelTooLong() {
 			// Given
-			String longLabel = "a".repeat(256);
+			String longLabel = "a".repeat(65);
 
 			// When/Then
 			assertThatThrownBy(() -> service.renameCredential("cred-123", longLabel, testUser)).isInstanceOf(WebAuthnException.class)
