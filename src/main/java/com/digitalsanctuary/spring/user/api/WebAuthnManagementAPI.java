@@ -56,17 +56,22 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity containing list of credential information
 	 */
 	@GetMapping("/credentials")
-	public ResponseEntity<List<WebAuthnCredentialInfo>> getCredentials(@AuthenticationPrincipal UserDetails userDetails) {
+	public ResponseEntity<?> getCredentials(@AuthenticationPrincipal UserDetails userDetails) {
 
-		User user = userService.findUserByEmail(userDetails.getUsername());
-		if (user == null) {
-			log.error("User not found: {}", userDetails.getUsername());
-			throw new RuntimeException("User not found");
+		try {
+			User user = userService.findUserByEmail(userDetails.getUsername());
+			if (user == null) {
+				throw new WebAuthnException("User not found");
+			}
+
+			List<WebAuthnCredentialInfo> credentials = credentialManagementService.getUserCredentials(user);
+
+			return ResponseEntity.ok(credentials);
+
+		} catch (WebAuthnException e) {
+			log.error("Failed to get credentials: {}", e.getMessage());
+			return ResponseEntity.badRequest().body(new GenericResponse(e.getMessage()));
 		}
-
-		List<WebAuthnCredentialInfo> credentials = credentialManagementService.getUserCredentials(user);
-
-		return ResponseEntity.ok(credentials);
 	}
 
 	/**
@@ -76,17 +81,22 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity containing true if user has passkeys, false otherwise
 	 */
 	@GetMapping("/has-credentials")
-	public ResponseEntity<Boolean> hasCredentials(@AuthenticationPrincipal UserDetails userDetails) {
+	public ResponseEntity<?> hasCredentials(@AuthenticationPrincipal UserDetails userDetails) {
 
-		User user = userService.findUserByEmail(userDetails.getUsername());
-		if (user == null) {
-			log.error("User not found: {}", userDetails.getUsername());
-			throw new RuntimeException("User not found");
+		try {
+			User user = userService.findUserByEmail(userDetails.getUsername());
+			if (user == null) {
+				throw new WebAuthnException("User not found");
+			}
+
+			boolean hasCredentials = credentialManagementService.hasCredentials(user);
+
+			return ResponseEntity.ok(hasCredentials);
+
+		} catch (WebAuthnException e) {
+			log.error("Failed to check credentials: {}", e.getMessage());
+			return ResponseEntity.badRequest().body(new GenericResponse(e.getMessage()));
 		}
-
-		boolean hasCredentials = credentialManagementService.hasCredentials(user);
-
-		return ResponseEntity.ok(hasCredentials);
 	}
 
 	/**

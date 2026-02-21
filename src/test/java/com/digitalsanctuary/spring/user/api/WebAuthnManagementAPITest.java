@@ -59,6 +59,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should return credentials for authenticated user")
+		@SuppressWarnings("unchecked")
 		void shouldReturnCredentials() {
 			// Given
 			WebAuthnCredentialInfo cred = WebAuthnCredentialInfo.builder().id("cred-1").label("My iPhone").created(Instant.now())
@@ -67,40 +68,43 @@ class WebAuthnManagementAPITest {
 			when(credentialManagementService.getUserCredentials(testUser)).thenReturn(List.of(cred));
 
 			// When
-			ResponseEntity<List<WebAuthnCredentialInfo>> response = api.getCredentials(userDetails);
+			ResponseEntity<?> response = api.getCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			assertThat(response.getBody()).hasSize(1);
-			assertThat(response.getBody().get(0).getLabel()).isEqualTo("My iPhone");
+			List<WebAuthnCredentialInfo> body = (List<WebAuthnCredentialInfo>) response.getBody();
+			assertThat(body).hasSize(1);
+			assertThat(body.get(0).getLabel()).isEqualTo("My iPhone");
 		}
 
 		@Test
 		@DisplayName("should return empty list when no credentials")
+		@SuppressWarnings("unchecked")
 		void shouldReturnEmptyList() {
 			// Given
 			when(credentialManagementService.getUserCredentials(testUser)).thenReturn(Collections.emptyList());
 
 			// When
-			ResponseEntity<List<WebAuthnCredentialInfo>> response = api.getCredentials(userDetails);
+			ResponseEntity<?> response = api.getCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			assertThat(response.getBody()).isEmpty();
+			List<WebAuthnCredentialInfo> body = (List<WebAuthnCredentialInfo>) response.getBody();
+			assertThat(body).isEmpty();
 		}
 
 		@Test
-		@DisplayName("should throw when user not found")
-		void shouldThrowWhenUserNotFound() {
+		@DisplayName("should return bad request when user not found")
+		void shouldReturnBadRequestWhenUserNotFound() {
 			// Given
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
-			// When/Then
-			try {
-				api.getCredentials(userDetails);
-			} catch (RuntimeException e) {
-				assertThat(e.getMessage()).isEqualTo("User not found");
-			}
+			// When
+			ResponseEntity<?> response = api.getCredentials(userDetails);
+
+			// Then
+			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+			assertThat(((GenericResponse) response.getBody()).getMessage()).contains("User not found");
 		}
 	}
 
@@ -115,11 +119,11 @@ class WebAuthnManagementAPITest {
 			when(credentialManagementService.hasCredentials(testUser)).thenReturn(true);
 
 			// When
-			ResponseEntity<Boolean> response = api.hasCredentials(userDetails);
+			ResponseEntity<?> response = api.hasCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			assertThat(response.getBody()).isTrue();
+			assertThat((Boolean) response.getBody()).isTrue();
 		}
 
 		@Test
@@ -129,11 +133,11 @@ class WebAuthnManagementAPITest {
 			when(credentialManagementService.hasCredentials(testUser)).thenReturn(false);
 
 			// When
-			ResponseEntity<Boolean> response = api.hasCredentials(userDetails);
+			ResponseEntity<?> response = api.hasCredentials(userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-			assertThat(response.getBody()).isFalse();
+			assertThat((Boolean) response.getBody()).isFalse();
 		}
 	}
 
