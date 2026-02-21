@@ -13,7 +13,6 @@ import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 
 group = 'com.digitalsanctuary'
-// version = '3.0.0-SNAPSHOT'
 description = 'Spring User Framework'
 
 ext {
