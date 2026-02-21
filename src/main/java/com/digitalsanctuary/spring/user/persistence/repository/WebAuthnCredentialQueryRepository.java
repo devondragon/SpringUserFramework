@@ -73,18 +73,12 @@ public class WebAuthnCredentialQueryRepository {
 	 */
 	@Transactional
 	public int renameCredential(String credentialId, String newLabel, Long userId) {
-		Optional<WebAuthnCredential> optional = credentialRepository.findById(credentialId);
+		Optional<WebAuthnCredential> optional = findCredentialForUser(credentialId, userId);
 		if (optional.isEmpty()) {
 			return 0;
 		}
 
 		WebAuthnCredential credential = optional.get();
-		// Verify ownership via the entity graph
-		if (credential.getUserEntity() == null || credential.getUserEntity().getUser() == null
-				|| !userId.equals(credential.getUserEntity().getUser().getId())) {
-			return 0;
-		}
-
 		credential.setLabel(newLabel);
 		credentialRepository.save(credential);
 
@@ -101,22 +95,37 @@ public class WebAuthnCredentialQueryRepository {
 	 */
 	@Transactional
 	public int deleteCredential(String credentialId, Long userId) {
-		Optional<WebAuthnCredential> optional = credentialRepository.findById(credentialId);
+		Optional<WebAuthnCredential> optional = findCredentialForUser(credentialId, userId);
 		if (optional.isEmpty()) {
 			return 0;
 		}
 
-		WebAuthnCredential credential = optional.get();
-		// Verify ownership via the entity graph
-		if (credential.getUserEntity() == null || credential.getUserEntity().getUser() == null
-				|| !userId.equals(credential.getUserEntity().getUser().getId())) {
-			return 0;
-		}
-
-		credentialRepository.delete(credential);
+		credentialRepository.delete(optional.get());
 
 		log.info("Deleted credential {} for user {}", credentialId, userId);
 		return 1;
+	}
+
+	/**
+	 * Find a credential and verify it belongs to the specified user.
+	 *
+	 * @param credentialId the credential ID (base64url-encoded)
+	 * @param userId the expected owner's user ID
+	 * @return the credential if found and owned by the user, empty otherwise
+	 */
+	private Optional<WebAuthnCredential> findCredentialForUser(String credentialId, Long userId) {
+		Optional<WebAuthnCredential> optional = credentialRepository.findByIdWithUser(credentialId);
+		if (optional.isEmpty()) {
+			return Optional.empty();
+		}
+
+		WebAuthnCredential credential = optional.get();
+		if (credential.getUserEntity() == null || credential.getUserEntity().getUser() == null
+				|| !userId.equals(credential.getUserEntity().getUser().getId())) {
+			return Optional.empty();
+		}
+
+		return Optional.of(credential);
 	}
 
 	/**

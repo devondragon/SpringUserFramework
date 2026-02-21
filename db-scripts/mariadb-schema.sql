@@ -102,7 +102,7 @@ CREATE TABLE `user_entities` (
   `id` VARCHAR(255) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
   `display_name` VARCHAR(255) NOT NULL,
-  `user_account_id` BIGINT(20) DEFAULT NULL,
+  `user_account_id` BIGINT(20) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `UK_user_entities_name` (`name`),
   KEY `FK_user_entities_user` (`user_account_id`),

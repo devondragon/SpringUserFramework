@@ -32,6 +32,6 @@ public class WebAuthnUserEntity {
 
 	/** FK to the application user. */
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "user_account_id")
+	@JoinColumn(name = "user_account_id", nullable = false)
 	private User user;
 }

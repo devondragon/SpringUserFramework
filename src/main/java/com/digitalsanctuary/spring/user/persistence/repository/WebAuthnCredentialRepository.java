@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.persistence.repository;
 
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -56,4 +57,14 @@ public interface WebAuthnCredentialRepository extends JpaRepository<WebAuthnCred
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("SELECT c.credentialId FROM WebAuthnCredential c WHERE c.userEntity.user.id = :userId")
 	List<String> lockCredentialIdsByUserEntityUserId(@Param("userId") Long userId);
+
+	/**
+	 * Find a credential by ID with its user entity and application user eagerly fetched.
+	 * Avoids N+1 queries when verifying ownership.
+	 *
+	 * @param credentialId the credential ID (base64url-encoded)
+	 * @return the credential with user entity and user eagerly loaded
+	 */
+	@Query("SELECT c FROM WebAuthnCredential c JOIN FETCH c.userEntity ue JOIN FETCH ue.user WHERE c.credentialId = :credentialId")
+	Optional<WebAuthnCredential> findByIdWithUser(@Param("credentialId") String credentialId);
 }

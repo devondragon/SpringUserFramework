@@ -82,9 +82,11 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 		// If the entity doesn't have a user link yet, try to find the app user by email
 		if (entity.getUser() == null) {
 			User appUser = userRepository.findByEmail(userEntity.getName());
-			if (appUser != null) {
-				entity.setUser(appUser);
+			if (appUser == null) {
+				log.warn("Cannot save WebAuthn user entity for username '{}': no matching application user found", userEntity.getName());
+				throw new IllegalStateException("Cannot save WebAuthn user entity: no matching application user for " + userEntity.getName());
 			}
+			entity.setUser(appUser);
 		}
 
 		webAuthnUserEntityRepository.save(entity);
