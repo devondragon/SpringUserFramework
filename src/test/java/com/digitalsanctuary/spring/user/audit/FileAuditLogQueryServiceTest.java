@@ -65,12 +65,21 @@ class FileAuditLogQueryServiceTest {
             // Given
             setupLogFilePath();
             // Log file not created
+            String originalTmpDir = System.getProperty("java.io.tmpdir");
+            System.setProperty("java.io.tmpdir", tempDir.toString());
+            try {
+                // When
+                List<AuditEventDTO> result = queryService.findByUser(testUser);
 
-            // When
-            List<AuditEventDTO> result = queryService.findByUser(testUser);
-
-            // Then
-            assertThat(result).isEmpty();
+                // Then
+                assertThat(result).isEmpty();
+            } finally {
+                if (originalTmpDir == null) {
+                    System.clearProperty("java.io.tmpdir");
+                } else {
+                    System.setProperty("java.io.tmpdir", originalTmpDir);
+                }
+            }
         }
 
         @Test
