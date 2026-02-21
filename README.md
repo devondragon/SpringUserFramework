@@ -607,6 +607,7 @@ Passwordless authentication using biometrics (Touch ID, Face ID, Windows Hello),
 - Passkey management REST API (list, rename, delete credentials)
 - Last-credential protection (prevents lockout if user has no password)
 - Synced passkey support (iCloud Keychain, Google Password Manager, etc.)
+- Disabled by default; must be explicitly enabled with required database tables
 
 **Setup:**
 
