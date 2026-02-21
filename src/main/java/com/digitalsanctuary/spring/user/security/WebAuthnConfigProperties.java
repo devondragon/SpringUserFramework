@@ -2,12 +2,16 @@ package com.digitalsanctuary.spring.user.security;
 
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.stereotype.Component;
 import lombok.Data;
 
 /**
  * Configuration properties for WebAuthn (Passkey) authentication.
  */
 @Data
+@Component
+@PropertySource("classpath:config/dsspringuserconfig.properties")
 @ConfigurationProperties(prefix = "user.webauthn")
 public class WebAuthnConfigProperties {
 

@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
@@ -27,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
  * @see WebAuthnException
  */
 @Service
+@ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class WebAuthnCredentialManagementService {
@@ -57,7 +59,7 @@ public class WebAuthnCredentialManagementService {
 	 * Rename a credential label.
 	 *
 	 * <p>
-	 * Help users identify their passkeys (e.g., "My iPhone", "Work Laptop"). The label must be non-empty and no more than 255 characters.
+	 * Help users identify their passkeys (e.g., "My iPhone", "Work Laptop"). The label must be non-empty and no more than 64 characters.
 	 * </p>
 	 *
 	 * @param credentialId the credential ID to rename
@@ -100,8 +102,8 @@ public class WebAuthnCredentialManagementService {
 	 */
 	@Transactional
 	public void deleteCredential(String credentialId, User user) throws WebAuthnException {
-		// Check if this is the last credential and user has no password
-		long enabledCount = credentialQueryRepository.countCredentials(user.getId());
+		// Lock all user credentials before checking count and deleting to avoid TOCTOU races.
+		long enabledCount = credentialQueryRepository.lockAndCountCredentials(user.getId());
 
 		if (enabledCount == 1 && (user.getPassword() == null || user.getPassword().isEmpty())) {
 			throw new WebAuthnException(
@@ -125,7 +127,7 @@ public class WebAuthnCredentialManagementService {
 	 * </p>
 	 * <ul>
 	 * <li>Not null or empty (after trimming)</li>
-	 * <li>No more than 255 characters</li>
+	 * <li>No more than 64 characters</li>
 	 * </ul>
 	 *
 	 * @param label the label to validate

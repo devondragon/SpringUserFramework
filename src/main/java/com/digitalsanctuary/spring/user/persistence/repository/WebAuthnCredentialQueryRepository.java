@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.persistence.repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
  * Repository for WebAuthn credential queries and management.
  */
 @Repository
+@ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class WebAuthnCredentialQueryRepository {
@@ -49,6 +51,16 @@ public class WebAuthnCredentialQueryRepository {
 	 */
 	public long countCredentials(Long userId) {
 		return credentialRepository.countByUserEntityUserId(userId);
+	}
+
+	/**
+	 * Lock all credentials for a user and return the count.
+	 *
+	 * @param userId the user ID
+	 * @return count of locked credential rows
+	 */
+	public long lockAndCountCredentials(Long userId) {
+		return credentialRepository.lockCredentialIdsByUserEntityUserId(userId).size();
 	}
 
 	/**

@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.persistence.repository;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.web.webauthn.api.Bytes;
 import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
@@ -29,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Repository
 @Primary
+@ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRepository {

@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.api;
 
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,14 +14,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * REST API for WebAuthn credential management.
@@ -42,8 +44,8 @@ import lombok.extern.slf4j.Slf4j;
  */
 @RestController
 @RequestMapping("/user/webauthn")
+@ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
-@Slf4j
 public class WebAuthnManagementAPI {
 
 	private final WebAuthnCredentialManagementService credentialManagementService;
@@ -56,22 +58,10 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity containing list of credential information
 	 */
 	@GetMapping("/credentials")
-	public ResponseEntity<?> getCredentials(@AuthenticationPrincipal UserDetails userDetails) {
-
-		try {
-			User user = userService.findUserByEmail(userDetails.getUsername());
-			if (user == null) {
-				throw new WebAuthnException("User not found");
-			}
-
-			List<WebAuthnCredentialInfo> credentials = credentialManagementService.getUserCredentials(user);
-
-			return ResponseEntity.ok(credentials);
-
-		} catch (WebAuthnException e) {
-			log.error("Failed to get credentials: {}", e.getMessage());
-			return ResponseEntity.badRequest().body(new GenericResponse(e.getMessage()));
-		}
+	public ResponseEntity<List<WebAuthnCredentialInfo>> getCredentials(@AuthenticationPrincipal UserDetails userDetails) {
+		User user = findAuthenticatedUser(userDetails);
+		List<WebAuthnCredentialInfo> credentials = credentialManagementService.getUserCredentials(user);
+		return ResponseEntity.ok(credentials);
 	}
 
 	/**
@@ -81,22 +71,10 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity containing true if user has passkeys, false otherwise
 	 */
 	@GetMapping("/has-credentials")
-	public ResponseEntity<?> hasCredentials(@AuthenticationPrincipal UserDetails userDetails) {
-
-		try {
-			User user = userService.findUserByEmail(userDetails.getUsername());
-			if (user == null) {
-				throw new WebAuthnException("User not found");
-			}
-
-			boolean hasCredentials = credentialManagementService.hasCredentials(user);
-
-			return ResponseEntity.ok(hasCredentials);
-
-		} catch (WebAuthnException e) {
-			log.error("Failed to check credentials: {}", e.getMessage());
-			return ResponseEntity.badRequest().body(new GenericResponse(e.getMessage()));
-		}
+	public ResponseEntity<Boolean> hasCredentials(@AuthenticationPrincipal UserDetails userDetails) {
+		User user = findAuthenticatedUser(userDetails);
+		boolean hasCredentials = credentialManagementService.hasCredentials(user);
+		return ResponseEntity.ok(hasCredentials);
 	}
 
 	/**
@@ -117,29 +95,17 @@ public class WebAuthnManagementAPI {
 	 */
 	@PutMapping("/credentials/{id}/label")
 	public ResponseEntity<GenericResponse> renameCredential(@PathVariable String id, @RequestBody @Valid RenameCredentialRequest request,
-			@AuthenticationPrincipal UserDetails userDetails) {
-
-		try {
-			User user = userService.findUserByEmail(userDetails.getUsername());
-			if (user == null) {
-				throw new WebAuthnException("User not found");
-			}
-
-			credentialManagementService.renameCredential(id, request.label(), user);
-
-			return ResponseEntity.ok(new GenericResponse("Passkey renamed successfully"));
-
-		} catch (WebAuthnException e) {
-			log.error("Failed to rename credential: {}", e.getMessage());
-			return ResponseEntity.badRequest().body(new GenericResponse(e.getMessage()));
-		}
+			@AuthenticationPrincipal UserDetails userDetails) throws WebAuthnException {
+		User user = findAuthenticatedUser(userDetails);
+		credentialManagementService.renameCredential(id, request.label(), user);
+		return ResponseEntity.ok(new GenericResponse("Passkey renamed successfully"));
 	}
 
 	/**
 	 * Delete a passkey.
 	 *
 	 * <p>
-	 * Soft-deletes a passkey by marking it as disabled. Includes last-credential protection to prevent users from being 
+	 * Deletes a passkey. Includes last-credential protection to prevent users from being
 	 * locked out of their accounts.
 	 * </p>
 	 *
@@ -152,29 +118,26 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity with success message or error
 	 */
 	@DeleteMapping("/credentials/{id}")
-	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable String id, @AuthenticationPrincipal UserDetails userDetails) {
+	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable String id, @AuthenticationPrincipal UserDetails userDetails)
+			throws WebAuthnException {
+		User user = findAuthenticatedUser(userDetails);
+		credentialManagementService.deleteCredential(id, user);
+		return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));
+	}
 
-		try {
-			User user = userService.findUserByEmail(userDetails.getUsername());
-			if (user == null) {
-				throw new WebAuthnException("User not found");
-			}
-
-			credentialManagementService.deleteCredential(id, user);
-
-			return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));
-
-		} catch (WebAuthnException e) {
-			log.error("Failed to delete credential: {}", e.getMessage());
-			return ResponseEntity.badRequest().body(new GenericResponse(e.getMessage()));
+	private User findAuthenticatedUser(UserDetails userDetails) throws WebAuthnUserNotFoundException {
+		User user = userService.findUserByEmail(userDetails.getUsername());
+		if (user == null) {
+			throw new WebAuthnUserNotFoundException("User not found");
 		}
+		return user;
 	}
 
 	/**
 	 * Request DTO for renaming credential.
 	 *
-	 * @param label the new label (must not be blank)
+	 * @param label the new label (must not be blank, max 64 chars)
 	 */
-	public record RenameCredentialRequest(@NotBlank String label) {
+	public record RenameCredentialRequest(@NotBlank @Size(max = 64) String label) {
 	}
 }

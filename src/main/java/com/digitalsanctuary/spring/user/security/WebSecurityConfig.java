@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -112,25 +113,13 @@ public class WebSecurityConfig {
 	@Value("${user.security.rememberMe.key:#{null}}")
 	private String rememberMeKey;
 
-	@Value("${user.webauthn.enabled:false}")
-	private boolean webAuthnEnabled;
-
-	@Value("${user.webauthn.rpId:localhost}")
-	private String webAuthnRpId;
-
-	@Value("${user.webauthn.rpName:Spring User Framework}")
-	private String webAuthnRpName;
-
-	@Value("${user.webauthn.allowedOrigins:https://localhost:8443}")
-	private String webAuthnAllowedOriginsProperty;
-
-
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
 	private final LogoutSuccessService logoutSuccessService;
 	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
+	private final WebAuthnConfigProperties webAuthnConfigProperties;
 
 	/**
 	 *
@@ -172,7 +161,7 @@ public class WebSecurityConfig {
 		}
 
 		// Configure WebAuthn (Passkey) if enabled
-		if (webAuthnEnabled) {
+		if (webAuthnConfigProperties.isEnabled()) {
 			setupWebAuthn(http);
 		}
 
@@ -223,13 +212,18 @@ public class WebSecurityConfig {
 	 * @throws Exception the exception
 	 */
 	private void setupWebAuthn(HttpSecurity http) throws Exception {
-		// Parse comma-separated origins into Set
-		Set<String> allowedOrigins = Arrays.stream(webAuthnAllowedOriginsProperty.split(",")).map(String::trim)
-				.collect(java.util.stream.Collectors.toSet());
+		Set<String> allowedOrigins = webAuthnConfigProperties.getAllowedOrigins();
+		if (allowedOrigins == null) {
+			allowedOrigins = Collections.emptySet();
+		}
+		Set<String> normalizedAllowedOrigins = allowedOrigins.stream().map(String::trim).filter(origin -> !origin.isEmpty())
+				.collect(Collectors.toSet());
 
-		log.debug("WebSecurityConfig.setupWebAuthn: rpId={}, rpName={}, allowedOrigins={}", webAuthnRpId, webAuthnRpName, allowedOrigins);
+		log.debug("WebSecurityConfig.setupWebAuthn: rpId={}, rpName={}, allowedOrigins={}", webAuthnConfigProperties.getRpId(),
+				webAuthnConfigProperties.getRpName(), normalizedAllowedOrigins);
 
-		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnRpName).rpId(webAuthnRpId).allowedOrigins(allowedOrigins)
+		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnConfigProperties.getRpName()).rpId(webAuthnConfigProperties.getRpId())
+				.allowedOrigins(normalizedAllowedOrigins)
 				.withObjectPostProcessor(
 						new org.springframework.security.config.ObjectPostProcessor<org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter>() {
 							@Override

@@ -1,7 +1,11 @@
 package com.digitalsanctuary.spring.user.persistence.repository;
 
 import java.util.List;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnCredential;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnUserEntity;
 
@@ -41,4 +45,15 @@ public interface WebAuthnCredentialRepository extends JpaRepository<WebAuthnCred
 	 * @return count of credentials
 	 */
 	long countByUserEntityUserId(Long userId);
+
+	/**
+	 * Acquire pessimistic write locks on all credentials for an application user.
+	 * Used to make last-credential protection checks and deletion atomic.
+	 *
+	 * @param userId the application user ID
+	 * @return locked credential IDs
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT c.credentialId FROM WebAuthnCredential c WHERE c.userEntity.user.id = :userId")
+	List<String> lockCredentialIdsByUserEntityUserId(@Param("userId") Long userId);
 }
