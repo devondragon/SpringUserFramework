@@ -1,54 +1,45 @@
 package com.digitalsanctuary.spring.user.persistence.repository;
 
 import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Optional;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.web.webauthn.api.Bytes;
 import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
 import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEntity;
-import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.persistence.model.WebAuthnUserEntity;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * <p>
- * Primary {@link PublicKeyCredentialUserEntityRepository} that bridges Spring Security's WebAuthn system with the Spring User Framework's User
- * entity. It handles edge cases like anonymousUser and null usernames, and automatically creates WebAuthn user entities for existing application
- * users.
+ * Primary {@link PublicKeyCredentialUserEntityRepository} that bridges Spring Security's WebAuthn system with the
+ * Spring User Framework's User entity. It handles edge cases like anonymousUser and null usernames, and automatically
+ * creates WebAuthn user entities for existing application users.
  * </p>
  *
  * <p>
- * Marked as {@code @Primary} so Spring Security's WebAuthn filters use this bridge instead of the bare JDBC repository.
+ * Marked as {@code @Primary} so Spring Security's WebAuthn filters use this bridge instead of any auto-configured
+ * repository.
  * </p>
  */
 @Repository
 @Primary
+@RequiredArgsConstructor
 @Slf4j
 public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRepository {
 
-	private final JdbcPublicKeyCredentialUserEntityRepository delegate;
-	private final JdbcTemplate jdbcTemplate;
+	private final WebAuthnUserEntityRepository webAuthnUserEntityRepository;
 	private final UserRepository userRepository;
-
-	/**
-	 * Constructor creates the JDBC delegate internally to avoid circular bean dependency.
-	 *
-	 * @param jdbcTemplate the JDBC template
-	 * @param userRepository the user repository
-	 */
-	public WebAuthnUserEntityBridge(JdbcTemplate jdbcTemplate, UserRepository userRepository) {
-		this.jdbcTemplate = jdbcTemplate;
-		this.userRepository = userRepository;
-		this.delegate = new JdbcPublicKeyCredentialUserEntityRepository(jdbcTemplate);
-	}
 
 	@Override
 	public PublicKeyCredentialUserEntity findById(Bytes id) {
-		return delegate.findById(id);
+		String idStr = Base64.getUrlEncoder().withoutPadding().encodeToString(id.getBytes());
+		return webAuthnUserEntityRepository.findById(idStr).map(this::toSpringSecurityEntity).orElse(null);
 	}
 
 	@Override
@@ -60,9 +51,9 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 		}
 
 		// Check if user entity already exists
-		PublicKeyCredentialUserEntity existing = delegate.findByUsername(username);
-		if (existing != null) {
-			return existing;
+		Optional<WebAuthnUserEntity> existing = webAuthnUserEntityRepository.findByName(username);
+		if (existing.isPresent()) {
+			return toSpringSecurityEntity(existing.get());
 		}
 
 		// User entity doesn't exist yet - check if application user exists
@@ -77,17 +68,35 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 	}
 
 	@Override
+	@Transactional
 	public void save(PublicKeyCredentialUserEntity userEntity) {
-		delegate.save(userEntity);
+		String idStr = Base64.getUrlEncoder().withoutPadding().encodeToString(userEntity.getId().getBytes());
+
+		WebAuthnUserEntity entity = webAuthnUserEntityRepository.findById(idStr).orElseGet(WebAuthnUserEntity::new);
+		entity.setId(idStr);
+		entity.setName(userEntity.getName());
+		entity.setDisplayName(userEntity.getDisplayName());
+
+		// If the entity doesn't have a user link yet, try to find the app user by email
+		if (entity.getUser() == null) {
+			User appUser = userRepository.findByEmail(userEntity.getName());
+			if (appUser != null) {
+				entity.setUser(appUser);
+			}
+		}
+
+		webAuthnUserEntityRepository.save(entity);
 	}
 
 	@Override
+	@Transactional
 	public void delete(Bytes id) {
-		delegate.delete(id);
+		String idStr = Base64.getUrlEncoder().withoutPadding().encodeToString(id.getBytes());
+		webAuthnUserEntityRepository.deleteById(idStr);
 	}
 
 	/**
-	 * Create user entity from User model and link to user_account via user_account_id.
+	 * Create user entity from User model and link to user_account.
 	 *
 	 * @param user the User entity
 	 * @return the created PublicKeyCredentialUserEntity
@@ -95,19 +104,21 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 	@Transactional
 	public PublicKeyCredentialUserEntity createUserEntity(User user) {
 		Bytes userId = new Bytes(longToBytes(user.getId()));
+		String idStr = Base64.getUrlEncoder().withoutPadding().encodeToString(userId.getBytes());
 		String displayName = user.getFullName();
 
-		PublicKeyCredentialUserEntity entity = ImmutablePublicKeyCredentialUserEntity.builder().name(user.getEmail()).id(userId)
-				.displayName(displayName).build();
+		WebAuthnUserEntity entity = new WebAuthnUserEntity();
+		entity.setId(idStr);
+		entity.setName(user.getEmail());
+		entity.setDisplayName(displayName);
+		entity.setUser(user);
 
-		// Let Spring Security's JDBC repository do the standard INSERT
-		delegate.save(entity);
-
-		// Set our custom user_account_id column to link to the app user
-		jdbcTemplate.update("UPDATE user_entities SET user_account_id = ? WHERE name = ?", user.getId(), user.getEmail());
+		webAuthnUserEntityRepository.save(entity);
 
 		log.info("Created WebAuthn user entity for user: {}", user.getEmail());
-		return entity;
+
+		return ImmutablePublicKeyCredentialUserEntity.builder().name(user.getEmail()).id(userId)
+				.displayName(displayName).build();
 	}
 
 	/**
@@ -119,6 +130,18 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 	public Optional<PublicKeyCredentialUserEntity> findOptionalByUsername(String username) {
 		PublicKeyCredentialUserEntity entity = findByUsername(username);
 		return Optional.ofNullable(entity);
+	}
+
+	/**
+	 * Convert a JPA entity to Spring Security's PublicKeyCredentialUserEntity.
+	 *
+	 * @param entity the JPA entity
+	 * @return the Spring Security entity
+	 */
+	private PublicKeyCredentialUserEntity toSpringSecurityEntity(WebAuthnUserEntity entity) {
+		byte[] idBytes = Base64.getUrlDecoder().decode(entity.getId());
+		return ImmutablePublicKeyCredentialUserEntity.builder().name(entity.getName()).id(new Bytes(idBytes))
+				.displayName(entity.getDisplayName()).build();
 	}
 
 	/**
