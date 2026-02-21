@@ -20,25 +20,25 @@ public class WebAuthnManagementAPIAdvice {
 
 	@ExceptionHandler(WebAuthnUserNotFoundException.class)
 	public ResponseEntity<GenericResponse> handleUserNotFound(WebAuthnUserNotFoundException ex) {
-		log.warn("WebAuthn user not found: {}", ex.getMessage(), ex);
+		log.warn("WebAuthn user not found: {}", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new GenericResponse(ex.getMessage()));
 	}
 
 	@ExceptionHandler(WebAuthnException.class)
 	public ResponseEntity<GenericResponse> handleWebAuthnError(WebAuthnException ex) {
-		log.warn("WebAuthn error: {}", ex.getMessage(), ex);
+		log.warn("WebAuthn error: {}", ex.getMessage());
 		return ResponseEntity.badRequest().body(new GenericResponse(ex.getMessage()));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<GenericResponse> handleValidation(MethodArgumentNotValidException ex) {
-		log.warn("WebAuthn validation error: {}", ex.getMessage(), ex);
+		log.warn("WebAuthn validation error: {}", ex.getMessage());
 		return ResponseEntity.badRequest().body(new GenericResponse(ex.getBindingResult().getAllErrors(), "Validation failed"));
 	}
 
 	@ExceptionHandler(ConstraintViolationException.class)
 	public ResponseEntity<GenericResponse> handleConstraintViolation(ConstraintViolationException ex) {
-		log.warn("WebAuthn constraint violation: {}", ex.getMessage(), ex);
+		log.warn("WebAuthn constraint violation: {}", ex.getMessage());
 		return ResponseEntity.badRequest().body(new GenericResponse("Validation failed"));
 	}
 }
