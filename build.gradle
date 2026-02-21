@@ -106,6 +106,7 @@ tasks.named('bootJar') {
 
 test {
 	useJUnitPlatform()
+	jvmArgs '-XX:+EnableDynamicAgentLoading', '-Xshare:off'
 	// Enable parallel execution for faster test runs
 	systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
 	systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
@@ -113,11 +114,19 @@ test {
 	// Use available CPU cores - 1 for parallel execution
 	systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
 	maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-	  testLogging {
-        events "PASSED", "FAILED", "SKIPPED"
-        exceptionFormat "full"
-        showStandardStreams true
-    }
+
+	def isExplicitTest = gradle.startParameter.taskNames.any {
+		it == 'test' || it == 'testAll' || it.startsWith('testJdk')
+	}
+	testLogging {
+		events "PASSED", "FAILED", "SKIPPED"
+		if (isExplicitTest) {
+			exceptionFormat "full"
+			showStandardStreams true
+		} else {
+			exceptionFormat "short"
+		}
+	}
 }
 
 tasks.named('jar') {
@@ -140,14 +149,25 @@ def registerJdkTestTask(name, jdkVersion) {
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
         useJUnitPlatform()
+        jvmArgs '-XX:+EnableDynamicAgentLoading', '-Xshare:off'
         // Enable parallel execution for JDK-specific tests
         systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
         systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
         systemProperty 'junit.jupiter.execution.parallel.mode.classes.default', 'concurrent'
         systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
         maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+
+        def isExplicitTest = gradle.startParameter.taskNames.any {
+            it == 'test' || it == 'testAll' || it.startsWith('testJdk')
+        }
         testLogging {
             events "PASSED", "FAILED", "SKIPPED"
+            if (isExplicitTest) {
+                exceptionFormat "full"
+                showStandardStreams true
+            } else {
+                exceptionFormat "short"
+            }
         }
         doFirst {
             println("Running tests with JDK $jdkVersion")
