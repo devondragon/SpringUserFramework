@@ -1,5 +1,100 @@
 ## [4.2.0] - 2026-02-21
 ### Features
+- WebAuthn/Passkeys (opt-in, disabled by default)
+  - End-to-end passwordless authentication using Spring Security 7 WebAuthn and WebAuthn4J:
+    - Supports platform authenticators (Touch ID, Face ID, Windows Hello) and roaming keys (YubiKey), including synced passkeys (iCloud Keychain, Google Password Manager).
+    - New WebAuthnAuthenticationSuccessHandler converts the WebAuthn principal to your DSUserDetails and issues a WebAuthnAuthenticationToken, allowing downstream code and audit logic to distinguish passkey vs password sessions without behavior changes elsewhere.
+  - Passkey Management REST API (auth required) under /user/webauthn:
+    - GET /user/webauthn/credentials — List user’s passkeys (returns DTO with id, label, created, lastUsed, transports as List<String>, backup flags).
+    - GET /user/webauthn/has-credentials — Boolean check for any registered passkeys.
+    - PUT /user/webauthn/credentials/{id}/label — Rename a passkey (label trimmed and limited to 64 chars).
+    - DELETE /user/webauthn/credentials/{id} — Delete a passkey with “last-credential” protection to avoid lockouts if the user has no password.
+  - WebAuthn persistence and repositories:
+    - JPA entities: WebAuthnUserEntity and WebAuthnCredential.
+    - Spring Data repositories and a repository bridge that implements PublicKeyCredentialUserEntityRepository so Spring Security uses your application users.
+    - Query repository provides DTO projections, ownership checks, a JOIN FETCH findByIdWithUser to avoid N+1s, and a lock-and-count operation for safe deletions.
+  - Configuration and conditional loading:
+    - New user.webauthn.* configuration (enabled, rpId, rpName, allowedOrigins) with sane defaults for localhost.
+    - All WebAuthn beans, endpoints, and exception advice are @ConditionalOnProperty(name="user.webauthn.enabled") so they only register when explicitly enabled.
+    - Security config updated to use WebAuthnConfigProperties; you must add /webauthn/authenticate/** and /login/webauthn to unprotected URIs.
+  - Database schema:
+    - Tables user_entities and user_credentials (ON DELETE CASCADE on FKs for cleanup safety).
+    - Label column length reduced from 255 to 64 to avoid UI overflow in consuming apps.
+  - Account cleanup:
+    - WebAuthnPreDeleteEventListener listens for UserPreDeleteEvent and deletes the user’s WebAuthn entity and all credentials (also enforced at DB level via cascade).
+  - Safer identifiers and metadata:
+    - User handle generated from SecureRandom bytes (privacy-preserving, non-derivable from user ID).
+    - Transports parsed safely and exposed as a List<String> in responses.
+
+- Persistence architecture improvements
+  - Migrated WebAuthn persistence from ad-hoc JDBC/SQL to JPA entities and Spring Data repositories:
+    - Eliminates raw SQL and the BLOB/VARCHAR mismatch for credential_id.
+    - Lets Hibernate manage schema (ddl-auto) when desired; kept reference schema scripts for manual DBs.
+    - Bulk delete for credentials by user entity to avoid N+1 delete operations.
+
+### Fixes
+- Safety, validation, and API quality
+  - Added @Validated and path variable constraints (@NotBlank and @Size(max=512)) to management endpoints; centralized error mapping via WebAuthnManagementAPIAdvice.
+  - Trim passkey labels before length validation and storage; default label to “Passkey” when missing.
+  - Safe parsing of AuthenticatorTransport and PublicKeyCredentialType with WARN logs for unknown values (prevents IllegalArgumentException on unexpected inputs).
+  - Management advice logs expected business/validation errors without noisy stack traces.
+
+- Concurrency and data integrity
+  - Fixed TOCTOU race in last-credential protection: introduced transactional lock-and-count with pessimistic locking and Propagation.MANDATORY so counts and deletes execute within one transaction boundary.
+  - Prevent orphaned WebAuthn user entities: nullable=false on user join, explicit IllegalStateException if an entity cannot be linked to an application user.
+  - Eliminated N+1 queries when verifying credential ownership via a JOIN FETCH repository method.
+  - Replaced iterative credential deletion with single-statement bulk delete (@Modifying @Query) in deleteByUserEntity().
+  - Added ON DELETE CASCADE to WebAuthn FKs for database-level cleanup when users/entities are removed.
+
+- Build/test stability and noise reduction
+  - FileAuditLogQueryServiceTest: fixed temp directory handling and later removed a global system property hack to keep tests parallel-safe; switched to ISO timestamp parsing for consistent sort assertions.
+  - Test output made context-aware: gradle build is quiet (short exception format), gradle test is verbose (full stack traces); added JVM args and a test logback to remove spurious warnings.
+
+### Breaking Changes
+- None. WebAuthn is entirely opt-in and disabled by default. Existing APIs, behavior, and defaults are unchanged for consumers who do not enable the feature.
+
+### Refactoring
+- Centralized WebAuthn error handling with a dedicated @RestControllerAdvice.
+- Introduced WebAuthnConfigProperties and migrated WebSecurityConfig to use properties over scattered @Value fields.
+- Extracted WebAuthnTransportUtils for shared, safe parsing of transport strings; returns unmodifiable collections and throws on construction to enforce utility usage.
+- Consolidated persistence through JPA (entities + repositories + bridge) and removed raw SQL-based schema code.
+- WebAuthnAuthenticationSuccessHandler now issues a dedicated WebAuthnAuthenticationToken instead of a generic UsernamePasswordAuthenticationToken.
+
+### Documentation
+- README and CONFIG updated with:
+  - WebAuthn setup, endpoints, and requirements.
+  - Dev and prod configuration examples, HTTPS requirements, and unprotected URI notes.
+  - Notes on automatic cleanup and disabled-by-default behavior.
+- CHANGELOG.md updated for 4.2.0 with a comprehensive WebAuthn entry.
+- CLAUDE.md expanded with testing infrastructure, startup order, auto-configuration details, and library design invariants (compileOnly starters, serializable isolation, event-driven design).
+- README dependency snippets updated to version 4.2.0.
+
+### Testing
+- New and updated test suites covering:
+  - WebAuthnFeatureDisabledIntegrationTest and WebAuthnFeatureEnabledIntegrationTest (bean/endpoint presence, validation and business error responses).
+  - WebAuthnManagementAPITest (endpoint behavior, validation, exception mapping).
+  - WebAuthnCredentialManagementServiceTest (rename/delete flows, trim-before-store, TOCTOU protection).
+  - WebAuthnAuthenticationSuccessHandlerTest (principal conversion and token type).
+  - WebAuthnUserEntityBridgeTest (entity lookup/creation, SecureRandom handle generation, concurrent creation scenario).
+  - WebAuthnPreDeleteEventListenerTest (bulk credential deletion + entity cleanup).
+  - WebAuthnTransportUtilsTest (null/empty, whitespace trimming, multiple values, unmodifiable collections).
+- Test logging tuned to reduce noise; added logback-test.xml and JVM args to suppress irrelevant warnings.
+
+### Other Changes
+- Build and dependencies:
+  - Added Spring Security WebAuthn (compileOnly) and WebAuthn4J core.
+  - Added test dependency on spring-security-webauthn.
+  - Removed a stale commented version line from build.gradle.
+- Defaults:
+  - WebAuthn disabled by default via dsspringuserconfig.properties; added default allowedOrigins for localhost.
+- Versioning:
+  - Intermediate bump to 4.1.1-SNAPSHOT (release plugin), followed by 4.2.0-SNAPSHOT for the WebAuthn feature.
+- Cleanup:
+  - Removed PASSKEY.md planning document.
+  - Reduced label length for passkeys to 64 characters to prevent UI layout issues in consuming apps.
+
+## [4.2.0] - 2026-02-21
+### Features
 - WebAuthn / Passkey support (opt-in, disabled by default)
   - Passwordless authentication via platform authenticators (Touch ID, Face ID, Windows Hello) and roaming security keys (YubiKey)
   - Synced passkey support (iCloud Keychain, Google Password Manager, etc.)
