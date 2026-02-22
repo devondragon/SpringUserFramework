@@ -81,7 +81,7 @@ class WebAuthnAuthenticationSuccessHandlerTest {
 					authCaptor.capture());
 
 			Authentication convertedAuth = authCaptor.getValue();
-			assertThat(convertedAuth).isInstanceOf(UsernamePasswordAuthenticationToken.class);
+			assertThat(convertedAuth).isInstanceOf(WebAuthnAuthenticationToken.class);
 			assertThat(convertedAuth.getPrincipal()).isInstanceOf(DSUserDetails.class);
 			assertThat(((DSUserDetails) convertedAuth.getPrincipal()).getUser()).isEqualTo(testUser);
 		}

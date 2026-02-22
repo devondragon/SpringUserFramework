@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.api;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
  * Centralized exception handling for WebAuthn credential management endpoints.
  */
 @RestControllerAdvice(assignableTypes = WebAuthnManagementAPI.class)
+@ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @Slf4j
 public class WebAuthnManagementAPIAdvice {
 

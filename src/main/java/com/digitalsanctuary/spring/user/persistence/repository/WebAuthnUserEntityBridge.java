@@ -1,10 +1,11 @@
 package com.digitalsanctuary.spring.user.persistence.repository;
 
-import java.nio.ByteBuffer;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Optional;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.web.webauthn.api.Bytes;
 import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
 import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEntity;
@@ -45,6 +46,7 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 	}
 
 	@Override
+	@Transactional
 	public PublicKeyCredentialUserEntity findByUsername(String username) {
 		// Handle edge cases that can occur during login
 		if (username == null || username.isEmpty() || "anonymousUser".equals(username)) {
@@ -65,8 +67,13 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 			return null;
 		}
 
-		// Create WebAuthn user entity for this application user
-		return createUserEntity(user);
+		// Create WebAuthn user entity for this application user, handling concurrent creation
+		try {
+			return createUserEntity(user);
+		} catch (DataIntegrityViolationException e) {
+			log.debug("Concurrent WebAuthn user entity creation for {}, retrying lookup", username);
+			return webAuthnUserEntityRepository.findByName(username).map(this::toSpringSecurityEntity).orElse(null);
+		}
 	}
 
 	@Override
@@ -107,7 +114,9 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 	 */
 	@Transactional
 	public PublicKeyCredentialUserEntity createUserEntity(User user) {
-		Bytes userId = new Bytes(longToBytes(user.getId()));
+		byte[] randomHandle = new byte[64];
+		new SecureRandom().nextBytes(randomHandle);
+		Bytes userId = new Bytes(randomHandle);
 		String idStr = Base64.getUrlEncoder().withoutPadding().encodeToString(userId.getBytes());
 		String displayName = user.getFullName();
 
@@ -148,13 +157,4 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 				.displayName(entity.getDisplayName()).build();
 	}
 
-	/**
-	 * Convert Long ID to byte array for WebAuthn user ID.
-	 *
-	 * @param value the Long value to convert
-	 * @return byte array representation of the Long
-	 */
-	private byte[] longToBytes(Long value) {
-		return ByteBuffer.allocate(Long.BYTES).putLong(value).array();
-	}
 }
