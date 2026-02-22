@@ -27,6 +27,8 @@ import org.mockito.MockedStatic;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
@@ -477,6 +479,18 @@ public class UserServiceTest {
                 SecurityContext securityContext = mock(SecurityContext.class);
                 mockedSecurityHolder.when(SecurityContextHolder::getContext).thenReturn(securityContext);
 
+                // Capture the authentication set on the context and return it on getAuthentication()
+                ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
+
+                // Use thenAnswer to capture and store the authentication set
+                final Authentication[] storedAuth = new Authentication[1];
+                org.mockito.Mockito.doAnswer(invocation -> {
+                    storedAuth[0] = invocation.getArgument(0);
+                    return null;
+                }).when(securityContext).setAuthentication(any());
+
+                when(securityContext.getAuthentication()).thenAnswer(invocation -> storedAuth[0]);
+
                 // When
                 userService.authWithoutPassword(testUser);
 
@@ -489,6 +503,53 @@ public class UserServiceTest {
         }
 
         @Test
+        @DisplayName("authWithoutPassword - publishes InteractiveAuthenticationSuccessEvent")
+        void shouldPublishInteractiveAuthenticationSuccessEventWhenAuthSucceeds() {
+            // Given
+            DSUserDetails userDetails = new DSUserDetails(testUser);
+            Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+
+            when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
+            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
+
+            HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+            HttpSession mockSession = mock(HttpSession.class);
+            ServletRequestAttributes attrs = mock(ServletRequestAttributes.class);
+
+            when(attrs.getRequest()).thenReturn(mockRequest);
+            when(mockRequest.getSession(true)).thenReturn(mockSession);
+
+            try (MockedStatic<RequestContextHolder> mockedHolder = mockStatic(RequestContextHolder.class);
+                    MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(
+                            SecurityContextHolder.class)) {
+
+                mockedHolder.when(RequestContextHolder::getRequestAttributes).thenReturn(attrs);
+                SecurityContext securityContext = mock(SecurityContext.class);
+                mockedSecurityHolder.when(SecurityContextHolder::getContext).thenReturn(securityContext);
+
+                // Return the authentication that was set
+                final Authentication[] storedAuth = new Authentication[1];
+                org.mockito.Mockito.doAnswer(invocation -> {
+                    storedAuth[0] = invocation.getArgument(0);
+                    return null;
+                }).when(securityContext).setAuthentication(any());
+                when(securityContext.getAuthentication()).thenAnswer(invocation -> storedAuth[0]);
+
+                // When
+                userService.authWithoutPassword(testUser);
+
+                // Then
+                ArgumentCaptor<InteractiveAuthenticationSuccessEvent> eventCaptor =
+                        ArgumentCaptor.forClass(InteractiveAuthenticationSuccessEvent.class);
+                verify(eventPublisher).publishEvent(eventCaptor.capture());
+
+                InteractiveAuthenticationSuccessEvent event = eventCaptor.getValue();
+                assertThat(event).isNotNull();
+                assertThat(event.getAuthentication().getPrincipal()).isEqualTo(userDetails);
+            }
+        }
+
+        @Test
         @DisplayName("authWithoutPassword - handles null user")
         void authWithoutPassword_handlesNullUser() {
             // When
@@ -497,6 +558,7 @@ public class UserServiceTest {
             // Then
             verify(dsUserDetailsService, never()).loadUserByUsername(any());
             verify(authorityService, never()).getAuthoritiesFromUser(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -511,6 +573,7 @@ public class UserServiceTest {
             // Then
             verify(dsUserDetailsService, never()).loadUserByUsername(any());
             verify(authorityService, never()).getAuthoritiesFromUser(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
@@ -525,6 +588,7 @@ public class UserServiceTest {
 
             // Then
             verify(authorityService, never()).getAuthoritiesFromUser(any());
+            verify(eventPublisher, never()).publishEvent(any());
         }
 
         @Test
