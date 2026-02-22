@@ -154,7 +154,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should rename credential successfully")
-		void shouldRenameSuccessfully() throws WebAuthnException {
+		void shouldRenameSuccessfully() /* no checked exception */ {
 			// Given
 			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop");
 
@@ -169,7 +169,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should throw when rename fails")
-		void shouldThrowOnFailure() throws WebAuthnException {
+		void shouldThrowOnFailure() /* no checked exception */ {
 			// Given
 			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name");
 			doThrow(new WebAuthnException("Credential not found or access denied")).when(credentialManagementService)
@@ -182,7 +182,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should throw not found when user not found")
-		void shouldThrowNotFoundWhenUserNotFound() throws WebAuthnException {
+		void shouldThrowNotFoundWhenUserNotFound() /* no checked exception */ {
 			// Given
 			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name");
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
@@ -200,7 +200,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should delete credential successfully")
-		void shouldDeleteSuccessfully() throws WebAuthnException {
+		void shouldDeleteSuccessfully() /* no checked exception */ {
 			// When
 			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", userDetails);
 
@@ -212,7 +212,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should throw when delete fails")
-		void shouldThrowOnFailure() throws WebAuthnException {
+		void shouldThrowOnFailure() /* no checked exception */ {
 			// Given
 			doThrow(new WebAuthnException("Cannot delete last passkey")).when(credentialManagementService).deleteCredential(eq("cred-1"),
 					any(User.class));
@@ -224,7 +224,7 @@ class WebAuthnManagementAPITest {
 
 		@Test
 		@DisplayName("should throw not found when user not found")
-		void shouldThrowNotFoundWhenUserNotFound() throws WebAuthnException {
+		void shouldThrowNotFoundWhenUserNotFound() /* no checked exception */ {
 			// Given
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 

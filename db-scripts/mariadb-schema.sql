@@ -106,7 +106,7 @@ CREATE TABLE `user_entities` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `UK_user_entities_name` (`name`),
   KEY `FK_user_entities_user` (`user_account_id`),
-  CONSTRAINT `FK_user_entities_user` FOREIGN KEY (`user_account_id`) REFERENCES `user_account` (`id`)
+  CONSTRAINT `FK_user_entities_user` FOREIGN KEY (`user_account_id`) REFERENCES `user_account` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE `user_credentials` (
@@ -126,5 +126,5 @@ CREATE TABLE `user_credentials` (
   `label` VARCHAR(64) NOT NULL,
   PRIMARY KEY (`credential_id`),
   KEY `FK_user_credentials_entity` (`user_entity_user_id`),
-  CONSTRAINT `FK_user_credentials_entity` FOREIGN KEY (`user_entity_user_id`) REFERENCES `user_entities` (`id`)
+  CONSTRAINT `FK_user_credentials_entity` FOREIGN KEY (`user_entity_user_id`) REFERENCES `user_entities` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

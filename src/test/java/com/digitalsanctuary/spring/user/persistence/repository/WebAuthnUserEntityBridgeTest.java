@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEntity;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnUserEntity;
@@ -86,6 +87,25 @@ class WebAuthnUserEntityBridgeTest {
 		}
 
 		@Test
+		@DisplayName("should retry lookup on concurrent creation conflict")
+		void shouldRetryOnDataIntegrityViolation() {
+			// Given - no existing entity, user exists, but save throws due to concurrent creation
+			when(webAuthnUserEntityRepository.findByName(testUser.getEmail()))
+					.thenReturn(Optional.empty()) // first call during findByUsername
+					.thenReturn(Optional.of(createJpaEntity())); // retry call after conflict
+			when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
+			when(webAuthnUserEntityRepository.save(any(WebAuthnUserEntity.class)))
+					.thenThrow(new DataIntegrityViolationException("Duplicate entry"));
+
+			// When
+			PublicKeyCredentialUserEntity result = bridge.findByUsername(testUser.getEmail());
+
+			// Then - should return entity from retry lookup
+			assertThat(result).isNotNull();
+			assertThat(result.getName()).isEqualTo(testUser.getEmail());
+		}
+
+		@Test
 		@DisplayName("should return existing entity when found by name")
 		void shouldReturnExistingEntity() {
 			// Given
@@ -103,6 +123,14 @@ class WebAuthnUserEntityBridgeTest {
 			assertThat(result.getName()).isEqualTo(testUser.getEmail());
 			assertThat(result.getDisplayName()).isEqualTo(testUser.getFullName());
 		}
+	}
+
+	private WebAuthnUserEntity createJpaEntity() {
+		WebAuthnUserEntity jpaEntity = new WebAuthnUserEntity();
+		jpaEntity.setId("AAAAAAAAAAE");
+		jpaEntity.setName(testUser.getEmail());
+		jpaEntity.setDisplayName(testUser.getFullName());
+		return jpaEntity;
 	}
 
 	@Nested
@@ -123,6 +151,8 @@ class WebAuthnUserEntityBridgeTest {
 			assertThat(entity.getName()).isEqualTo(testUser.getEmail());
 			assertThat(entity.getDisplayName()).isEqualTo(testUser.getFullName());
 			assertThat(entity.getId()).isNotNull();
+			// Random handle should be 64 bytes
+			assertThat(entity.getId().getBytes()).hasSize(64);
 
 			// Verify the JPA entity was saved with the user link
 			ArgumentCaptor<WebAuthnUserEntity> captor = ArgumentCaptor.forClass(WebAuthnUserEntity.class);
