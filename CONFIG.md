@@ -103,6 +103,7 @@ WebAuthn requires two additional tables: `user_entities` and `user_credentials`.
 - Users must be authenticated before they can register a passkey. Passkeys enhance existing authentication, not replace initial registration.
 - You must add `/webauthn/authenticate/**` and `/login/webauthn` to your `unprotectedURIs` for passkey login to work.
 - Passkey labels are limited to 64 characters.
+- When a user account is deleted, all associated WebAuthn credentials and user entities are automatically cleaned up via the `UserPreDeleteEvent` listener. The database schema also uses `ON DELETE CASCADE` as a safety net.
 
 ## Mail Configuration
 

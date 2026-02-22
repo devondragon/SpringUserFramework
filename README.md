@@ -129,13 +129,13 @@ Spring Boot 4.0 brings significant changes including Spring Security 7 and requi
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>4.1.0</version>
+    <version>4.2.0</version>
 </dependency>
 ```
 
 **Gradle:**
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:4.1.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:4.2.0'
 ```
 
 #### Spring Boot 4.0 Key Changes
@@ -206,7 +206,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
 
    **Spring Boot 4.0 (Java 21+):**
    ```groovy
-   implementation 'com.digitalsanctuary:ds-spring-user-framework:4.1.0'
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:4.2.0'
    ```
 
    **Spring Boot 3.5 (Java 17+):**
@@ -607,6 +607,7 @@ Passwordless authentication using biometrics (Touch ID, Face ID, Windows Hello),
 - Passkey management REST API (list, rename, delete credentials)
 - Last-credential protection (prevents lockout if user has no password)
 - Synced passkey support (iCloud Keychain, Google Password Manager, etc.)
+- Automatic cleanup of passkey data when a user account is deleted
 - Disabled by default; must be explicitly enabled with required database tables
 
 **Setup:**
