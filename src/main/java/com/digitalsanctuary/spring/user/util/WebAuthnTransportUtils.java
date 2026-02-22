@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 public final class WebAuthnTransportUtils {
 
 	private WebAuthnTransportUtils() {
-		// utility class
+		throw new IllegalStateException("Utility class");
 	}
 
 	/**
@@ -39,7 +39,7 @@ public final class WebAuthnTransportUtils {
 			return Collections.emptyList();
 		}
 		return Arrays.stream(transports.split(",")).map(String::trim).filter(s -> !s.isEmpty())
-				.collect(Collectors.toList());
+				.collect(Collectors.toUnmodifiableList());
 	}
 
 	/**
@@ -63,6 +63,6 @@ public final class WebAuthnTransportUtils {
 				log.warn("Unknown AuthenticatorTransport '{}', skipping", value);
 				return null;
 			}
-		}).filter(Objects::nonNull).collect(Collectors.toSet());
+		}).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 	}
 }

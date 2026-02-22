@@ -2,10 +2,12 @@ package com.digitalsanctuary.spring.user.persistence.repository;
 
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.LockModeType;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnCredential;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnUserEntity;
@@ -69,9 +71,12 @@ public interface WebAuthnCredentialRepository extends JpaRepository<WebAuthnCred
 	Optional<WebAuthnCredential> findByIdWithUser(@Param("credentialId") String credentialId);
 
 	/**
-	 * Delete all credentials for a WebAuthn user entity in a single batch operation.
+	 * Delete all credentials for a WebAuthn user entity in a single bulk DELETE statement.
 	 *
 	 * @param userEntity the WebAuthn user entity whose credentials should be deleted
 	 */
-	void deleteByUserEntity(WebAuthnUserEntity userEntity);
+	@Transactional
+	@Modifying
+	@Query("DELETE FROM WebAuthnCredential c WHERE c.userEntity = :userEntity")
+	void deleteByUserEntity(@Param("userEntity") WebAuthnUserEntity userEntity);
 }

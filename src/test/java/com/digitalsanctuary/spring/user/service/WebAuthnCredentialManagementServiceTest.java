@@ -126,6 +126,19 @@ class WebAuthnCredentialManagementServiceTest {
 		}
 
 		@Test
+		@DisplayName("should trim whitespace from label before storing")
+		void shouldTrimLabelBeforeStoring() {
+			// Given
+			when(credentialQueryRepository.renameCredential("cred-123", "Work Laptop", testUser.getId())).thenReturn(1);
+
+			// When
+			service.renameCredential("cred-123", "  Work Laptop  ", testUser);
+
+			// Then — trimmed value reaches the repository, not the padded original
+			verify(credentialQueryRepository).renameCredential("cred-123", "Work Laptop", testUser.getId());
+		}
+
+		@Test
 		@DisplayName("should throw when credential not found")
 		void shouldThrowWhenCredentialNotFound() {
 			// Given
