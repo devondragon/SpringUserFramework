@@ -42,6 +42,7 @@ com.digitalsanctuary.spring.user
 ├── api/              # REST endpoints (UserAPI)
 ├── audit/            # Audit logging system
 ├── controller/       # MVC controllers for HTML pages
+├── dev/              # Dev login auto-configuration (local profile only)
 ├── dto/              # Data transfer objects
 ├── event/            # Spring application events
 ├── exceptions/       # Custom exceptions
@@ -110,6 +111,7 @@ All configuration uses `user.*` prefix in application.yml. Key property groups:
 - `user.roles-and-privileges` - Role-to-privilege mapping (applied on startup)
 - `user.role-hierarchy` - Role inheritance (e.g., ROLE_ADMIN > ROLE_MANAGER)
 - `user.gdpr.*` - GDPR features (enabled, exportBeforeDeletion, consentTracking)
+- `user.dev.*` - Dev login (autoLoginEnabled, loginRedirectUrl) — requires `local` profile
 - `user.purgetokens.cron.*` - Token cleanup schedule
 - `user.session.invalidation.warn-threshold` - Performance warning threshold
 - `user.actuallyDeleteAccount` - Hard delete vs disable
