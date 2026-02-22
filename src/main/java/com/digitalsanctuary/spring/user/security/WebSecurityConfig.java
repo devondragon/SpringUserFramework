@@ -232,7 +232,7 @@ public class WebSecurityConfig {
 	/**
 	 * Creates an ObjectPostProcessor that sets our custom WebAuthn success handler on the WebAuthnAuthenticationFilter.
 	 *
-	 * @return the post processor
+	 * @return an ObjectPostProcessor that injects a custom authentication success handler
 	 */
 	private ObjectPostProcessor<WebAuthnAuthenticationFilter> webAuthnSuccessHandlerPostProcessor() {
 		return new ObjectPostProcessor<WebAuthnAuthenticationFilter>() {
