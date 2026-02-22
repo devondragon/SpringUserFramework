@@ -103,6 +103,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - Configuration-driven features
   - Comprehensive documentation
   - Demo application for reference
+  - Built-in dev login controller for quick user switching during local development
 
 - **GDPR Compliance** (opt-in)
   - Data export (Right of Access - Article 15)
@@ -708,6 +709,38 @@ To enable SSO:
                 user-name-attribute: preferred_username # https://www.keycloak.org/docs-api/latest/rest-api/index.html#UserRepresentation
                 jwk-set-uri: ${DS_SPRING_USER_KEYCLOAK_PROVIDER_JWK_SET_URI}
    ```
+
+### Dev Login (Local Development)
+
+The framework includes a built-in dev login controller that lets developers quickly switch between user accounts without entering passwords. This eliminates the need for consuming applications to write boilerplate dev-login controllers.
+
+**Setup:**
+
+1. Activate the `local` Spring profile (e.g., `spring.profiles.active=local`)
+2. Enable dev login in your configuration:
+
+```yaml
+# application-local.yml
+user:
+  dev:
+    auto-login-enabled: true
+    login-redirect-url: /dashboard  # optional, defaults to /
+```
+
+**Endpoints** (only available when enabled with the `local` profile):
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/dev/login-as/{email}` | GET | Authenticate as the specified user and redirect |
+| `/dev/users` | GET | List all enabled user emails (JSON) |
+
+**Example usage during development:**
+- Visit `http://localhost:8080/dev/users` to see available accounts
+- Visit `http://localhost:8080/dev/login-as/admin@example.com` to instantly log in as that user
+
+**Security:** This feature requires **both** `user.dev.auto-login-enabled=true` **and** the `local` Spring profile to be active. A prominent warning banner is logged on startup when dev login is active. **Never enable this in production.**
+
+See the [Configuration Guide](CONFIG.md) for all dev login settings.
 
 ## Extensibility
 

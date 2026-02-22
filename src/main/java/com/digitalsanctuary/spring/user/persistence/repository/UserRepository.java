@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.persistence.repository;
 
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 
@@ -15,6 +16,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	 * @return the user
 	 */
 	User findByEmail(String email);
+
+	/**
+	 * Find all enabled users.
+	 *
+	 * @return list of enabled users
+	 */
+	List<User> findAllByEnabledTrue();
 
 	/**
 	 * Delete.

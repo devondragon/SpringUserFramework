@@ -105,6 +105,35 @@ WebAuthn requires two additional tables: `user_entities` and `user_credentials`.
 - Passkey labels are limited to 64 characters.
 - When a user account is deleted, all associated WebAuthn credentials and user entities are automatically cleaned up via the `UserPreDeleteEvent` listener. The database schema also uses `ON DELETE CASCADE` as a safety net.
 
+## Dev Login Settings
+
+Provides a reusable "login as" controller for local development, so consuming applications don't need to write boilerplate dev-login controllers. **This feature is disabled by default and requires both a property flag and the `local` Spring profile to activate.**
+
+- **Auto-Login Enabled (`user.dev.auto-login-enabled`)**: Master toggle for the dev login feature. Defaults to `false`. Must be set to `true` **and** the `local` Spring profile must be active for the endpoints to be registered.
+- **Login Redirect URL (`user.dev.login-redirect-url`)**: The URL to redirect to after a successful dev login. Defaults to `/`.
+
+**Example configuration:**
+```yaml
+# application-local.yml (only active with spring.profiles.active=local)
+user:
+  dev:
+    auto-login-enabled: true
+    login-redirect-url: /dashboard
+```
+
+**Endpoints** (only available when enabled with the `local` profile):
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/dev/login-as/{email}` | GET | Authenticate as the specified user and redirect |
+| `/dev/users` | GET | List all enabled user emails |
+
+**Important Notes:**
+- The `local` Spring profile **must** be active. Without it, the controller and warning beans are never registered regardless of the property value.
+- When enabled, `/dev/**` is automatically added to the unprotected URI list and CSRF-ignored URIs in `WebSecurityConfig`.
+- A prominent WARN-level banner is logged on startup when dev login is active.
+- **NEVER enable this in production.** It bypasses all password authentication.
+
 ## Mail Configuration
 
 - **From Address (`spring.mail.fromAddress`)**: The email address used as the sender in outgoing emails.
