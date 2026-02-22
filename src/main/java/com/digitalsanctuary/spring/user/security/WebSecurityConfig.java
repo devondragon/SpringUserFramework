@@ -113,6 +113,9 @@ public class WebSecurityConfig {
 	@Value("${user.security.rememberMe.key:#{null}}")
 	private String rememberMeKey;
 
+	@Value("${user.dev.auto-login-enabled:false}")
+	private boolean devAutoLoginEnabled;
+
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
 	private final LogoutSuccessService logoutSuccessService;
@@ -149,9 +152,13 @@ public class WebSecurityConfig {
 
 		// If we have URIs to disable CSRF validation on, do so here
 		String[] disableCSRFURIsArray = getDisableCSRFURIsArray();
-		if (disableCSRFURIsArray.length > 0) {
+		List<String> csrfIgnoreList = new ArrayList<>(Arrays.asList(disableCSRFURIsArray));
+		if (devAutoLoginEnabled) {
+			csrfIgnoreList.add("/dev/**");
+		}
+		if (!csrfIgnoreList.isEmpty()) {
 			http.csrf(csrf -> {
-				csrf.ignoringRequestMatchers(disableCSRFURIsArray);
+				csrf.ignoringRequestMatchers(csrfIgnoreList.toArray(new String[0]));
 			});
 		}
 
@@ -257,6 +264,9 @@ public class WebSecurityConfig {
 		unprotectedURIs.add(registrationSuccessURI);
 		unprotectedURIs.add(forgotPasswordPendingURI);
 		unprotectedURIs.add(forgotPasswordChangeURI);
+		if (devAutoLoginEnabled) {
+			unprotectedURIs.add("/dev/**");
+		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
 	}
