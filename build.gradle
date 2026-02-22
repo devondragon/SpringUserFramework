@@ -13,7 +13,6 @@ import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 
 group = 'com.digitalsanctuary'
-// version = '3.0.0-SNAPSHOT'
 description = 'Spring User Framework'
 
 ext {
@@ -52,6 +51,10 @@ dependencies {
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
     compileOnly 'org.springframework.retry:spring-retry:2.0.12'
 
+    // WebAuthn support (Passkey authentication)
+    compileOnly 'org.springframework.security:spring-security-webauthn'
+    implementation 'com.webauthn4j:webauthn4j-core:0.30.2.RELEASE'
+
     // Lombok dependencies
     compileOnly "org.projectlombok:lombok:$lombokVersion"
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
@@ -70,6 +73,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.security:spring-security-webauthn'
     testImplementation 'org.springframework.retry:spring-retry:2.0.12'
     testImplementation 'jakarta.validation:jakarta.validation-api:3.1.1'
     testImplementation 'org.hibernate.validator:hibernate-validator:9.1.0.Final'
@@ -102,6 +106,7 @@ tasks.named('bootJar') {
 
 test {
 	useJUnitPlatform()
+	jvmArgs '-XX:+EnableDynamicAgentLoading', '-Xshare:off'
 	// Enable parallel execution for faster test runs
 	systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
 	systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
@@ -109,11 +114,19 @@ test {
 	// Use available CPU cores - 1 for parallel execution
 	systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
 	maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
-	  testLogging {
-        events "PASSED", "FAILED", "SKIPPED"
-        exceptionFormat "full"
-        showStandardStreams true
-    }
+
+	def isExplicitTest = gradle.startParameter.taskNames.any {
+		it == 'test' || it == 'testAll' || it.startsWith('testJdk')
+	}
+	testLogging {
+		events "PASSED", "FAILED", "SKIPPED"
+		if (isExplicitTest) {
+			exceptionFormat "full"
+			showStandardStreams true
+		} else {
+			exceptionFormat "short"
+		}
+	}
 }
 
 tasks.named('jar') {
@@ -136,14 +149,25 @@ def registerJdkTestTask(name, jdkVersion) {
         testClassesDirs = sourceSets.test.output.classesDirs
         classpath = sourceSets.test.runtimeClasspath
         useJUnitPlatform()
+        jvmArgs '-XX:+EnableDynamicAgentLoading', '-Xshare:off'
         // Enable parallel execution for JDK-specific tests
         systemProperty 'junit.jupiter.execution.parallel.enabled', 'true'
         systemProperty 'junit.jupiter.execution.parallel.mode.default', 'concurrent'
         systemProperty 'junit.jupiter.execution.parallel.mode.classes.default', 'concurrent'
         systemProperty 'junit.jupiter.execution.parallel.config.strategy', 'dynamic'
         maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+
+        def isExplicitTest = gradle.startParameter.taskNames.any {
+            it == 'test' || it == 'testAll' || it.startsWith('testJdk')
+        }
         testLogging {
             events "PASSED", "FAILED", "SKIPPED"
+            if (isExplicitTest) {
+                exceptionFormat "full"
+                showStandardStreams true
+            } else {
+                exceptionFormat "short"
+            }
         }
         doFirst {
             println("Running tests with JDK $jdkVersion")

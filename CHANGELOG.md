@@ -1,3 +1,55 @@
+## [4.2.0] - 2026-02-21
+### Features
+- WebAuthn / Passkey support (opt-in, disabled by default)
+  - Passwordless authentication via platform authenticators (Touch ID, Face ID, Windows Hello) and roaming security keys (YubiKey)
+  - Synced passkey support (iCloud Keychain, Google Password Manager, etc.)
+  - Passkey management REST API under `/user/webauthn/*` (auth required):
+    - GET `/user/webauthn/credentials` — List user's registered passkeys
+    - GET `/user/webauthn/has-credentials` — Check if user has any passkeys
+    - PUT `/user/webauthn/credentials/{id}/label` — Rename a passkey (max 64 chars)
+    - DELETE `/user/webauthn/credentials/{id}` — Delete a passkey (with last-credential protection)
+  - `WebAuthnAuthenticationToken` — Custom authentication token that distinguishes passkey sessions from password-based sessions, enabling downstream code to check how a user authenticated
+  - Automatic cleanup of passkey data when a user account is deleted via `WebAuthnPreDeleteEventListener` (listens for `UserPreDeleteEvent`)
+  - Configuration properties under `user.webauthn.*` (enabled, rpId, rpName, allowedOrigins)
+  - Database schema additions: `user_entities` and `user_credentials` tables with `ON DELETE CASCADE` for referential integrity
+
+### Fixes
+- Safety and input handling
+  - Safe-parse `AuthenticatorTransport` enum values to prevent `IllegalArgumentException` on unknown transport types
+  - Default passkey label to "Passkey" when no label is provided instead of leaving it blank
+  - Trim passkey labels before enforcing the 64-character length limit
+  - Fixed TOCTOU race condition in last-credential protection by recounting credentials inside the `@Transactional` boundary
+- Data integrity
+  - Added `ON DELETE CASCADE` to WebAuthn foreign keys so credential data is cleaned up at the database level when a user is deleted
+  - Added `WebAuthnPreDeleteEventListener` to clean up WebAuthn user entities and credentials via JPA before user deletion, complementing the cascade
+- API quality
+  - `transports` field in credential responses is now `List<String>` instead of a single comma-delimited string
+  - Added `@NotBlank` validation on path variable parameters in management API endpoints
+  - `WebAuthnManagementAPIAdvice` is now `@ConditionalOnProperty(name = "user.webauthn.enabled")` so it is not loaded when WebAuthn is disabled
+- Design improvements
+  - `WebAuthnException` now extends `RuntimeException` (was checked `Exception`), simplifying error handling throughout the WebAuthn stack
+  - User handle generation uses `SecureRandom` bytes instead of deterministic user ID mapping, improving privacy
+  - Credential operations use `@Transactional(propagation = MANDATORY)` to enforce that callers provide a transaction context
+
+### Breaking Changes
+- None. WebAuthn is a new opt-in feature disabled by default. Existing APIs and behavior are unchanged.
+
+### Documentation
+- Added WebAuthn/Passkey sections to README (setup, features, API endpoints) and CONFIG (settings, examples, important notes)
+- Updated CHANGELOG with 4.2.0 entry
+
+### Testing
+- New test suites for all WebAuthn components:
+  - `WebAuthnManagementAPITest` — REST endpoint behavior, validation, error handling
+  - `WebAuthnCredentialManagementServiceTest` — Service-layer logic, TOCTOU protection, transports parsing
+  - `WebAuthnAuthenticationSuccessHandlerTest` — Authentication token creation, user resolution
+  - `WebAuthnUserEntityBridgeTest` — User entity bridge and handle generation
+  - `WebAuthnPreDeleteEventListenerTest` — Cleanup on user deletion
+
+### Other Changes
+- Version bumped to 4.2.0-SNAPSHOT in gradle.properties
+- Test output noise reduced with context-aware verbosity for expected WebAuthn exceptions
+
 ## [4.1.0] - 2026-02-02
 ### Features
 - GDPR compliance (opt‑in, disabled by default)

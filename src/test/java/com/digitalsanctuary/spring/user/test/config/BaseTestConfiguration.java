@@ -101,7 +101,6 @@ public class BaseTestConfiguration {
             System.setProperty("spring.profiles.active", "test");
             System.setProperty("spring.jpa.hibernate.ddl-auto", "create-drop");
             System.setProperty("spring.datasource.initialization-mode", "always");
-            System.setProperty("logging.level.org.springframework.security", "DEBUG");
         }
     }
 }

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -111,13 +113,13 @@ public class WebSecurityConfig {
 	@Value("${user.security.rememberMe.key:#{null}}")
 	private String rememberMeKey;
 
-
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
 	private final LogoutSuccessService logoutSuccessService;
 	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
+	private final WebAuthnConfigProperties webAuthnConfigProperties;
 
 	/**
 	 *
@@ -158,6 +160,11 @@ public class WebSecurityConfig {
 			setupOAuth2(http);
 		}
 
+		// Configure WebAuthn (Passkey) if enabled
+		if (webAuthnConfigProperties.isEnabled()) {
+			setupWebAuthn(http);
+		}
+
 		// Configure authorization rules based on the default action
 		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
 			// Allow access to unprotected URIs and require authentication for all other requests
@@ -196,6 +203,36 @@ public class WebSecurityConfig {
 					userInfo.userService(dsOAuth2UserService);
 					userInfo.oidcUserService(dsOidcUserService);
 				}));
+	}
+
+	/**
+	 * Setup WebAuthn (Passkey) specific configuration.
+	 *
+	 * @param http the http security object to configure
+	 * @throws Exception the exception
+	 */
+	private void setupWebAuthn(HttpSecurity http) throws Exception {
+		Set<String> allowedOrigins = webAuthnConfigProperties.getAllowedOrigins();
+		if (allowedOrigins == null) {
+			allowedOrigins = Collections.emptySet();
+		}
+		Set<String> normalizedAllowedOrigins = allowedOrigins.stream().map(String::trim).filter(origin -> !origin.isEmpty())
+				.collect(Collectors.toSet());
+
+		log.debug("WebSecurityConfig.setupWebAuthn: rpId={}, rpName={}, allowedOrigins={}", webAuthnConfigProperties.getRpId(),
+				webAuthnConfigProperties.getRpName(), normalizedAllowedOrigins);
+
+		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnConfigProperties.getRpName()).rpId(webAuthnConfigProperties.getRpId())
+				.allowedOrigins(normalizedAllowedOrigins)
+				.withObjectPostProcessor(
+						new org.springframework.security.config.ObjectPostProcessor<org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter>() {
+							@Override
+							public <O extends org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter> O postProcess(
+									O filter) {
+								filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService));
+								return filter;
+							}
+						}));
 	}
 
 	// Commenting this out to try adding /error to the unprotected URIs list instead

@@ -65,6 +65,46 @@ user:
 - **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
 - **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
 
+## WebAuthn / Passkey Settings
+
+Provides passwordless login using biometrics, security keys, or device authentication. **HTTPS is required** for WebAuthn to function.
+
+- **Enabled (`user.webauthn.enabled`)**: Enable or disable WebAuthn/Passkey support. Defaults to `false`. Must be explicitly enabled along with the required database schema.
+- **Relying Party ID (`user.webauthn.rpId`)**: For development, use `localhost`. For production, use your domain (e.g., `example.com`). Defaults to `localhost`.
+- **Relying Party Name (`user.webauthn.rpName`)**: The display name.
+- **Allowed Origins (`user.webauthn.allowedOrigins`)**: Comma-separated list of allowed origins. Defaults to `https://localhost:8443`.
+
+**Development Example:**
+```properties
+user.webauthn.enabled=true
+user.webauthn.rpId=localhost
+user.webauthn.rpName=My Application
+user.webauthn.allowedOrigins=https://localhost:8443
+```
+
+**Production Example:**
+```properties
+user.webauthn.enabled=true
+user.webauthn.rpId=example.com
+user.webauthn.rpName=My Application
+user.webauthn.allowedOrigins=https://example.com
+```
+
+**Database Schema:**
+
+WebAuthn requires two additional tables: `user_entities` and `user_credentials`. If using `ddl-auto: update`, Hibernate will create them automatically. For manual schema management, see `db-scripts/mariadb-schema.sql`.
+
+**Important Notes:**
+- WebAuthn is **disabled by default** and must be explicitly enabled along with the required database tables.
+- WebAuthn requires HTTPS in production. HTTP is allowed on `localhost` for development.
+- For local HTTPS development, generate a self-signed certificate: `keytool -genkeypair -alias localhost -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 3650`
+- Configure SSL in `application.properties`: `server.ssl.enabled=true`, `server.ssl.key-store=classpath:keystore.p12`
+- Alternatively, use ngrok (`ngrok http 8080`) for HTTPS without certificates. Note: HTTP also works on localhost with most browsers.
+- Users must be authenticated before they can register a passkey. Passkeys enhance existing authentication, not replace initial registration.
+- You must add `/webauthn/authenticate/**` and `/login/webauthn` to your `unprotectedURIs` for passkey login to work.
+- Passkey labels are limited to 64 characters.
+- When a user account is deleted, all associated WebAuthn credentials and user entities are automatically cleaned up via the `UserPreDeleteEvent` listener. The database schema also uses `ON DELETE CASCADE` as a safety net.
+
 ## Mail Configuration
 
 - **From Address (`spring.mail.fromAddress`)**: The email address used as the sender in outgoing emails.

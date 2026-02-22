@@ -92,3 +92,39 @@ CREATE TABLE `verification_token` (
   KEY `FK_VERIFY_USER` (`user_id`),
   CONSTRAINT `FK_VERIFY_USER` FOREIGN KEY (`user_id`) REFERENCES `user_account` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- WebAuthn / Passkey tables (only needed if user.webauthn.enabled=true)
+
+DROP TABLE IF EXISTS `user_credentials`;
+DROP TABLE IF EXISTS `user_entities`;
+
+CREATE TABLE `user_entities` (
+  `id` VARCHAR(255) NOT NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `display_name` VARCHAR(255) NOT NULL,
+  `user_account_id` BIGINT(20) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `UK_user_entities_name` (`name`),
+  KEY `FK_user_entities_user` (`user_account_id`),
+  CONSTRAINT `FK_user_entities_user` FOREIGN KEY (`user_account_id`) REFERENCES `user_account` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `user_credentials` (
+  `credential_id` VARCHAR(512) NOT NULL,
+  `user_entity_user_id` VARCHAR(255) NOT NULL,
+  `public_key` BLOB NOT NULL,
+  `signature_count` BIGINT(20) NOT NULL,
+  `uv_initialized` BIT(1) NOT NULL,
+  `backup_eligible` BIT(1) NOT NULL,
+  `backup_state` BIT(1) NOT NULL,
+  `authenticator_transports` VARCHAR(1000) DEFAULT NULL,
+  `public_key_credential_type` VARCHAR(100) DEFAULT NULL,
+  `attestation_object` BLOB DEFAULT NULL,
+  `attestation_client_data_json` BLOB DEFAULT NULL,
+  `created` DATETIME(6) NOT NULL,
+  `last_used` DATETIME(6) DEFAULT NULL,
+  `label` VARCHAR(64) NOT NULL,
+  PRIMARY KEY (`credential_id`),
+  KEY `FK_user_credentials_entity` (`user_entity_user_id`),
+  CONSTRAINT `FK_user_credentials_entity` FOREIGN KEY (`user_entity_user_id`) REFERENCES `user_entities` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
