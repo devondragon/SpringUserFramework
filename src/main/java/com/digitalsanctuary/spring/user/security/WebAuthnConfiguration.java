@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 
 /**
- * Auto-configuration that registers {@link WebAuthnConfigProperties}.
+ * Configuration that registers {@link WebAuthnConfigProperties}.
  * <p>
  * This configuration is always active because {@code WebSecurityConfig} requires
  * {@link WebAuthnConfigProperties} regardless of whether WebAuthn is enabled.
@@ -16,5 +16,5 @@ import org.springframework.context.annotation.PropertySource;
 @Configuration
 @PropertySource("classpath:config/dsspringuserconfig.properties")
 @EnableConfigurationProperties(WebAuthnConfigProperties.class)
-public class WebAuthnAutoConfiguration {
+public class WebAuthnConfiguration {
 }
