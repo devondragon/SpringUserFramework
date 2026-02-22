@@ -71,7 +71,7 @@ public class WebAuthnCredentialManagementService {
 	public void renameCredential(String credentialId, String newLabel, User user) {
 		validateLabel(newLabel);
 
-		int updated = credentialQueryRepository.renameCredential(credentialId, newLabel, user.getId());
+		int updated = credentialQueryRepository.renameCredential(credentialId, newLabel.trim(), user.getId());
 
 		if (updated == 0) {
 			throw new WebAuthnException("Credential not found or access denied");

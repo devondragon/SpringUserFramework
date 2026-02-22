@@ -36,6 +36,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRepository {
 
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
 	private final WebAuthnUserEntityRepository webAuthnUserEntityRepository;
 	private final UserRepository userRepository;
 
@@ -115,7 +117,7 @@ public class WebAuthnUserEntityBridge implements PublicKeyCredentialUserEntityRe
 	@Transactional
 	public PublicKeyCredentialUserEntity createUserEntity(User user) {
 		byte[] randomHandle = new byte[64];
-		new SecureRandom().nextBytes(randomHandle);
+		SECURE_RANDOM.nextBytes(randomHandle);
 		Bytes userId = new Bytes(randomHandle);
 		String idStr = Base64.getUrlEncoder().withoutPadding().encodeToString(userId.getBytes());
 		String displayName = user.getFullName();

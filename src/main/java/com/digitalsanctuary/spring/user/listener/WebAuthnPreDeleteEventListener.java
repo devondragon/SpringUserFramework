@@ -42,7 +42,7 @@ public class WebAuthnPreDeleteEventListener {
 	}
 
 	private void deleteUserEntityAndCredentials(WebAuthnUserEntity userEntity) {
-		credentialRepository.findByUserEntity(userEntity).forEach(credentialRepository::delete);
+		credentialRepository.deleteByUserEntity(userEntity);
 		userEntityRepository.delete(userEntity);
 		log.info("Deleted WebAuthn data for user entity {}", userEntity.getName());
 	}
