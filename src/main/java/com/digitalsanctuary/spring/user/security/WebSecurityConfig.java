@@ -17,6 +17,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
 import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.session.SessionRegistry;
@@ -26,6 +27,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
+import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -224,15 +226,22 @@ public class WebSecurityConfig {
 
 		http.webAuthn(webAuthn -> webAuthn.rpName(webAuthnConfigProperties.getRpName()).rpId(webAuthnConfigProperties.getRpId())
 				.allowedOrigins(normalizedAllowedOrigins)
-				.withObjectPostProcessor(
-						new org.springframework.security.config.ObjectPostProcessor<org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter>() {
-							@Override
-							public <O extends org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter> O postProcess(
-									O filter) {
-								filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService));
-								return filter;
-							}
-						}));
+				.withObjectPostProcessor(webAuthnSuccessHandlerPostProcessor()));
+	}
+
+	/**
+	 * Creates an ObjectPostProcessor that sets our custom WebAuthn success handler on the WebAuthnAuthenticationFilter.
+	 *
+	 * @return an ObjectPostProcessor that injects a custom authentication success handler
+	 */
+	private ObjectPostProcessor<WebAuthnAuthenticationFilter> webAuthnSuccessHandlerPostProcessor() {
+		return new ObjectPostProcessor<WebAuthnAuthenticationFilter>() {
+			@Override
+			public <O extends WebAuthnAuthenticationFilter> O postProcess(O filter) {
+				filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService));
+				return filter;
+			}
+		};
 	}
 
 	// Commenting this out to try adding /error to the unprotected URIs list instead
