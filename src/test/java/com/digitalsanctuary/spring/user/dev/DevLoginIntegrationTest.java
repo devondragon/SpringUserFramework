@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.dev;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -105,6 +106,7 @@ class DevLoginIntegrationTest {
         mockMvc.perform(get("/dev/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data", hasItem("dev-test@test.com")));
     }
 }

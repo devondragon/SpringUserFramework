@@ -1,8 +1,6 @@
 package com.digitalsanctuary.spring.user.dev;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -15,7 +13,6 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -45,16 +42,13 @@ public class DevLoginController {
 
     /**
      * Logs in as the specified user by email without requiring a password.
-     * After successful authentication, redirects to the configured redirect URL.
+     * After successful authentication, returns a redirect response to the configured URL.
      *
-     * @param email    the email of the user to log in as
-     * @param response the HTTP servlet response for redirect
-     * @return a ResponseEntity with error details if authentication fails
-     * @throws IOException if the redirect fails
+     * @param email the email of the user to log in as
+     * @return a redirect response on success, or an error response with 404/403 status
      */
     @GetMapping("/login-as/{email}")
-    public ResponseEntity<JSONResponse> loginAs(@PathVariable String email, HttpServletResponse response)
-            throws IOException {
+    public ResponseEntity<JSONResponse> loginAs(@PathVariable String email) {
         log.warn("Dev login attempt for user: {}", email);
 
         User user = userService.findUserByEmail(email);
@@ -74,8 +68,9 @@ public class DevLoginController {
         userService.authWithoutPassword(user);
         log.warn("Dev login successful for user: {}", email);
 
-        response.sendRedirect(devLoginConfigProperties.getLoginRedirectUrl());
-        return null;
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header("Location", devLoginConfigProperties.getLoginRedirectUrl())
+                .build();
     }
 
     /**
@@ -85,10 +80,11 @@ public class DevLoginController {
      */
     @GetMapping("/users")
     public ResponseEntity<JSONResponse> listUsers() {
-        List<String> enabledEmails = userRepository.findAll().stream().filter(User::isEnabled).map(User::getEmail)
-                .collect(Collectors.toList());
+        List<String> enabledEmails = userRepository.findAllByEnabledTrue().stream()
+                .map(User::getEmail)
+                .toList();
 
-        return ResponseEntity.ok(JSONResponse.builder().success(true).message("Found " + enabledEmails.size()
-                + " enabled users").data(enabledEmails).build());
+        return ResponseEntity.ok(JSONResponse.builder().success(true)
+                .message("Found " + enabledEmails.size() + " enabled users").data(enabledEmails).build());
     }
 }

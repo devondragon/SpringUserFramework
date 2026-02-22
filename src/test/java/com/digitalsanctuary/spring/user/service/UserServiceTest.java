@@ -479,9 +479,6 @@ public class UserServiceTest {
                 SecurityContext securityContext = mock(SecurityContext.class);
                 mockedSecurityHolder.when(SecurityContextHolder::getContext).thenReturn(securityContext);
 
-                // Capture the authentication set on the context and return it on getAuthentication()
-                ArgumentCaptor<Authentication> authCaptor = ArgumentCaptor.forClass(Authentication.class);
-
                 // Use thenAnswer to capture and store the authentication set
                 final Authentication[] storedAuth = new Authentication[1];
                 org.mockito.Mockito.doAnswer(invocation -> {

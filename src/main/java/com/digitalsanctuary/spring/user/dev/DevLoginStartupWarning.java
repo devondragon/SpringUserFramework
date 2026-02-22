@@ -20,7 +20,7 @@ public class DevLoginStartupWarning {
     public void logWarning() {
         log.warn("========================================================");
         log.warn("  DEV LOGIN IS ACTIVE");
-        log.warn("  Passwordless authentication is enabled at /dev/login-as/{{email}}");
+        log.warn("  Passwordless authentication is enabled at /dev/login-as/{email}");
         log.warn("  DO NOT enable this in production!");
         log.warn("========================================================");
     }

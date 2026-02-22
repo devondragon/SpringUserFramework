@@ -2,7 +2,6 @@ package com.digitalsanctuary.spring.user.dev;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,7 +20,6 @@ import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
-import jakarta.servlet.http.HttpServletResponse;
 
 @ServiceTest
 class DevLoginControllerTest {
@@ -49,33 +47,31 @@ class DevLoginControllerTest {
 
     @Test
     @DisplayName("loginAs - should authenticate and redirect for valid enabled user")
-    void shouldAuthenticateAndRedirectWhenValidUser() throws Exception {
+    void shouldAuthenticateAndRedirectWhenValidUser() {
         // Given
         when(userService.findUserByEmail("dev@test.com")).thenReturn(enabledUser);
         when(devLoginConfigProperties.getLoginRedirectUrl()).thenReturn("/dashboard");
-        HttpServletResponse response = mock(HttpServletResponse.class);
 
         // When
-        ResponseEntity<JSONResponse> result = devLoginController.loginAs("dev@test.com", response);
+        ResponseEntity<JSONResponse> result = devLoginController.loginAs("dev@test.com");
 
         // Then
         verify(userService).authWithoutPassword(enabledUser);
-        verify(response).sendRedirect("/dashboard");
-        assertThat(result).isNull();
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.FOUND);
+        assertThat(result.getHeaders().getFirst("Location")).isEqualTo("/dashboard");
+        assertThat(result.getBody()).isNull();
     }
 
     @Test
     @DisplayName("loginAs - should return 404 for unknown user")
-    void shouldReturn404WhenUserNotFound() throws Exception {
+    void shouldReturn404WhenUserNotFound() {
         // Given
         when(userService.findUserByEmail("unknown@test.com")).thenReturn(null);
-        HttpServletResponse response = mock(HttpServletResponse.class);
 
         // When
-        ResponseEntity<JSONResponse> result = devLoginController.loginAs("unknown@test.com", response);
+        ResponseEntity<JSONResponse> result = devLoginController.loginAs("unknown@test.com");
 
         // Then
-        assertThat(result).isNotNull();
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().isSuccess()).isFalse();
@@ -84,16 +80,14 @@ class DevLoginControllerTest {
 
     @Test
     @DisplayName("loginAs - should return 403 for disabled user")
-    void shouldReturn403WhenUserDisabled() throws Exception {
+    void shouldReturn403WhenUserDisabled() {
         // Given
         when(userService.findUserByEmail("disabled@test.com")).thenReturn(disabledUser);
-        HttpServletResponse response = mock(HttpServletResponse.class);
 
         // When
-        ResponseEntity<JSONResponse> result = devLoginController.loginAs("disabled@test.com", response);
+        ResponseEntity<JSONResponse> result = devLoginController.loginAs("disabled@test.com");
 
         // Then
-        assertThat(result).isNotNull();
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().isSuccess()).isFalse();
@@ -101,11 +95,10 @@ class DevLoginControllerTest {
     }
 
     @Test
-    @DisplayName("listUsers - should return enabled user emails")
+    @DisplayName("listUsers - should return only enabled user emails")
     void shouldReturnEnabledUserEmails() {
         // Given
-        List<User> allUsers = Arrays.asList(enabledUser, disabledUser);
-        when(userRepository.findAll()).thenReturn(allUsers);
+        when(userRepository.findAllByEnabledTrue()).thenReturn(Arrays.asList(enabledUser));
 
         // When
         ResponseEntity<JSONResponse> result = devLoginController.listUsers();
