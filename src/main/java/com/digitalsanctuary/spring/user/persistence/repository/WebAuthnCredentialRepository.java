@@ -67,4 +67,11 @@ public interface WebAuthnCredentialRepository extends JpaRepository<WebAuthnCred
 	 */
 	@Query("SELECT c FROM WebAuthnCredential c JOIN FETCH c.userEntity ue JOIN FETCH ue.user WHERE c.credentialId = :credentialId")
 	Optional<WebAuthnCredential> findByIdWithUser(@Param("credentialId") String credentialId);
+
+	/**
+	 * Delete all credentials for a WebAuthn user entity in a single batch operation.
+	 *
+	 * @param userEntity the WebAuthn user entity whose credentials should be deleted
+	 */
+	void deleteByUserEntity(WebAuthnUserEntity userEntity);
 }

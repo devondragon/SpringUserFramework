@@ -114,7 +114,7 @@ class WebAuthnCredentialManagementServiceTest {
 
 		@Test
 		@DisplayName("should rename credential successfully")
-		void shouldRenameCredentialSuccessfully() /* no checked exception */ {
+		void shouldRenameCredentialSuccessfully() {
 			// Given
 			when(credentialQueryRepository.renameCredential("cred-123", "Work Laptop", testUser.getId())).thenReturn(1);
 
@@ -184,7 +184,7 @@ class WebAuthnCredentialManagementServiceTest {
 
 			@Test
 			@DisplayName("should delete credential when user has multiple passkeys")
-			void shouldDeleteWhenMultiplePasskeys() /* no checked exception */ {
+			void shouldDeleteWhenMultiplePasskeys() {
 				// Given
 				when(credentialQueryRepository.lockAndCountCredentials(testUser.getId())).thenReturn(2L);
 				when(credentialQueryRepository.deleteCredential("cred-123", testUser.getId())).thenReturn(1);
@@ -198,7 +198,7 @@ class WebAuthnCredentialManagementServiceTest {
 
 			@Test
 			@DisplayName("should delete last credential when user has a password")
-			void shouldDeleteLastCredentialWhenUserHasPassword() /* no checked exception */ {
+			void shouldDeleteLastCredentialWhenUserHasPassword() {
 				// Given - user has password set (from TestFixtures)
 				when(credentialQueryRepository.lockAndCountCredentials(testUser.getId())).thenReturn(1L);
 				when(credentialQueryRepository.deleteCredential("cred-123", testUser.getId())).thenReturn(1);

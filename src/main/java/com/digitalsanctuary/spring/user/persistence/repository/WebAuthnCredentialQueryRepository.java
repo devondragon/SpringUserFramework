@@ -1,7 +1,5 @@
 package com.digitalsanctuary.spring.user.persistence.repository;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -11,6 +9,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnCredential;
+import com.digitalsanctuary.spring.user.util.WebAuthnTransportUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,6 +57,12 @@ public class WebAuthnCredentialQueryRepository {
 
 	/**
 	 * Lock all credentials for a user and return the count.
+	 *
+	 * <p>
+	 * <b>Note:</b> This method uses {@code Propagation.MANDATORY}, so callers must already be within
+	 * an active transaction. Calling this method without a surrounding transaction will throw
+	 * {@link org.springframework.transaction.IllegalTransactionStateException}.
+	 * </p>
 	 *
 	 * @param userId the user ID
 	 * @return count of locked credential rows
@@ -139,18 +144,10 @@ public class WebAuthnCredentialQueryRepository {
 	 * @return the DTO
 	 */
 	private WebAuthnCredentialInfo toCredentialInfo(WebAuthnCredential entity) {
-		List<String> transportList = parseTransportList(entity.getAuthenticatorTransports());
+		List<String> transportList = WebAuthnTransportUtils.parseTransportStrings(entity.getAuthenticatorTransports());
 		return WebAuthnCredentialInfo.builder().id(entity.getCredentialId()).label(entity.getLabel())
 				.created(entity.getCreated()).lastUsed(entity.getLastUsed())
 				.transports(transportList).backupEligible(entity.isBackupEligible())
 				.backupState(entity.isBackupState()).build();
-	}
-
-	private List<String> parseTransportList(String transports) {
-		if (transports == null || transports.isEmpty()) {
-			return Collections.emptyList();
-		}
-		return Arrays.stream(transports.split(",")).map(String::trim).filter(s -> !s.isEmpty())
-				.collect(Collectors.toList());
 	}
 }

@@ -1,8 +1,6 @@
 package com.digitalsanctuary.spring.user.security;
 
-import java.util.Arrays;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,6 +19,7 @@ import com.digitalsanctuary.spring.user.persistence.model.WebAuthnCredential;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnUserEntity;
 import com.digitalsanctuary.spring.user.persistence.repository.WebAuthnCredentialRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.WebAuthnUserEntityRepository;
+import com.digitalsanctuary.spring.user.util.WebAuthnTransportUtils;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -148,30 +147,13 @@ public class WebAuthnRepositoryConfig {
 					.signatureCount(entity.getSignatureCount()).uvInitialized(entity.isUvInitialized())
 					.backupEligible(entity.isBackupEligible()).backupState(entity.isBackupState())
 					.credentialType(credType)
-					.transports(parseTransports(entity.getAuthenticatorTransports()))
+					.transports(WebAuthnTransportUtils.parseTransports(entity.getAuthenticatorTransports()))
 					.attestationObject(
 							entity.getAttestationObject() != null ? new Bytes(entity.getAttestationObject()) : null)
 					.attestationClientDataJSON(entity.getAttestationClientDataJson() != null
 							? new Bytes(entity.getAttestationClientDataJson())
 							: null)
 					.created(entity.getCreated()).lastUsed(entity.getLastUsed()).label(entity.getLabel()).build();
-		}
-
-		/**
-		 * Parse comma-separated transport string to a Set of AuthenticatorTransport.
-		 */
-		private Set<AuthenticatorTransport> parseTransports(String transports) {
-			if (transports == null || transports.isEmpty()) {
-				return Collections.emptySet();
-			}
-			return Arrays.stream(transports.split(",")).map(String::trim).filter(s -> !s.isEmpty()).map(value -> {
-				try {
-					return AuthenticatorTransport.valueOf(value);
-				} catch (IllegalArgumentException e) {
-					log.warn("Unknown AuthenticatorTransport '{}', skipping", value);
-					return null;
-				}
-			}).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
 		}
 
 		/**
