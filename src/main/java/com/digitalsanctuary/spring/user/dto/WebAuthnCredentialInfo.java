@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.dto;
 
 import java.time.Instant;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,7 +29,7 @@ public class WebAuthnCredentialInfo {
 	private Instant lastUsed;
 
 	/** Supported transports (usb, nfc, ble, internal). */
-	private String transports;
+	private List<String> transports;
 
 	/** Whether credential is backup-eligible (synced passkey). */
 	private Boolean backupEligible;

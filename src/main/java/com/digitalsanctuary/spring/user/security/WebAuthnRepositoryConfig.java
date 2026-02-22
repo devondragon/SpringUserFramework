@@ -102,7 +102,7 @@ public class WebAuthnRepositoryConfig {
 					: null);
 			entity.setCreated(record.getCreated());
 			entity.setLastUsed(record.getLastUsed());
-			entity.setLabel(record.getLabel());
+			entity.setLabel(record.getLabel() != null ? record.getLabel() : "Passkey");
 
 			credentialRepository.save(entity);
 		}
@@ -131,15 +131,23 @@ public class WebAuthnRepositoryConfig {
 		 * Convert a JPA entity to Spring Security's CredentialRecord.
 		 */
 		private CredentialRecord toCredentialRecord(WebAuthnCredential entity) {
+			PublicKeyCredentialType credType = null;
+			if (entity.getPublicKeyCredentialType() != null) {
+				try {
+					credType = PublicKeyCredentialType.valueOf(entity.getPublicKeyCredentialType());
+				} catch (IllegalArgumentException e) {
+					log.warn("Unknown PublicKeyCredentialType '{}' for credential {}, defaulting to null",
+							entity.getPublicKeyCredentialType(), entity.getCredentialId());
+				}
+			}
+
 			return ImmutableCredentialRecord.builder()
 					.credentialId(new Bytes(Base64.getUrlDecoder().decode(entity.getCredentialId())))
 					.userEntityUserId(new Bytes(Base64.getUrlDecoder().decode(entity.getUserEntity().getId())))
 					.publicKey(new ImmutablePublicKeyCose(entity.getPublicKey()))
 					.signatureCount(entity.getSignatureCount()).uvInitialized(entity.isUvInitialized())
 					.backupEligible(entity.isBackupEligible()).backupState(entity.isBackupState())
-					.credentialType(entity.getPublicKeyCredentialType() != null
-							? PublicKeyCredentialType.valueOf(entity.getPublicKeyCredentialType())
-							: null)
+					.credentialType(credType)
 					.transports(parseTransports(entity.getAuthenticatorTransports()))
 					.attestationObject(
 							entity.getAttestationObject() != null ? new Bytes(entity.getAttestationObject()) : null)
@@ -156,8 +164,14 @@ public class WebAuthnRepositoryConfig {
 			if (transports == null || transports.isEmpty()) {
 				return Collections.emptySet();
 			}
-			return Arrays.stream(transports.split(",")).map(String::trim).filter(s -> !s.isEmpty())
-					.map(AuthenticatorTransport::valueOf).collect(Collectors.toSet());
+			return Arrays.stream(transports.split(",")).map(String::trim).filter(s -> !s.isEmpty()).map(value -> {
+				try {
+					return AuthenticatorTransport.valueOf(value);
+				} catch (IllegalArgumentException e) {
+					log.warn("Unknown AuthenticatorTransport '{}', skipping", value);
+					return null;
+				}
+			}).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
 		}
 
 		/**

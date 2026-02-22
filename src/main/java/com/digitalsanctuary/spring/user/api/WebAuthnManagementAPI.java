@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
-import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -96,9 +95,9 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity with success message or error
 	 */
 	@PutMapping("/credentials/{id}/label")
-	public ResponseEntity<GenericResponse> renameCredential(@PathVariable @Size(max = 512) String id,
+	public ResponseEntity<GenericResponse> renameCredential(@PathVariable @NotBlank @Size(max = 512) String id,
 			@RequestBody @Valid RenameCredentialRequest request,
-			@AuthenticationPrincipal UserDetails userDetails) throws WebAuthnException {
+			@AuthenticationPrincipal UserDetails userDetails) {
 		User user = findAuthenticatedUser(userDetails);
 		credentialManagementService.renameCredential(id, request.label(), user);
 		return ResponseEntity.ok(new GenericResponse("Passkey renamed successfully"));
@@ -121,8 +120,8 @@ public class WebAuthnManagementAPI {
 	 * @return ResponseEntity with success message or error
 	 */
 	@DeleteMapping("/credentials/{id}")
-	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable @Size(max = 512) String id,
-			@AuthenticationPrincipal UserDetails userDetails) throws WebAuthnException {
+	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable @NotBlank @Size(max = 512) String id,
+			@AuthenticationPrincipal UserDetails userDetails) {
 		User user = findAuthenticatedUser(userDetails);
 		credentialManagementService.deleteCredential(id, user);
 		return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));

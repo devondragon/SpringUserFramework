@@ -68,7 +68,7 @@ public class WebAuthnCredentialManagementService {
 	 * @throws WebAuthnException if the credential is not found, access is denied, or the label is invalid
 	 */
 	@Transactional
-	public void renameCredential(String credentialId, String newLabel, User user) throws WebAuthnException {
+	public void renameCredential(String credentialId, String newLabel, User user) {
 		validateLabel(newLabel);
 
 		int updated = credentialQueryRepository.renameCredential(credentialId, newLabel, user.getId());
@@ -101,7 +101,7 @@ public class WebAuthnCredentialManagementService {
 	 * @throws WebAuthnException if the credential is not found, access is denied, or deletion would lock out the user
 	 */
 	@Transactional
-	public void deleteCredential(String credentialId, User user) throws WebAuthnException {
+	public void deleteCredential(String credentialId, User user) {
 		// Lock all user credentials before checking count and deleting to avoid TOCTOU races.
 		long enabledCount = credentialQueryRepository.lockAndCountCredentials(user.getId());
 
@@ -133,11 +133,11 @@ public class WebAuthnCredentialManagementService {
 	 * @param label the label to validate
 	 * @throws WebAuthnException if the label is invalid
 	 */
-	private void validateLabel(String label) throws WebAuthnException {
+	private void validateLabel(String label) {
 		if (label == null || label.trim().isEmpty()) {
 			throw new WebAuthnException("Credential label cannot be empty");
 		}
-		if (label.length() > 64) {
+		if (label.trim().length() > 64) {
 			throw new WebAuthnException("Credential label too long (max 64 characters)");
 		}
 	}

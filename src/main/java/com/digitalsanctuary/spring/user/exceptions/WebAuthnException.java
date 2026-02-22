@@ -4,7 +4,7 @@ package com.digitalsanctuary.spring.user.exceptions;
  * Exception thrown for WebAuthn-related errors.
  *
  * <p>
- * This is a checked exception used to signal WebAuthn-specific business logic errors such as:
+ * This is an unchecked exception used to signal WebAuthn-specific business logic errors such as:
  * </p>
  * <ul>
  * <li>Attempting to delete the last passkey when user has no password</li>
@@ -13,7 +13,7 @@ package com.digitalsanctuary.spring.user.exceptions;
  * <li>User not found during credential operations</li>
  * </ul>
  */
-public class WebAuthnException extends Exception {
+public class WebAuthnException extends RuntimeException {
 
 	/** Serial Version UID. */
 	private static final long serialVersionUID = 1L;
