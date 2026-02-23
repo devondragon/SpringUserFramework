@@ -53,7 +53,7 @@ dependencies {
 
     // WebAuthn support (Passkey authentication)
     compileOnly 'org.springframework.security:spring-security-webauthn'
-    implementation 'com.webauthn4j:webauthn4j-core:0.30.2.RELEASE'
+    implementation 'com.webauthn4j:webauthn4j-core:0.31.0.RELEASE'
 
     // Lombok dependencies
     compileOnly "org.projectlombok:lombok:$lombokVersion"
