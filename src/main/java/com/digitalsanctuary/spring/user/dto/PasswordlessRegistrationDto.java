@@ -33,6 +33,4 @@ public class PasswordlessRegistrationDto {
 	@Size(max = 100, message = "Email must not exceed 100 characters")
 	private String email;
 
-	/** The role. */
-	private Integer role;
 }

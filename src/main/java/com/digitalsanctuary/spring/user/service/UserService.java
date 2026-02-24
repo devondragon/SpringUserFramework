@@ -224,6 +224,8 @@ public class UserService {
 
 	private final PasswordHistoryRepository passwordHistoryRepository;
 
+	private final SessionInvalidationService sessionInvalidationService;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -249,8 +251,13 @@ public class UserService {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
 
+		if (newUserDto.getPassword() == null) {
+			throw new IllegalArgumentException(
+					"Password is required for standard registration. Use registerPasswordlessAccount() for passwordless accounts.");
+		}
+
 		// Validate password match only if both are provided
-		if (newUserDto.getPassword() != null && newUserDto.getMatchingPassword() != null
+		if (newUserDto.getMatchingPassword() != null
 				&& !newUserDto.getPassword().equals(newUserDto.getMatchingPassword())) {
 			throw new IllegalArgumentException("Passwords do not match");
 		}
@@ -495,6 +502,7 @@ public class UserService {
 		user.setPassword(null);
 		userRepository.save(user);
 		passwordHistoryRepository.deleteByUser(user);
+		sessionInvalidationService.invalidateUserSessions(user);
 		log.info("Password removed for user: {}", user.getEmail());
 	}
 

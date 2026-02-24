@@ -42,6 +42,7 @@ import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
+import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -87,6 +88,8 @@ public class UserServiceTest {
     private AuthorityService authorityService;
     @Mock
     private PasswordHistoryRepository passwordHistoryRepository;
+    @Mock
+    private SessionInvalidationService sessionInvalidationService;
     @InjectMocks
     private UserService userService;
     private User testUser;
@@ -691,6 +694,7 @@ public class UserServiceTest {
             assertThat(testUser.getPassword()).isNull();
             verify(userRepository).save(testUser);
             verify(passwordHistoryRepository).deleteByUser(testUser);
+            verify(sessionInvalidationService).invalidateUserSessions(testUser);
         }
     }
 
@@ -715,6 +719,7 @@ public class UserServiceTest {
             assertThat(testUser.getPassword()).isEqualTo(encodedPassword);
             verify(passwordEncoder).encode(rawPassword);
             verify(userRepository).save(testUser);
+            verify(passwordHistoryRepository).save(any(PasswordHistoryEntry.class));
         }
 
         @Test

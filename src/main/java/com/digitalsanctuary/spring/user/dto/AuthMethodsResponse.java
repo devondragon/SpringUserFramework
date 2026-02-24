@@ -24,7 +24,10 @@ public class AuthMethodsResponse {
 	private boolean hasPasskeys;
 
 	/** The number of passkeys registered. */
-	private int passkeysCount;
+	private long passkeysCount;
+
+	/** Whether WebAuthn is enabled on the server. */
+	private boolean webAuthnEnabled;
 
 	/** The user's authentication provider. */
 	private User.Provider provider;

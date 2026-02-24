@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
@@ -66,9 +66,7 @@ public class UserAPI {
 	private final MessageSource messages;
 	private final ApplicationEventPublisher eventPublisher;
 	private final PasswordPolicyService passwordPolicyService;
-
-	@Autowired(required = false)
-	private WebAuthnCredentialManagementService webAuthnCredentialManagementService;
+	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -360,18 +358,19 @@ public class UserAPI {
 			return buildErrorResponse("User not found", 1, HttpStatus.BAD_REQUEST);
 		}
 
+		WebAuthnCredentialManagementService webAuthnService = webAuthnCredentialManagementServiceProvider.getIfAvailable();
 		boolean hasPasskeys = false;
-		int passkeysCount = 0;
-		if (webAuthnCredentialManagementService != null) {
-			long count = webAuthnCredentialManagementService.getCredentialCount(user);
-			hasPasskeys = count > 0;
-			passkeysCount = (int) count;
+		long passkeysCount = 0;
+		if (webAuthnService != null) {
+			passkeysCount = webAuthnService.getCredentialCount(user);
+			hasPasskeys = passkeysCount > 0;
 		}
 
 		AuthMethodsResponse authMethods = AuthMethodsResponse.builder()
 				.hasPassword(userService.hasPassword(user))
 				.hasPasskeys(hasPasskeys)
 				.passkeysCount(passkeysCount)
+				.webAuthnEnabled(webAuthnService != null)
 				.provider(user.getProvider())
 				.build();
 
@@ -388,6 +387,9 @@ public class UserAPI {
 	@PostMapping("/registration/passwordless")
 	public ResponseEntity<JSONResponse> registerPasswordlessAccount(@Valid @RequestBody PasswordlessRegistrationDto dto,
 			HttpServletRequest request) {
+		if (webAuthnCredentialManagementServiceProvider.getIfAvailable() == null) {
+			return buildErrorResponse("Passwordless registration is not available", 1, HttpStatus.BAD_REQUEST);
+		}
 		try {
 			User registeredUser = userService.registerPasswordlessAccount(dto);
 			publishRegistrationEvent(registeredUser, request);
