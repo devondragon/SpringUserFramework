@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.api;
 
 import java.util.List;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,16 +13,21 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
+import com.digitalsanctuary.spring.user.util.UserUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -42,6 +48,7 @@ import org.springframework.validation.annotation.Validated;
  * <li>DELETE /user/webauthn/credentials/{id} - Delete a passkey</li>
  * </ul>
  */
+@Slf4j
 @RestController
 @RequestMapping("/user/webauthn")
 @ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
@@ -51,6 +58,7 @@ public class WebAuthnManagementAPI {
 
 	private final WebAuthnCredentialManagementService credentialManagementService;
 	private final UserService userService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	/**
 	 * Get user's registered passkeys.
@@ -125,6 +133,44 @@ public class WebAuthnManagementAPI {
 		User user = findAuthenticatedUser(userDetails);
 		credentialManagementService.deleteCredential(id, user);
 		return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));
+	}
+
+	/**
+	 * Remove the user's password, making the account passwordless (passkey-only).
+	 *
+	 * <p>
+	 * Requires the user to have at least one passkey registered. This ensures
+	 * the user can still authenticate after the password is removed.
+	 * </p>
+	 *
+	 * @param userDetails the authenticated user details
+	 * @param request the HTTP servlet request
+	 * @return ResponseEntity with success message or error
+	 */
+	@DeleteMapping("/password")
+	public ResponseEntity<GenericResponse> removePassword(@AuthenticationPrincipal UserDetails userDetails,
+			HttpServletRequest request) {
+		User user = findAuthenticatedUser(userDetails);
+
+		if (!userService.hasPassword(user)) {
+			throw new WebAuthnException("User does not have a password to remove");
+		}
+
+		if (!credentialManagementService.hasCredentials(user)) {
+			throw new WebAuthnException("Cannot remove password. Please register a passkey first.");
+		}
+
+		userService.removeUserPassword(user);
+
+		AuditEvent event = AuditEvent.builder().source(this).user(user).sessionId(request.getSession().getId())
+				.ipAddress(UserUtils.getClientIP(request))
+				.userAgent(request.getHeader("User-Agent")).action("PasswordRemoval").actionStatus("Success")
+				.message("Password removed for passwordless account").build();
+		eventPublisher.publishEvent(event);
+
+		log.info("User {} removed their password", user.getEmail());
+
+		return ResponseEntity.ok(new GenericResponse("Password removed successfully"));
 	}
 
 	private User findAuthenticatedUser(UserDetails userDetails) throws WebAuthnUserNotFoundException {

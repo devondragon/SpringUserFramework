@@ -38,6 +38,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
@@ -615,6 +616,171 @@ public class UserServiceTest {
             }
         }
     }
+    @Nested
+    @DisplayName("Password Status Tests")
+    class PasswordStatusTests {
+
+        @Test
+        @DisplayName("shouldReturnTrueWhenUserHasPassword")
+        void shouldReturnTrueWhenUserHasPassword() {
+            // Given
+            testUser.setPassword("encodedPassword");
+
+            // When
+            boolean result = userService.hasPassword(testUser);
+
+            // Then
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("shouldReturnFalseWhenPasswordNull")
+        void shouldReturnFalseWhenPasswordNull() {
+            // Given
+            testUser.setPassword(null);
+
+            // When
+            boolean result = userService.hasPassword(testUser);
+
+            // Then
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("shouldReturnFalseWhenPasswordEmpty")
+        void shouldReturnFalseWhenPasswordEmpty() {
+            // Given
+            testUser.setPassword("");
+
+            // When
+            boolean result = userService.hasPassword(testUser);
+
+            // Then
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("shouldReturnFalseForValidOldPasswordWhenPasswordNull")
+        void shouldReturnFalseForValidOldPasswordWhenPasswordNull() {
+            // Given
+            testUser.setPassword(null);
+
+            // When
+            boolean result = userService.checkIfValidOldPassword(testUser, "anyPassword");
+
+            // Then
+            assertThat(result).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("Password Removal Tests")
+    class PasswordRemovalTests {
+
+        @Test
+        @DisplayName("shouldRemovePasswordAndClearHistory")
+        void shouldRemovePasswordAndClearHistory() {
+            // Given
+            testUser.setPassword("encodedPassword");
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.removeUserPassword(testUser);
+
+            // Then
+            assertThat(testUser.getPassword()).isNull();
+            verify(userRepository).save(testUser);
+            verify(passwordHistoryRepository).deleteByUser(testUser);
+        }
+    }
+
+    @Nested
+    @DisplayName("Set Initial Password Tests")
+    class SetInitialPasswordTests {
+
+        @Test
+        @DisplayName("shouldSetInitialPasswordWhenNoPassword")
+        void shouldSetInitialPasswordWhenNoPassword() {
+            // Given
+            testUser.setPassword(null);
+            String rawPassword = "NewSecurePassword123!";
+            String encodedPassword = "encodedNewPassword";
+            when(passwordEncoder.encode(rawPassword)).thenReturn(encodedPassword);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.setInitialPassword(testUser, rawPassword);
+
+            // Then
+            assertThat(testUser.getPassword()).isEqualTo(encodedPassword);
+            verify(passwordEncoder).encode(rawPassword);
+            verify(userRepository).save(testUser);
+        }
+
+        @Test
+        @DisplayName("shouldThrowWhenUserAlreadyHasPassword")
+        void shouldThrowWhenUserAlreadyHasPassword() {
+            // Given
+            testUser.setPassword("existingPassword");
+
+            // When & Then
+            assertThatThrownBy(() -> userService.setInitialPassword(testUser, "newPassword"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("already has a password");
+        }
+    }
+
+    @Nested
+    @DisplayName("Passwordless Registration Tests")
+    class PasswordlessRegistrationTests {
+
+        @Test
+        @DisplayName("shouldRegisterPasswordlessAccountSuccessfully")
+        void shouldRegisterPasswordlessAccountSuccessfully() {
+            // Given
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setFirstName("Test");
+            dto.setLastName("User");
+            dto.setEmail("passwordless@example.com");
+
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            ReflectionTestUtils.setField(userService, "sendRegistrationVerificationEmail", false);
+
+            // When
+            User saved = userService.registerPasswordlessAccount(dto);
+
+            // Then
+            assertThat(saved).isNotNull();
+            assertThat(saved.getEmail()).isEqualTo("passwordless@example.com");
+            assertThat(saved.getFirstName()).isEqualTo("Test");
+            assertThat(saved.getLastName()).isEqualTo("User");
+            assertThat(saved.getPassword()).isNull();
+            assertThat(saved.isEnabled()).isTrue();
+            verify(userRepository).save(any(User.class));
+            verify(passwordEncoder, never()).encode(anyString());
+        }
+
+        @Test
+        @DisplayName("shouldThrowWhenEmailExists")
+        void shouldThrowWhenEmailExists() {
+            // Given
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setFirstName("Test");
+            dto.setLastName("User");
+            dto.setEmail(testUser.getEmail());
+
+            when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
+
+            // When & Then
+            assertThatThrownBy(() -> userService.registerPasswordlessAccount(dto))
+                    .isInstanceOf(UserAlreadyExistException.class)
+                    .hasMessageContaining("There is an account with that email address");
+        }
+    }
+
     // Tests temporarily disabled until OAuth2 dependency issue is resolved
     // @Test
     // void checkIfValidOldPassword_returnFalseIfInvalid() {

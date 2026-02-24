@@ -56,6 +56,16 @@ public class WebAuthnCredentialManagementService {
 	}
 
 	/**
+	 * Get the number of passkeys for a user.
+	 *
+	 * @param user the user to count credentials for
+	 * @return the number of registered passkeys
+	 */
+	public long getCredentialCount(User user) {
+		return credentialQueryRepository.countCredentials(user.getId());
+	}
+
+	/**
 	 * Rename a credential label.
 	 *
 	 * <p>
