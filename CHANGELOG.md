@@ -1,3 +1,112 @@
+## [4.2.1] - 2026-02-27
+### Features
+- Passwordless passkey-only accounts
+  - New user flows to go fully passwordless when WebAuthn is enabled:
+    - GET /user/auth-methods: Returns which auth methods a user has configured and server capabilities. Response fields:
+      - hasPassword, hasPasskeys, passkeysCount (now long), webAuthnEnabled, provider
+    - POST /user/registration/passwordless: Register a new account without a password (passkey-only). Publishes the same registration events and supports auto-login/redirects if the account is enabled.
+      - Note: If your app uses user.security.defaultAction=deny, add /user/registration/passwordless to user.security.unprotectedURIs
+      - Guarded to return an error if WebAuthn is not available
+    - POST /user/setPassword: Allows a previously passwordless user to set their first password
+      - Validates password policy and confirmPassword; rejects if user already has a password
+    - DELETE /user/webauthn/password: Removes a user’s password (makes the account passkey-only)
+      - Only allowed if the user has at least one registered passkey
+      - Publishes an AuditEvent and invalidates all user sessions for security
+  - Service and repository enhancements:
+    - UserService: hasPassword, removeUserPassword (clears history, invalidates sessions), setInitialPassword (saves history), registerPasswordlessAccount
+    - PasswordHistoryRepository: deleteByUser(User) to clear history on password removal
+    - WebAuthnCredentialManagementService: used to calculate passkey counts in auth-methods
+  - API-level improvements:
+    - UserAPI now uses ObjectProvider<WebAuthnCredentialManagementService> to work even when WebAuthn is disabled
+    - WebAuthnManagementAPI adds DELETE /user/webauthn/password with audit logging
+- Dev Login for local development
+  - A built-in controller to quickly “login as” any enabled user locally, so consuming apps don’t need custom dev-login controllers
+    - Endpoints (require both the local profile and user.dev.auto-login-enabled=true):
+      - GET /dev/login-as/{email}: Passwordless login-as that returns a 302 redirect to the configured URL (user.dev.login-redirect-url, defaults to /)
+      - GET /dev/users: Lists enabled user emails to help pick an account
+    - Security hardening:
+      - Endpoints are only exposed when the local profile is active and the property flag is true
+      - WebSecurityConfig automatically adds /dev/** to unprotected and CSRF-ignored URIs only under those conditions
+      - Startup emits a prominent WARN banner when active
+    - Configuration properties:
+      - user.dev.auto-login-enabled (default false)
+      - user.dev.login-redirect-url (default /)
+
+### Fixes
+- Authentication event publishing for passwordless dev login
+  - authWithoutPassword() now publishes InteractiveAuthenticationSuccessEvent after storing the security context, ensuring:
+    - Session profile listeners run
+    - Brute-force counters get reset
+  - Tests added to assert the event is published on success and not published on failure paths
+- Passwordless registration and security hardening
+  - POST /user/registration/passwordless now returns a clear error when WebAuthn is unavailable
+  - Password removal now invalidates all active sessions via SessionInvalidationService, in addition to deleting password history
+- Standard registration correctness
+  - UserService.registerNewUserAccount now rejects null passwords and enforces password equality checks; use registerPasswordlessAccount for no-password registrations
+- API robustness and cleanup
+  - Removed unreachable code in registerNewUserAccount
+  - Clarified docs about adding /user/registration/passwordless to unprotectedURIs when defaultAction is deny
+  - Dev login controller refinements:
+    - Returns 302 redirect without using HttpServletResponse directly
+    - Lists enabled users using a repository method (filters in DB)
+  - WebSecurityConfig only exposes /dev/** when both the property is enabled and the local profile is active (matches the controller’s own guards)
+
+### Breaking Changes
+- API DTOs and responses
+  - PasswordlessRegistrationDto: removed the role field (clients sending it must remove it)
+  - AuthMethodsResponse:
+    - passkeysCount type changed from int to long
+    - Added webAuthnEnabled flag
+- Service behavior
+  - UserService.registerNewUserAccount now requires a non-null password; registering without a password must go through POST /user/registration/passwordless
+- Security configuration nuance
+  - /dev/** is now added to unprotected and CSRF-ignored URIs only when user.dev.auto-login-enabled=true and the local profile is active. If you previously relied on the property alone (not recommended), you must also enable the local profile.
+
+### Refactoring
+- Configuration properties registration
+  - Migrated @ConfigurationProperties beans to be registered via @EnableConfigurationProperties:
+    - New DevLoginConfiguration (profile local + property-gated)
+    - New WebAuthnConfiguration (always active; loads defaults from classpath:config/dsspringuserconfig.properties)
+  - DevLoginConfigProperties and WebAuthnConfigProperties no longer use @Component/@PropertySource, aligning with Spring Boot conventions
+- WebAuthn setup cleanups
+  - Extracted the WebAuthn ObjectPostProcessor into a helper method in WebSecurityConfig for readability and consistency
+- WebSecurityConfig readability
+  - Minor renames and extracted lists (e.g., baseDisableCSRFURIs) to simplify CSRF ignore handling
+
+### Documentation
+- Expanded docs for dev login and passwordless flows
+  - README: new Dev Login section; added to “Developer-Friendly” features list
+  - CONFIG.md: Dev Login settings reference, endpoint table, and usage notes
+  - CLAUDE.md: Added dev/ package in structure and user.dev.* properties; documented demo app testing workflow (publishLocal, profiles, Playwright tests)
+- Clarified that apps using defaultAction=deny must add /user/registration/passwordless to user.security.unprotectedURIs
+
+### Testing
+- Extensive new test coverage
+  - Dev login:
+    - Unit tests (DevLoginControllerTest) cover success, 404, 403, and redirect behavior
+    - Integration tests:
+      - DevLoginIntegrationTest validates endpoint availability and redirects under local+enabled
+      - DevLoginDisabledTest ensures endpoints are not available when disabled and verifies security behavior
+  - Passwordless features:
+    - WebAuthnManagementAPITest validates new password removal endpoint
+    - UserServiceTest:
+      - Verifies session invalidation on password removal
+      - Verifies password history is saved on setInitialPassword
+      - Verifies InteractiveAuthenticationSuccessEvent is published on authWithoutPassword
+- General cleanup of obsolete test code and stronger assertions
+
+### Other Changes
+- Dependency updates
+  - Spring Boot: 4.0.2 → 4.0.3 (patch update)
+  - com.webauthn4j:webauthn4j-core: 0.30.2.RELEASE → 0.31.0.RELEASE (minor)
+- Version
+  - Bumped to 4.2.1-SNAPSHOT
+
+Notes for adopters
+- To enable passwordless account flows, ensure user.webauthn.enabled=true and configure relying party properties. Add /user/registration/passwordless to unprotectedURIs if your default action is deny.
+- If you expose the dev login feature, do so only under the local profile and keep user.dev.auto-login-enabled=false in all non-local configurations. A WARN banner is logged when enabled.
+- If you parse AuthMethodsResponse, update clients for the new long passkeysCount and webAuthnEnabled field, and remove role from PasswordlessRegistrationDto payloads.
+
 ## [4.2.0] - 2026-02-21
 ### Features
 - WebAuthn/Passkeys (opt-in, disabled by default)
