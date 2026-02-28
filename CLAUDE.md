@@ -34,6 +34,40 @@ Spring User Framework is a reusable Spring Boot library (not an application) tha
 ./gradlew publishLocal
 ```
 
+## Local Testing with Demo App
+
+The [SpringUserFrameworkDemoApp](https://github.com/devondragon/SpringUserFrameworkDemoApp) is a Spring Boot app that consumes this library for testing and demonstration. It is typically checked out alongside this repo at `../SpringUserFrameworkDemoApp`.
+
+### Workflow
+
+1. **Publish the library locally:**
+   ```bash
+   ./gradlew publishLocal
+   ```
+   This publishes the current SNAPSHOT version (from `gradle.properties`) to your local Maven repository.
+
+2. **Update the demo app dependency** (if needed):
+   In `../SpringUserFrameworkDemoApp/build.gradle`, ensure the dependency version matches the SNAPSHOT:
+   ```groovy
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:X.Y.Z-SNAPSHOT'
+   ```
+   Check `gradle.properties` for the current version.
+
+3. **Start the demo app:**
+   ```bash
+   cd ../SpringUserFrameworkDemoApp
+   ./gradlew bootRun --args='--spring.profiles.active=local,playwright-test'
+   ```
+   The app runs on `http://localhost:8080` by default. The `playwright-test` profile activates `TestDataController` and `TestApiSecurityConfig`, which the Playwright tests require for test data setup/teardown. Omit `playwright-test` if only doing manual browser testing.
+
+4. **Run Playwright tests:**
+   ```bash
+   cd ../SpringUserFrameworkDemoApp/playwright
+   npx playwright test --project=chromium
+   ```
+
+5. **Manual browser testing** can be done with Playwright MCP tools or directly in Chrome at `http://localhost:8080`.
+
 ## Architecture
 
 ### Package Structure

@@ -380,6 +380,10 @@ public class UserAPI {
 	/**
 	 * Registers a new passwordless user account (passkey-only).
 	 *
+	 * <p><strong>Note:</strong> Consuming applications using {@code user.security.defaultAction: deny}
+	 * must add {@code /user/registration/passwordless} to their {@code user.security.unprotectedURIs}
+	 * configuration to allow unauthenticated access to this endpoint.
+	 *
 	 * @param dto the passwordless registration DTO
 	 * @param request the HTTP servlet request
 	 * @return a ResponseEntity containing a JSONResponse with the registration result

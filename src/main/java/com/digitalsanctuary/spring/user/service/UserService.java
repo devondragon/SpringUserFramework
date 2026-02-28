@@ -272,7 +272,7 @@ public class UserService {
 		User user = new User();
 		user.setFirstName(newUserDto.getFirstName());
 		user.setLastName(newUserDto.getLastName());
-		user.setPassword(newUserDto.getPassword() != null ? passwordEncoder.encode(newUserDto.getPassword()) : null);
+		user.setPassword(passwordEncoder.encode(newUserDto.getPassword()));
 		user.setEmail(newUserDto.getEmail().toLowerCase());
 		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
 
