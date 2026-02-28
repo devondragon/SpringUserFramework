@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,9 +18,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
@@ -29,6 +32,8 @@ import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementServ
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.fixtures.TestFixtures;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 
 @ServiceTest
 @DisplayName("WebAuthnManagementAPI Tests")
@@ -39,6 +44,9 @@ class WebAuthnManagementAPITest {
 
 	@Mock
 	private UserService userService;
+
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@Mock
 	private UserDetails userDetails;
@@ -232,6 +240,69 @@ class WebAuthnManagementAPITest {
 			assertThatThrownBy(() -> api.deleteCredential("cred-1", userDetails))
 					.isInstanceOf(WebAuthnUserNotFoundException.class).hasMessageContaining("User not found");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
+		}
+	}
+
+	@Nested
+	@DisplayName("DELETE /user/webauthn/password")
+	class RemovePasswordTests {
+
+		private HttpServletRequest createMockRequest() {
+			HttpServletRequest request = mock(HttpServletRequest.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+			when(request.getSession().getId()).thenReturn("test-session-id");
+			when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+			when(request.getHeader(any())).thenReturn(null);
+			return request;
+		}
+
+		@Test
+		@DisplayName("should remove password when user has passkeys")
+		void shouldRemovePasswordWhenUserHasPasskeys() {
+			// Given
+			HttpServletRequest mockRequest = createMockRequest();
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(credentialManagementService.hasCredentials(testUser)).thenReturn(true);
+
+			// When
+			ResponseEntity<GenericResponse> response = api.removePassword(userDetails, mockRequest);
+
+			// Then
+			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+			assertThat(response.getBody().getMessage()).contains("Password removed successfully");
+			verify(userService).removeUserPassword(testUser);
+			verify(eventPublisher).publishEvent(any(AuditEvent.class));
+		}
+
+		@Test
+		@DisplayName("should reject removal when no passkeys")
+		void shouldRejectRemovalWhenNoPasskeys() {
+			// Given
+			HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(credentialManagementService.hasCredentials(testUser)).thenReturn(false);
+
+			// When & Then
+			assertThatThrownBy(() -> api.removePassword(userDetails, mockRequest))
+					.isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("register a passkey first");
+			verify(userService, never()).removeUserPassword(any());
+		}
+
+		@Test
+		@DisplayName("should reject removal when already passwordless")
+		void shouldRejectRemovalWhenAlreadyPasswordless() {
+			// Given
+			HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+			testUser.setPassword(null);
+			when(userService.hasPassword(testUser)).thenReturn(false);
+
+			// When & Then
+			assertThatThrownBy(() -> api.removePassword(userDetails, mockRequest))
+					.isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("does not have a password");
+			verify(userService, never()).removeUserPassword(any());
 		}
 	}
 }

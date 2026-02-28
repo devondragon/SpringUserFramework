@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
@@ -12,14 +13,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.dto.AuthMethodsResponse;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.PasswordResetRequestDto;
+import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.SavePasswordDto;
+import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
@@ -30,6 +35,7 @@ import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
@@ -60,6 +66,7 @@ public class UserAPI {
 	private final MessageSource messages;
 	private final ApplicationEventPublisher eventPublisher;
 	private final PasswordPolicyService passwordPolicyService;
+	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -335,6 +342,120 @@ public class UserAPI {
 		logAuditEvent("AccountDelete", "Success", "User account deleted", user, request);
 		logoutUser(request);
 		return buildSuccessResponse("Account Deleted", null);
+	}
+
+	/**
+	 * Returns the authentication methods configured for the current user.
+	 *
+	 * @param userDetails the authenticated user details
+	 * @return a ResponseEntity containing the auth methods response
+	 */
+	@GetMapping("/auth-methods")
+	public ResponseEntity<JSONResponse> getAuthMethods(@AuthenticationPrincipal DSUserDetails userDetails) {
+		validateAuthenticatedUser(userDetails);
+		User user = userService.findUserByEmail(userDetails.getUser().getEmail());
+		if (user == null) {
+			return buildErrorResponse("User not found", 1, HttpStatus.BAD_REQUEST);
+		}
+
+		WebAuthnCredentialManagementService webAuthnService = webAuthnCredentialManagementServiceProvider.getIfAvailable();
+		boolean hasPasskeys = false;
+		long passkeysCount = 0;
+		if (webAuthnService != null) {
+			passkeysCount = webAuthnService.getCredentialCount(user);
+			hasPasskeys = passkeysCount > 0;
+		}
+
+		AuthMethodsResponse authMethods = AuthMethodsResponse.builder()
+				.hasPassword(userService.hasPassword(user))
+				.hasPasskeys(hasPasskeys)
+				.passkeysCount(passkeysCount)
+				.webAuthnEnabled(webAuthnService != null)
+				.provider(user.getProvider())
+				.build();
+
+		return ResponseEntity.ok(JSONResponse.builder().success(true).data(authMethods).build());
+	}
+
+	/**
+	 * Registers a new passwordless user account (passkey-only).
+	 *
+	 * <p><strong>Note:</strong> Consuming applications using {@code user.security.defaultAction: deny}
+	 * must add {@code /user/registration/passwordless} to their {@code user.security.unprotectedURIs}
+	 * configuration to allow unauthenticated access to this endpoint.
+	 *
+	 * @param dto the passwordless registration DTO
+	 * @param request the HTTP servlet request
+	 * @return a ResponseEntity containing a JSONResponse with the registration result
+	 */
+	@PostMapping("/registration/passwordless")
+	public ResponseEntity<JSONResponse> registerPasswordlessAccount(@Valid @RequestBody PasswordlessRegistrationDto dto,
+			HttpServletRequest request) {
+		if (webAuthnCredentialManagementServiceProvider.getIfAvailable() == null) {
+			return buildErrorResponse("Passwordless registration is not available", 1, HttpStatus.BAD_REQUEST);
+		}
+		try {
+			User registeredUser = userService.registerPasswordlessAccount(dto);
+			publishRegistrationEvent(registeredUser, request);
+			logAuditEvent("PasswordlessRegistration", "Success", "Passwordless registration successful", registeredUser, request);
+
+			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
+
+			return buildSuccessResponse("Registration Successful!", nextURL);
+		} catch (UserAlreadyExistException ex) {
+			log.warn("User already exists with email: {}", dto.getEmail());
+			logAuditEvent("PasswordlessRegistration", "Failure", "User Already Exists", null, request);
+			return buildErrorResponse("An account already exists for the email address", 2, HttpStatus.CONFLICT);
+		} catch (Exception ex) {
+			log.error("Unexpected error during passwordless registration.", ex);
+			logAuditEvent("PasswordlessRegistration", "Failure", ex.getMessage(), null, request);
+			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * Sets an initial password for a passwordless account.
+	 *
+	 * @param userDetails the authenticated user details
+	 * @param setPasswordDto the set password DTO
+	 * @param request the HTTP servlet request
+	 * @param locale the locale
+	 * @return a ResponseEntity containing a JSONResponse with the result
+	 */
+	@PostMapping("/setPassword")
+	public ResponseEntity<JSONResponse> setPassword(@AuthenticationPrincipal DSUserDetails userDetails,
+			@Valid @RequestBody SetPasswordDto setPasswordDto, HttpServletRequest request, Locale locale) {
+		validateAuthenticatedUser(userDetails);
+		User user = userService.findUserByEmail(userDetails.getUser().getEmail());
+		if (user == null) {
+			return buildErrorResponse("User not found", 1, HttpStatus.BAD_REQUEST);
+		}
+
+		try {
+			if (userService.hasPassword(user)) {
+				return buildErrorResponse("User already has a password. Use the change password feature instead.", 1, HttpStatus.BAD_REQUEST);
+			}
+
+			if (!setPasswordDto.getNewPassword().equals(setPasswordDto.getConfirmPassword())) {
+				return buildErrorResponse(messages.getMessage("message.password.mismatch", null, "Passwords do not match", locale), 2,
+						HttpStatus.BAD_REQUEST);
+			}
+
+			List<String> errors = passwordPolicyService.validate(user, setPasswordDto.getNewPassword(), user.getEmail(), locale);
+			if (!errors.isEmpty()) {
+				log.warn("Password validation failed for user {}: {}", user.getEmail(), errors);
+				return buildErrorResponse(String.join(" ", errors), 3, HttpStatus.BAD_REQUEST);
+			}
+
+			userService.setInitialPassword(user, setPasswordDto.getNewPassword());
+			logAuditEvent("SetPassword", "Success", "Initial password set for passwordless account", user, request);
+
+			return buildSuccessResponse(messages.getMessage("message.set-password.success", null, "Password set successfully", locale), null);
+		} catch (Exception ex) {
+			log.error("Unexpected error during set password.", ex);
+			logAuditEvent("SetPassword", "Failure", ex.getMessage(), user, request);
+			return buildErrorResponse("System Error!", 5, HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	// Helper Methods

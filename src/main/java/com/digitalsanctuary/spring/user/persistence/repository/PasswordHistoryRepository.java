@@ -33,4 +33,12 @@ public interface PasswordHistoryRepository extends JpaRepository<PasswordHistory
      * @return list of password history entries
      */
     List<PasswordHistoryEntry> findByUserOrderByEntryDateDesc(User user);
+
+    /**
+     * Delete all password history entries for a user.
+     * Used when removing a user's password for passwordless accounts.
+     *
+     * @param user the user whose history should be deleted
+     */
+    void deleteByUser(User user);
 }

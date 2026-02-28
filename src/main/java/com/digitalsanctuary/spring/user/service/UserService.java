@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
@@ -223,6 +224,8 @@ public class UserService {
 
 	private final PasswordHistoryRepository passwordHistoryRepository;
 
+	private final SessionInvalidationService sessionInvalidationService;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -248,8 +251,13 @@ public class UserService {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
 
+		if (newUserDto.getPassword() == null) {
+			throw new IllegalArgumentException(
+					"Password is required for standard registration. Use registerPasswordlessAccount() for passwordless accounts.");
+		}
+
 		// Validate password match only if both are provided
-		if (newUserDto.getPassword() != null && newUserDto.getMatchingPassword() != null
+		if (newUserDto.getMatchingPassword() != null
 				&& !newUserDto.getPassword().equals(newUserDto.getMatchingPassword())) {
 			throw new IllegalArgumentException("Passwords do not match");
 		}
@@ -466,10 +474,91 @@ public class UserService {
 	 * @return true, if successful
 	 */
 	public boolean checkIfValidOldPassword(final User user, final String oldPassword) {
-		// Removed System.out.println, using log.debug for minimal output (avoid logging
-		// passwords in production)
 		log.debug("Verifying old password for user: {}", user.getEmail());
+		if (user.getPassword() == null) {
+			return false;
+		}
 		return passwordEncoder.matches(oldPassword, user.getPassword());
+	}
+
+	/**
+	 * Checks whether the user has a password set.
+	 *
+	 * @param user the user to check
+	 * @return true if the user has a non-empty password
+	 */
+	public boolean hasPassword(User user) {
+		return user.getPassword() != null && !user.getPassword().isEmpty();
+	}
+
+	/**
+	 * Removes the user's password, making the account passwordless.
+	 * Also clears all password history entries for the user.
+	 *
+	 * @param user the user whose password should be removed
+	 */
+	@Transactional
+	public void removeUserPassword(User user) {
+		user.setPassword(null);
+		userRepository.save(user);
+		passwordHistoryRepository.deleteByUser(user);
+		sessionInvalidationService.invalidateUserSessions(user);
+		log.info("Password removed for user: {}", user.getEmail());
+	}
+
+	/**
+	 * Sets an initial password for a passwordless account.
+	 * Throws if the user already has a password.
+	 *
+	 * @param user the user to set the password for
+	 * @param rawPassword the raw password to encode and save
+	 * @throws IllegalStateException if the user already has a password
+	 */
+	@Transactional
+	public void setInitialPassword(User user, String rawPassword) {
+		if (hasPassword(user)) {
+			throw new IllegalStateException("User already has a password");
+		}
+		String encodedPassword = passwordEncoder.encode(rawPassword);
+		user.setPassword(encodedPassword);
+		userRepository.save(user);
+		savePasswordHistory(user, encodedPassword);
+		log.info("Initial password set for user: {}", user.getEmail());
+	}
+
+	/**
+	 * Registers a new passwordless user account (no password).
+	 * Uses SERIALIZABLE isolation to prevent race conditions during concurrent registration.
+	 *
+	 * @param dto the passwordless registration data
+	 * @return the newly created user entity
+	 * @throws UserAlreadyExistException if an account with the same email already exists
+	 */
+	@Transactional(isolation = Isolation.SERIALIZABLE)
+	public User registerPasswordlessAccount(final PasswordlessRegistrationDto dto) {
+		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerPasswordlessAccount");
+		log.debug("UserService.registerPasswordlessAccount: called with dto: {}", dto);
+
+		if (emailExists(dto.getEmail())) {
+			log.debug("UserService.registerPasswordlessAccount: email already exists: {}", dto.getEmail());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + dto.getEmail());
+		}
+
+		User user = new User();
+		user.setFirstName(dto.getFirstName());
+		user.setLastName(dto.getLastName());
+		user.setPassword(null);
+		user.setEmail(dto.getEmail().toLowerCase());
+		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
+
+		if (!sendRegistrationVerificationEmail) {
+			user.setEnabled(true);
+		}
+
+		user = userRepository.save(user);
+		timeLogger.end();
+		return user;
 	}
 
 	/**
