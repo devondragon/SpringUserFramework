@@ -6,8 +6,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,5 +93,19 @@ class MfaFeatureEnabledIntegrationTest {
 		mockMvc.perform(get("/protected.html").with(user("user@test.com").roles("USER")))
 				.andExpect(status().is3xxRedirection())
 				.andExpect(redirectedUrlPattern(mfaConfigProperties.getPasswordEntryPointUri() + "**"));
+	}
+
+	@Test
+	@DisplayName("should report fully authenticated when user has all required factor authorities")
+	void shouldReportFullyAuthenticatedWhenUserHasAllRequiredFactorAuthorities() throws Exception {
+		List<GrantedAuthority> authorities = List.of(
+				new SimpleGrantedAuthority("ROLE_USER"),
+				FactorGrantedAuthority.fromAuthority(FactorGrantedAuthority.PASSWORD_AUTHORITY));
+
+		mockMvc.perform(get("/user/mfa/status").with(user("user@test.com").authorities(authorities)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.fullyAuthenticated").value(true))
+				.andExpect(jsonPath("$.data.missingFactors").isEmpty())
+				.andExpect(jsonPath("$.data.satisfiedFactors[0]").value("PASSWORD"));
 	}
 }

@@ -62,6 +62,8 @@ public class MfaConfiguration {
 		AllRequiredFactorsAuthorizationManager.Builder<Object> factorsBuilder =
 				AllRequiredFactorsAuthorizationManager.builder();
 
+		// Unknown/blank factors are silently skipped here; validateMfaConfiguration() will
+		// throw before startup completes if the configuration is invalid.
 		for (String factor : mfaConfigProperties.getFactors()) {
 			if (factor == null || factor.isBlank()) {
 				continue;
