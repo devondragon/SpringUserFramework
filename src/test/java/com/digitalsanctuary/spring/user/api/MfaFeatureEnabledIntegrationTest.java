@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,7 +48,7 @@ class MfaFeatureEnabledIntegrationTest {
 
 	@Test
 	@DisplayName("should return MFA status for authenticated user")
-	void shouldReturnMfaStatusForAuthenticatedUser() throws Exception {
+	void shouldReturnMfaStatusWhenUserIsAuthenticated() throws Exception {
 		mockMvc.perform(get("/user/mfa/status").with(user("user@test.com").roles("USER")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.success").value(true))
@@ -58,7 +59,7 @@ class MfaFeatureEnabledIntegrationTest {
 
 	@Test
 	@DisplayName("should return MFA status for unauthenticated request")
-	void shouldReturnMfaStatusForUnauthenticatedRequest() throws Exception {
+	void shouldReturnMfaStatusWhenRequestIsUnauthenticated() throws Exception {
 		// The MFA status endpoint should be accessible without full authentication
 		// since it's added to unprotected URIs
 		mockMvc.perform(get("/user/mfa/status"))
@@ -70,12 +71,23 @@ class MfaFeatureEnabledIntegrationTest {
 
 	@Test
 	@DisplayName("should report PASSWORD as missing factor when user has no password authority")
-	void shouldReportPasswordAsMissingFactor() throws Exception {
+	void shouldReportPasswordAsMissingFactorWhenUserLacksAuthority() throws Exception {
 		// A standard user login via MockMvc's .with(user()) does not add FactorGrantedAuthority,
 		// so PASSWORD should be reported as missing
 		mockMvc.perform(get("/user/mfa/status").with(user("user@test.com").roles("USER")))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.missingFactors[0]").value("PASSWORD"))
 				.andExpect(jsonPath("$.data.fullyAuthenticated").value(false));
+	}
+
+	@Test
+	@DisplayName("should redirect to password entry point when user is missing password factor authority")
+	void shouldRedirectToPasswordEntryPointWhenMissingFactorAuthority() throws Exception {
+		// A user with ROLE_USER but no FactorGrantedAuthority hits a protected endpoint.
+		// The DelegatingMissingAuthorityAccessDeniedHandler should redirect to the
+		// password entry-point URI since the PASSWORD factor is not satisfied.
+		mockMvc.perform(get("/protected.html").with(user("user@test.com").roles("USER")))
+				.andExpect(status().is3xxRedirection())
+				.andExpect(redirectedUrlPattern(mfaConfigProperties.getPasswordEntryPointUri() + "**"));
 	}
 }

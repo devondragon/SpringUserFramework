@@ -31,21 +31,21 @@ class MfaConfigurationTest {
 
 		@Test
 		@DisplayName("should map PASSWORD to FactorGrantedAuthority.PASSWORD_AUTHORITY")
-		void shouldMapPasswordFactor() {
+		void shouldMapToPasswordAuthorityWhenPasswordFactorGiven() {
 			assertThat(MfaConfiguration.mapFactorToAuthority("PASSWORD"))
 					.isEqualTo(FactorGrantedAuthority.PASSWORD_AUTHORITY);
 		}
 
 		@Test
 		@DisplayName("should map WEBAUTHN to FactorGrantedAuthority.WEBAUTHN_AUTHORITY")
-		void shouldMapWebauthnFactor() {
+		void shouldMapToWebauthnAuthorityWhenWebauthnFactorGiven() {
 			assertThat(MfaConfiguration.mapFactorToAuthority("WEBAUTHN"))
 					.isEqualTo(FactorGrantedAuthority.WEBAUTHN_AUTHORITY);
 		}
 
 		@Test
 		@DisplayName("should be case-insensitive")
-		void shouldBeCaseInsensitive() {
+		void shouldMapCorrectlyWhenFactorNameIsLowercase() {
 			assertThat(MfaConfiguration.mapFactorToAuthority("password"))
 					.isEqualTo(FactorGrantedAuthority.PASSWORD_AUTHORITY);
 			assertThat(MfaConfiguration.mapFactorToAuthority("webauthn"))
@@ -54,7 +54,7 @@ class MfaConfigurationTest {
 
 		@Test
 		@DisplayName("should return null for unknown factor")
-		void shouldReturnNullForUnknownFactor() {
+		void shouldReturnNullWhenFactorIsUnknown() {
 			assertThat(MfaConfiguration.mapFactorToAuthority("UNKNOWN")).isNull();
 		}
 	}
@@ -65,7 +65,7 @@ class MfaConfigurationTest {
 
 		@Test
 		@DisplayName("should resolve configured factors to authority strings")
-		void shouldResolveConfiguredFactors() {
+		void shouldResolveAuthoritiesWhenFactorsConfigured() {
 			mfaConfigProperties.setFactors(List.of("PASSWORD", "WEBAUTHN"));
 			List<String> authorities = mfaConfiguration.resolveFactorAuthorities();
 			assertThat(authorities).containsExactly(
@@ -75,14 +75,14 @@ class MfaConfigurationTest {
 
 		@Test
 		@DisplayName("should return empty list for empty factors")
-		void shouldReturnEmptyForEmptyFactors() {
+		void shouldReturnEmptyListWhenNoFactorsConfigured() {
 			mfaConfigProperties.setFactors(List.of());
 			assertThat(mfaConfiguration.resolveFactorAuthorities()).isEmpty();
 		}
 
 		@Test
 		@DisplayName("should skip unknown factors")
-		void shouldSkipUnknownFactors() {
+		void shouldSkipUnknownWhenMixedFactorsConfigured() {
 			mfaConfigProperties.setFactors(List.of("PASSWORD", "UNKNOWN"));
 			List<String> authorities = mfaConfiguration.resolveFactorAuthorities();
 			assertThat(authorities).containsExactly(FactorGrantedAuthority.PASSWORD_AUTHORITY);
@@ -144,7 +144,7 @@ class MfaConfigurationTest {
 
 		@Test
 		@DisplayName("should not throw for PASSWORD-only configuration")
-		void shouldNotThrowForPasswordOnly() {
+		void shouldNotThrowWhenPasswordOnlyConfigured() {
 			mfaConfigProperties.setEnabled(true);
 			mfaConfigProperties.setFactors(List.of("PASSWORD"));
 			// Should not throw (but will log a warning)
