@@ -58,18 +58,15 @@ public class MfaAPI {
 			Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
 
 			for (String factor : requiredFactors) {
-				String normalized = factor.toUpperCase();
-				String authorityString = MfaConfiguration.mapFactorToAuthority(normalized);
+				String authorityString = MfaConfiguration.mapFactorToAuthority(factor);
 				if (authorityString != null && hasAuthority(authorities, authorityString)) {
-					satisfiedFactors.add(normalized);
+					satisfiedFactors.add(factor);
 				} else {
-					missingFactors.add(normalized);
+					missingFactors.add(factor);
 				}
 			}
 		} else {
-			for (String factor : requiredFactors) {
-				missingFactors.add(factor.toUpperCase());
-			}
+			missingFactors.addAll(requiredFactors);
 		}
 
 		MfaStatusResponse status = MfaStatusResponse.builder()

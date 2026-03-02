@@ -3,7 +3,7 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +29,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.AccessDeniedHandlerImpl;
+
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -263,9 +263,9 @@ public class WebSecurityConfig {
 		DelegatingMissingAuthorityAccessDeniedHandler.Builder handlerBuilder =
 				DelegatingMissingAuthorityAccessDeniedHandler.builder();
 
-		Map<String, String> factorToUri = new HashMap<>();
-		factorToUri.put("PASSWORD", mfaConfigProperties.getPasswordEntryPointUri());
-		factorToUri.put("WEBAUTHN", mfaConfigProperties.getWebauthnEntryPointUri());
+		Map<String, String> factorToUri = Map.of(
+				"PASSWORD", mfaConfigProperties.getPasswordEntryPointUri(),
+				"WEBAUTHN", mfaConfigProperties.getWebauthnEntryPointUri());
 
 		for (String factor : mfaConfigProperties.getFactors()) {
 			String authority = MfaConfiguration.mapFactorToAuthority(factor);
@@ -276,7 +276,6 @@ public class WebSecurityConfig {
 		}
 
 		DelegatingMissingAuthorityAccessDeniedHandler handler = handlerBuilder.build();
-		handler.setDefaultAccessDeniedHandler(new AccessDeniedHandlerImpl());
 		http.exceptionHandling(handling -> handling.accessDeniedHandler(handler));
 		log.info("MFA configured with access denied handler for factors: {}", mfaConfigProperties.getFactors());
 	}
@@ -322,7 +321,7 @@ public class WebSecurityConfig {
 			unprotectedURIs.add("/dev/**");
 		}
 		if (mfaConfigProperties.isEnabled()) {
-			unprotectedURIs.add("/user/mfa/**");
+			unprotectedURIs.add("/user/mfa/status");
 		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
