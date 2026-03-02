@@ -27,6 +27,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
@@ -126,6 +128,7 @@ public class WebSecurityConfig {
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
 	private final WebAuthnConfigProperties webAuthnConfigProperties;
+	private final MfaConfigProperties mfaConfigProperties;
 	private final Environment environment;
 
 	/**
@@ -174,6 +177,11 @@ public class WebSecurityConfig {
 		// Configure WebAuthn (Passkey) if enabled
 		if (webAuthnConfigProperties.isEnabled()) {
 			setupWebAuthn(http);
+		}
+
+		// Configure MFA if enabled
+		if (mfaConfigProperties.isEnabled()) {
+			setupMfa(http);
 		}
 
 		// Configure authorization rules based on the default action
@@ -239,6 +247,45 @@ public class WebSecurityConfig {
 	}
 
 	/**
+	 * Setup MFA specific configuration.
+	 * <p>
+	 * Configures a {@link DelegatingMissingAuthorityAccessDeniedHandler} that redirects partially-authenticated users to
+	 * the appropriate factor login page when they are missing a required factor authority.
+	 * </p>
+	 *
+	 * @param http the http security object to configure
+	 * @throws Exception the exception
+	 */
+	private void setupMfa(HttpSecurity http) throws Exception {
+		DelegatingMissingAuthorityAccessDeniedHandler.Builder handlerBuilder =
+				DelegatingMissingAuthorityAccessDeniedHandler.builder();
+
+		for (String factor : mfaConfigProperties.getFactors()) {
+			String authority = MfaConfiguration.mapFactorToAuthority(factor);
+			if (authority == null) {
+				continue;
+			}
+			switch (factor.toUpperCase()) {
+				case "PASSWORD":
+					handlerBuilder.addEntryPointFor(
+							new LoginUrlAuthenticationEntryPoint(mfaConfigProperties.getPasswordEntryPointUri()),
+							authority);
+					break;
+				case "WEBAUTHN":
+					handlerBuilder.addEntryPointFor(
+							new LoginUrlAuthenticationEntryPoint(mfaConfigProperties.getWebauthnEntryPointUri()),
+							authority);
+					break;
+				default:
+					break;
+			}
+		}
+
+		http.exceptionHandling(handling -> handling.accessDeniedHandler(handlerBuilder.build()));
+		log.info("MFA configured with access denied handler for factors: {}", mfaConfigProperties.getFactors());
+	}
+
+	/**
 	 * Creates an ObjectPostProcessor that sets our custom WebAuthn success handler on the WebAuthnAuthenticationFilter.
 	 *
 	 * @return an ObjectPostProcessor that injects a custom authentication success handler
@@ -277,6 +324,9 @@ public class WebSecurityConfig {
 		unprotectedURIs.add(forgotPasswordChangeURI);
 		if (devAutoLoginEnabled && environment.matchesProfiles("local")) {
 			unprotectedURIs.add("/dev/**");
+		}
+		if (mfaConfigProperties.isEnabled()) {
+			unprotectedURIs.add("/user/mfa/**");
 		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
