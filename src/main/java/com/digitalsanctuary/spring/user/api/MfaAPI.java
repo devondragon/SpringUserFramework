@@ -3,18 +3,16 @@ package com.digitalsanctuary.spring.user.api;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.FactorGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.dto.MfaStatusResponse;
 import com.digitalsanctuary.spring.user.security.MfaConfigProperties;
+import com.digitalsanctuary.spring.user.security.MfaConfiguration;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,13 +34,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class MfaAPI {
 
-	/**
-	 * Mapping from user-facing factor names to Spring Security authority strings.
-	 */
-	private static final Map<String, String> FACTOR_AUTHORITY_MAP = Map.of(
-			"PASSWORD", FactorGrantedAuthority.PASSWORD_AUTHORITY,
-			"WEBAUTHN", FactorGrantedAuthority.WEBAUTHN_AUTHORITY);
-
 	private final MfaConfigProperties mfaConfigProperties;
 
 	/**
@@ -52,12 +43,13 @@ public class MfaAPI {
 	 * accessible to partially-authenticated users (added to unprotected URIs when MFA is enabled).
 	 * </p>
 	 *
+	 * @param authentication the current authentication, injected by Spring MVC (may be null)
 	 * @return a ResponseEntity containing the MFA status
 	 */
 	@GetMapping("/status")
-	public ResponseEntity<JSONResponse> getMfaStatus() {
-		List<String> requiredFactors = mfaConfigProperties.getFactors();
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+	public ResponseEntity<JSONResponse> getMfaStatus(Authentication authentication) {
+		List<String> requiredFactors = mfaConfigProperties.getFactors().stream()
+				.map(String::toUpperCase).toList();
 
 		List<String> satisfiedFactors = new ArrayList<>();
 		List<String> missingFactors = new ArrayList<>();
@@ -66,15 +58,18 @@ public class MfaAPI {
 			Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
 
 			for (String factor : requiredFactors) {
-				String authorityString = FACTOR_AUTHORITY_MAP.get(factor.toUpperCase());
+				String normalized = factor.toUpperCase();
+				String authorityString = MfaConfiguration.mapFactorToAuthority(normalized);
 				if (authorityString != null && hasAuthority(authorities, authorityString)) {
-					satisfiedFactors.add(factor);
+					satisfiedFactors.add(normalized);
 				} else {
-					missingFactors.add(factor);
+					missingFactors.add(normalized);
 				}
 			}
 		} else {
-			missingFactors.addAll(requiredFactors);
+			for (String factor : requiredFactors) {
+				missingFactors.add(factor.toUpperCase());
+			}
 		}
 
 		MfaStatusResponse status = MfaStatusResponse.builder()

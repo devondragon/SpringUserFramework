@@ -3,7 +3,9 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +29,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -260,28 +263,21 @@ public class WebSecurityConfig {
 		DelegatingMissingAuthorityAccessDeniedHandler.Builder handlerBuilder =
 				DelegatingMissingAuthorityAccessDeniedHandler.builder();
 
+		Map<String, String> factorToUri = new HashMap<>();
+		factorToUri.put("PASSWORD", mfaConfigProperties.getPasswordEntryPointUri());
+		factorToUri.put("WEBAUTHN", mfaConfigProperties.getWebauthnEntryPointUri());
+
 		for (String factor : mfaConfigProperties.getFactors()) {
 			String authority = MfaConfiguration.mapFactorToAuthority(factor);
-			if (authority == null) {
-				continue;
-			}
-			switch (factor.toUpperCase()) {
-				case "PASSWORD":
-					handlerBuilder.addEntryPointFor(
-							new LoginUrlAuthenticationEntryPoint(mfaConfigProperties.getPasswordEntryPointUri()),
-							authority);
-					break;
-				case "WEBAUTHN":
-					handlerBuilder.addEntryPointFor(
-							new LoginUrlAuthenticationEntryPoint(mfaConfigProperties.getWebauthnEntryPointUri()),
-							authority);
-					break;
-				default:
-					break;
+			String uri = factorToUri.get(factor.toUpperCase());
+			if (authority != null && uri != null) {
+				handlerBuilder.addEntryPointFor(new LoginUrlAuthenticationEntryPoint(uri), authority);
 			}
 		}
 
-		http.exceptionHandling(handling -> handling.accessDeniedHandler(handlerBuilder.build()));
+		DelegatingMissingAuthorityAccessDeniedHandler handler = handlerBuilder.build();
+		handler.setDefaultAccessDeniedHandler(new AccessDeniedHandlerImpl());
+		http.exceptionHandling(handling -> handling.accessDeniedHandler(handler));
 		log.info("MFA configured with access denied handler for factors: {}", mfaConfigProperties.getFactors());
 	}
 

@@ -2,7 +2,7 @@ package com.digitalsanctuary.spring.user.dto;
 
 import java.util.List;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Value;
 
 /**
  * Response DTO for the MFA status endpoint.
@@ -13,22 +13,22 @@ import lombok.Data;
  *
  * @see com.digitalsanctuary.spring.user.api.MfaAPI
  */
-@Data
+@Value
 @Builder
 public class MfaStatusResponse {
 
 	/** Whether MFA is enabled on the server. */
-	private boolean mfaEnabled;
+	boolean mfaEnabled;
 
 	/** The list of required factor names (e.g., PASSWORD, WEBAUTHN). */
-	private List<String> requiredFactors;
+	List<String> requiredFactors;
 
 	/** The list of factor names that the current session has satisfied. */
-	private List<String> satisfiedFactors;
+	List<String> satisfiedFactors;
 
 	/** The list of factor names that the current session has not yet satisfied. */
-	private List<String> missingFactors;
+	List<String> missingFactors;
 
 	/** Whether the current session has satisfied all required factors. */
-	private boolean fullyAuthenticated;
+	boolean fullyAuthenticated;
 }

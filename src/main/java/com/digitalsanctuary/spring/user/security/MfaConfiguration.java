@@ -7,7 +7,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.authorization.AllRequiredFactorsAuthorizationManager;
@@ -36,7 +35,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Configuration
-@PropertySource("classpath:config/dsspringuserconfig.properties")
 @EnableConfigurationProperties(MfaConfigProperties.class)
 @RequiredArgsConstructor
 public class MfaConfiguration {
@@ -65,6 +63,9 @@ public class MfaConfiguration {
 				AllRequiredFactorsAuthorizationManager.builder();
 
 		for (String factor : mfaConfigProperties.getFactors()) {
+			if (factor == null || factor.isBlank()) {
+				continue;
+			}
 			String authority = FACTOR_AUTHORITY_MAP.get(factor.toUpperCase());
 			if (authority != null) {
 				factorsBuilder.requireFactor(RequiredFactor.withAuthority(authority).build());
@@ -81,7 +82,8 @@ public class MfaConfiguration {
 	}
 
 	/**
-	 * Validates MFA configuration on application startup. Runs only when MFA is enabled.
+	 * Validates MFA configuration on application startup. Performs validation only when MFA is enabled; returns
+	 * immediately otherwise.
 	 *
 	 * @param event the context refreshed event
 	 */
@@ -100,6 +102,10 @@ public class MfaConfiguration {
 		}
 
 		for (String factor : factors) {
+			if (factor == null || factor.isBlank()) {
+				throw new IllegalStateException(
+						"MFA factors list contains a null or blank entry. Check user.mfa.factors configuration.");
+			}
 			if (!FACTOR_AUTHORITY_MAP.containsKey(factor.toUpperCase())) {
 				throw new IllegalStateException(
 						"Unknown MFA factor: '" + factor + "'. Supported factors: " + FACTOR_AUTHORITY_MAP.keySet());
@@ -120,6 +126,9 @@ public class MfaConfiguration {
 
 	/**
 	 * Resolves the configured factor names to Spring Security authority strings.
+	 * <p>
+	 * Package-private for testing via {@link MfaConfigurationTest}.
+	 * </p>
 	 *
 	 * @return list of Spring Security authority strings
 	 */
@@ -140,7 +149,10 @@ public class MfaConfiguration {
 	 * @param factorName the factor name (e.g., "PASSWORD", "WEBAUTHN")
 	 * @return the corresponding Spring Security authority string, or null if unknown
 	 */
-	static String mapFactorToAuthority(String factorName) {
+	public static String mapFactorToAuthority(String factorName) {
+		if (factorName == null || factorName.isBlank()) {
+			return null;
+		}
 		return FACTOR_AUTHORITY_MAP.get(factorName.toUpperCase());
 	}
 }
