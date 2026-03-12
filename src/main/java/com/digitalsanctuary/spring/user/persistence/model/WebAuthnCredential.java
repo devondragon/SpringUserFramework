@@ -32,7 +32,7 @@ public class WebAuthnCredential {
 
 	/** COSE-encoded public key (typically 77-300 bytes, RSA keys can be larger). */
 	@Lob
-	@Column(name = "public_key", nullable = false, columnDefinition = "BLOB")
+	@Column(name = "public_key", nullable = false)
 	private byte[] publicKey;
 
 	/** Counter to detect cloned authenticators. */
@@ -61,12 +61,12 @@ public class WebAuthnCredential {
 
 	/** Attestation data from registration (can be several KB). */
 	@Lob
-	@Column(name = "attestation_object", columnDefinition = "BLOB")
+	@Column(name = "attestation_object")
 	private byte[] attestationObject;
 
 	/** Client data JSON from registration (can be several KB). */
 	@Lob
-	@Column(name = "attestation_client_data_json", columnDefinition = "BLOB")
+	@Column(name = "attestation_client_data_json")
 	private byte[] attestationClientDataJson;
 
 	/** Creation timestamp. */
