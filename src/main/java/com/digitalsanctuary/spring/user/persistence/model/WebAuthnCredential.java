@@ -6,7 +6,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
@@ -31,8 +30,7 @@ public class WebAuthnCredential {
 	private WebAuthnUserEntity userEntity;
 
 	/** COSE-encoded public key (typically 77-300 bytes, RSA keys can be larger). */
-	@Lob
-	@Column(name = "public_key", nullable = false)
+	@Column(name = "public_key", nullable = false, length = 2048)
 	private byte[] publicKey;
 
 	/** Counter to detect cloned authenticators. */
@@ -60,13 +58,11 @@ public class WebAuthnCredential {
 	private boolean backupState;
 
 	/** Attestation data from registration (can be several KB). */
-	@Lob
-	@Column(name = "attestation_object")
+	@Column(name = "attestation_object", length = 65536)
 	private byte[] attestationObject;
 
 	/** Client data JSON from registration (can be several KB). */
-	@Lob
-	@Column(name = "attestation_client_data_json")
+	@Column(name = "attestation_client_data_json", length = 65536)
 	private byte[] attestationClientDataJson;
 
 	/** Creation timestamp. */
