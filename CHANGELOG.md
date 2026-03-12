@@ -1,3 +1,87 @@
+## [4.2.2] - 2026-03-11
+### Features
+- Opt-in Multi-Factor Authentication (MFA) via simple user.mfa.* properties
+  - New configuration properties (MfaConfigProperties) under user.mfa.*:
+    - user.mfa.enabled: toggle MFA on/off (default false)
+    - user.mfa.factors: comma-separated list of factors, supported values: PASSWORD, WEBAUTHN
+    - user.mfa.passwordEntryPointUri: redirect for missing PASSWORD (default /user/login.html)
+    - user.mfa.webauthnEntryPointUri: redirect for missing WEBAUTHN (default /user/webauthn/login.html)
+  - Enforcement built on Spring Security 7’s MFA:
+    - Conditional bean mfaAuthorizationManagerFactory that augments .authenticated() with AllRequiredFactorsAuthorizationManager
+    - Each configured factor is translated to its required FactorGrantedAuthority (PASSWORD_AUTHORITY, WEBAUTHN_AUTHORITY)
+  - Startup validation (MfaConfiguration):
+    - Fails fast on empty/blank/unknown factors
+    - Ensures WEBAUTHN factor is only allowed when user.webauthn.enabled=true
+    - Warns if PASSWORD factor is required in passkey-only environments
+  - New REST endpoint for UI flow control:
+    - GET /user/mfa/status (exposed only when MFA is enabled)
+    - Accessible to partially-authenticated users; reports:
+      - mfaEnabled, requiredFactors, satisfiedFactors, missingFactors, fullyAuthenticated
+    - Backed by immutable DTO MfaStatusResponse
+  - Security behavior and UX:
+    - WebSecurityConfig.setupMfa() configures DelegatingMissingAuthorityAccessDeniedHandler
+    - Missing factor → redirected to configured entry-point URIs (via LoginUrlAuthenticationEntryPoint)
+    - /user/mfa/status explicitly added to unprotected URIs (tightened from wildcard to avoid exposing future endpoints)
+  - Defaults added to dsspringuserconfig.properties to make enabling MFA straightforward
+
+### Fixes
+- Portable and size-correct WebAuthn binary columns
+  - Replaced @Lob and hardcoded columnDefinition="BLOB" in WebAuthnCredential with plain byte[] and explicit @Column(length=...)
+    - Prevents bypassing Hibernate dialect translation that caused DDL failures on PostgreSQL (no blob type)
+    - Verified to generate bytea on PostgreSQL; appropriate binary types on MySQL
+  - Corrected column lengths to avoid unintended MEDIUMBLOB on MySQL:
+    - attestation_object and attestation_client_data_json set to length=65535 (was 65536, 1 byte over BLOB threshold)
+    - public_key set to length=2048 (typical COSE sizes, accommodates larger keys)
+  - Result: consistent schema generation across PostgreSQL, MySQL, and H2; no functional regressions reported
+
+### Breaking Changes
+- No public API or default behavior changes.
+- Migration note for existing databases:
+  - Schema types for WebAuthn binary columns may differ from previous DDL (e.g., from explicit BLOB to dialect-native types like bytea on PostgreSQL or varbinary/blob on MySQL).
+  - If you manage schema via migrations (Liquibase/Flyway), review and align your migration scripts with the new lengths and types:
+    - public_key length 2048
+    - attestation_object length 65535
+    - attestation_client_data_json length 65535
+
+### Refactoring
+- MFA implementation refinements for stability and clarity:
+  - MfaStatusResponse switched from Lombok @Data to @Value for immutability
+  - MfaAPI now uses method-injected Authentication instead of SecurityContextHolder
+  - Single source of truth for factor→authority mapping (MfaConfiguration.mapFactorToAuthority is public and reused)
+  - WebSecurityConfig.setupMfa() simplified with immutable Map.of(...) for factor-to-URI routing
+  - Removed redundant default AccessDeniedHandler config and unused imports
+  - Normalized requiredFactors casing to uppercase; eliminated redundant toUpperCase calls
+  - Clarified JavaDoc and comments; dropped redundant @PropertySource (already covered elsewhere)
+
+### Documentation
+- README version updates:
+  - 4.2.0 → 4.2.1
+  - Then 4.2.1 → 4.2.2 to reflect latest release instructions
+
+### Testing
+- Comprehensive tests for the new MFA feature:
+  - MfaConfigurationTest covering property binding, factor resolution, and validation paths
+  - MfaFeatureEnabledIntegrationTest and MfaFeatureDisabledIntegrationTest verifying endpoint exposure, partial auth access, and status payload shape
+  - Enforcement test confirming DelegatingMissingAuthorityAccessDeniedHandler redirects to password entry-point when PASSWORD factor is missing
+  - MfaMultiFactorIntegrationTest exercising PASSWORD+WEBAUTHN scenarios end-to-end (setupMfa, factor resolution, MFA status)
+  - Positive-path cases confirming fullyAuthenticated=true when all required FactorGrantedAuthority entries are present
+
+### Other Changes
+- Dependency updates
+  - thymeleaf-layout-dialect: 3.4.0 → 4.0.0 (compileOnly in this project)
+  - webauthn4j-core: 0.31.0.RELEASE → 0.31.1.RELEASE
+  - Gradle Wrapper: 9.3.1 → 9.4.0
+- Build/versioning
+  - gradle.properties bumped to 4.2.2-SNAPSHOT
+- Merges of Dependabot PRs for the above updates
+
+Notes for adopters:
+- Enabling MFA is opt-in. Minimal config example:
+  - user.mfa.enabled=true
+  - user.mfa.factors=PASSWORD,WEBAUTHN
+  - Optionally override the entry-point URIs to match your UI
+- If including WEBAUTHN as a factor, ensure user.webauthn.enabled=true and the WebAuthn flow is configured.
+
 ## [4.2.1] - 2026-02-27
 ### Features
 - Passwordless passkey-only accounts
