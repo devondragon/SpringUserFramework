@@ -25,6 +25,9 @@ public record RegistrationDecision(boolean allowed, String reason) {
      * @return a denying decision with the given reason
      */
     public static RegistrationDecision deny(String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            reason = "Registration denied.";
+        }
         return new RegistrationDecision(false, reason);
     }
 }

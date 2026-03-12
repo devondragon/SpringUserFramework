@@ -112,6 +112,7 @@ public class UserAPI {
 			RegistrationDecision decision = registrationGuard.evaluate(
 					new RegistrationContext(userDto.getEmail(), RegistrationSource.FORM, null));
 			if (!decision.allowed()) {
+				log.info("Registration denied for email: {} source: FORM reason: {}", userDto.getEmail(), decision.reason());
 				return buildErrorResponse(decision.reason(), 6, HttpStatus.FORBIDDEN);
 			}
 
@@ -409,6 +410,7 @@ public class UserAPI {
 			RegistrationDecision decision = registrationGuard.evaluate(
 					new RegistrationContext(dto.getEmail(), RegistrationSource.PASSWORDLESS, null));
 			if (!decision.allowed()) {
+				log.info("Registration denied for email: {} source: PASSWORDLESS reason: {}", dto.getEmail(), decision.reason());
 				return buildErrorResponse(decision.reason(), 6, HttpStatus.FORBIDDEN);
 			}
 

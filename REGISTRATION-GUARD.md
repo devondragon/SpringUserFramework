@@ -154,7 +154,11 @@ When a guard denies a registration, the behavior depends on the registration pat
 | **OAuth2** | `OAuth2AuthenticationException` with error code `"registration_denied"` — handled by Spring Security's OAuth2 failure handler |
 | **OIDC** | `OAuth2AuthenticationException` with error code `"registration_denied"` — handled by Spring Security's OAuth2 failure handler |
 
+The JSON error code `6` identifies a registration guard denial specifically, distinguishing it from other registration errors (e.g., code `1` for validation failures, code `2` for duplicate accounts). Client-side code can check this code to display targeted messaging.
+
 For OAuth2/OIDC denials, customize the user experience by configuring Spring Security's OAuth2 login failure handler to inspect the error code and display an appropriate message.
+
+All denied registrations are logged at INFO level with the email, source, and denial reason.
 
 ## Key Constraints
 
@@ -168,12 +172,8 @@ For OAuth2/OIDC denials, customize the user experience by configuring Spring Sec
 **Guard Not Activating**
 - Ensure your guard class is annotated with `@Component` (or otherwise registered as a Spring bean)
 - Verify the class is within a package that is component-scanned by your application
-- Check that `DefaultRegistrationGuard` is being replaced — enable debug logging:
-  ```yaml
-  logging:
-    level:
-      com.digitalsanctuary.spring.user.registration: DEBUG
-  ```
+- At startup, the library logs `"No custom RegistrationGuard bean found — using DefaultRegistrationGuard (permit-all)"` at INFO level. If you see this message, your custom guard bean is not being detected.
+- You can also check the active guard via `/actuator/beans` (if enabled) or your IDE's Spring tooling.
 
 **Multiple Guards Defined**
 - Only one `RegistrationGuard` bean is allowed. If multiple beans are defined, Spring will throw a `NoUniqueBeanDefinitionException` at startup.

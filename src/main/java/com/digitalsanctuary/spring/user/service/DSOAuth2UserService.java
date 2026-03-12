@@ -107,6 +107,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             RegistrationDecision decision = registrationGuard.evaluate(
                     new RegistrationContext(user.getEmail(), RegistrationSource.OAUTH2, registrationId));
             if (!decision.allowed()) {
+                log.info("Registration denied for email: {} source: OAUTH2 provider: {} reason: {}",
+                        user.getEmail(), registrationId, decision.reason());
                 throw new OAuth2AuthenticationException(
                         new OAuth2Error("registration_denied"), decision.reason());
             }

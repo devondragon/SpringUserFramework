@@ -97,6 +97,8 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             RegistrationDecision decision = registrationGuard.evaluate(
                     new RegistrationContext(user.getEmail(), RegistrationSource.OIDC, registrationId));
             if (!decision.allowed()) {
+                log.info("Registration denied for email: {} source: OIDC provider: {} reason: {}",
+                        user.getEmail(), registrationId, decision.reason());
                 throw new OAuth2AuthenticationException(
                         new OAuth2Error("registration_denied"), decision.reason());
             }

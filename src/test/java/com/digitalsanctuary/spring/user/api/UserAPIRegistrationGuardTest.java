@@ -70,6 +70,9 @@ class UserAPIRegistrationGuardTest {
     @Mock
     private RegistrationGuard registrationGuard;
 
+    @Mock
+    private WebAuthnCredentialManagementService webAuthnService;
+
     @InjectMocks
     private UserAPI userAPI;
 
@@ -155,7 +158,6 @@ class UserAPIRegistrationGuardTest {
             dto.setFirstName("Test");
             dto.setLastName("User");
 
-            WebAuthnCredentialManagementService webAuthnService = org.mockito.Mockito.mock(WebAuthnCredentialManagementService.class);
             when(webAuthnCredentialManagementServiceProvider.getIfAvailable()).thenReturn(webAuthnService);
             when(registrationGuard.evaluate(any(RegistrationContext.class)))
                     .thenReturn(RegistrationDecision.deny("Beta access required"));
@@ -183,7 +185,6 @@ class UserAPIRegistrationGuardTest {
                     .disabled()
                     .build();
 
-            WebAuthnCredentialManagementService webAuthnService = org.mockito.Mockito.mock(WebAuthnCredentialManagementService.class);
             when(webAuthnCredentialManagementServiceProvider.getIfAvailable()).thenReturn(webAuthnService);
             when(registrationGuard.evaluate(any(RegistrationContext.class)))
                     .thenReturn(RegistrationDecision.allow());

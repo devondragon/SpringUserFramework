@@ -4,10 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 @DisplayName("RegistrationDecision Tests")
 class RegistrationDecisionTest {
 
@@ -27,5 +24,23 @@ class RegistrationDecisionTest {
 
         assertThat(decision.allowed()).isFalse();
         assertThat(decision.reason()).isEqualTo("Invite code required");
+    }
+
+    @Test
+    @DisplayName("Should default reason when deny is called with null")
+    void shouldDefaultReasonWhenNull() {
+        RegistrationDecision decision = RegistrationDecision.deny(null);
+
+        assertThat(decision.allowed()).isFalse();
+        assertThat(decision.reason()).isEqualTo("Registration denied.");
+    }
+
+    @Test
+    @DisplayName("Should default reason when deny is called with blank string")
+    void shouldDefaultReasonWhenBlank() {
+        RegistrationDecision decision = RegistrationDecision.deny("   ");
+
+        assertThat(decision.allowed()).isFalse();
+        assertThat(decision.reason()).isEqualTo("Registration denied.");
     }
 }
