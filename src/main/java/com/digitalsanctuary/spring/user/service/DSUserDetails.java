@@ -11,7 +11,6 @@ import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import lombok.Builder;
-import lombok.Setter;
 import lombok.ToString;
 
 /**
@@ -55,11 +54,9 @@ public class DSUserDetails implements UserDetails, OidcUser {
 	private Map<String, Object> attributes;
 
 	/** The Oidc user properties. */
-	@Setter
 	private OidcUserInfo oidcUserInfo;
 
 	/** The Oidc user token. */
-	@Setter
 	private OidcIdToken oidcIdToken;
 
 	/**

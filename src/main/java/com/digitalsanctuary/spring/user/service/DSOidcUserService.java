@@ -1,16 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.Arrays;
-import com.digitalsanctuary.spring.user.audit.AuditEvent;
-import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
-import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
-import com.digitalsanctuary.spring.user.registration.RegistrationSource;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.Locale;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
@@ -22,6 +13,16 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationContext;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * OIDC user service implementation for handling OpenID Connect authentication (Keycloak).
@@ -49,6 +50,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
     /** The role repository. */
     private final RoleRepository roleRepository;
 
+    /** The login helper service. */
     private final LoginHelperService loginHelperService;
 
     private final RegistrationGuard registrationGuard;
@@ -87,8 +89,11 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             throw new OAuth2AuthenticationException(new OAuth2Error("Missing Email"),
                     "Unable to retrieve email address from " + registrationId + ". Please ensure you have granted email permissions.");
         }
-        log.debug("handleOidcLoginSuccess: looking up user with email: {}", user.getEmail());
-        User existingUser = userRepository.findByEmail(user.getEmail().toLowerCase());
+        // Normalize email for consistent lookup — getUserFromKeycloakOidc2User already lowercases,
+        // but we normalize again here defensively in case additional sources are added.
+        String normalizedEmail = user.getEmail().trim().toLowerCase(Locale.ROOT);
+        log.debug("handleOidcLoginSuccess: looking up user with email: {}", normalizedEmail);
+        User existingUser = userRepository.findByEmail(normalizedEmail);
         log.debug("handleOidcLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
             log.debug("handleOidcLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());
@@ -102,12 +107,12 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             existingUser = updateExistingUser(existingUser, user);
             return userRepository.save(existingUser);
         } else {
-            log.debug("handleOidcLoginSuccess: registering new user with email: {}", user.getEmail());
+            log.debug("handleOidcLoginSuccess: registering new user with email: {}", normalizedEmail);
             RegistrationDecision decision = registrationGuard.evaluate(
-                    new RegistrationContext(user.getEmail(), RegistrationSource.OIDC, registrationId));
+                    new RegistrationContext(normalizedEmail, RegistrationSource.OIDC, registrationId));
             if (!decision.allowed()) {
                 log.info("Registration denied for email: {} source: OIDC provider: {} reason: {}",
-                        user.getEmail(), registrationId, decision.reason());
+                        normalizedEmail, registrationId, decision.reason());
                 throw new OAuth2AuthenticationException(
                         new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
             }
@@ -125,18 +130,17 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
      * @param user The User object representing the authenticated user.
      * @return A User object representing the newly registered user.
      */
-    @Transactional
     private User registerNewOidcUser(String registrationId, User user) {
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
         user.setRoles(Arrays.asList(roleRepository.findByName("ROLE_USER")));
         // We will trust OIDC providers to provide us with a verified email address.
         user.setEnabled(true);
-        AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user).action("OIDC Registration Success").actionStatus("Success")
+        User savedUser = userRepository.save(user);
+        AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(savedUser).action("OIDC Registration Success").actionStatus("Success")
                 .message("Registration Confirmed. User logged in.").build();
-
         eventPublisher.publishEvent(registrationAuditEvent);
-        return userRepository.save(user);
+        return savedUser;
     }
 
     /**
@@ -167,11 +171,8 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         }
         log.debug("Principal attributes: {}", principal.getAttributes());
         User user = new User();
-/*        user.setEmail(principal.getAttribute("email"));
-        user.setFirstName(principal.getAttribute("given_name"));
-        user.setLastName(principal.getAttribute("family_name"));*/
         String email = principal.getEmail();
-        user.setEmail(email != null ? email.toLowerCase() : null);
+        user.setEmail(email != null ? email.trim().toLowerCase(Locale.ROOT) : null);
         user.setFirstName(principal.getGivenName());
         user.setLastName(principal.getFamilyName());
         user.setProvider(User.Provider.KEYCLOAK);
@@ -194,9 +195,6 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.debug("registrationId: {}", registrationId);
         User dbUser = handleOidcLoginSuccess(registrationId, user);
-        DSUserDetails dsUserDetails = loginHelperService.userLoginHelper(dbUser);
-        dsUserDetails.setOidcUserInfo(user.getUserInfo());
-        dsUserDetails.setOidcIdToken(user.getIdToken());
-        return dsUserDetails;
+        return loginHelperService.userLoginHelper(dbUser, user.getUserInfo(), user.getIdToken());
     }
 }

@@ -3,11 +3,10 @@ package com.digitalsanctuary.spring.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,15 +15,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.fixtures.OidcUserTestDataBuilder;
-import org.springframework.context.ApplicationEventPublisher;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
@@ -104,6 +107,7 @@ class DSOidcUserServiceTest {
             assertThat(result.getRoles()).containsExactly(userRole);
             
             verify(userRepository).save(any(User.class));
+            verify(eventPublisher).publishEvent(any(AuditEvent.class));
         }
 
         @Test
@@ -182,6 +186,7 @@ class DSOidcUserServiceTest {
             assertThat(result.getFirstName()).isNull();
             assertThat(result.getLastName()).isNull();
             assertThat(result.getProvider()).isEqualTo(User.Provider.KEYCLOAK);
+            verify(eventPublisher).publishEvent(any(AuditEvent.class));
         }
 
         @Test
@@ -367,10 +372,14 @@ class DSOidcUserServiceTest {
                 user.setId(999L);
                 return user;
             });
-            when(loginHelperService.userLoginHelper(any(User.class))).thenAnswer(invocation -> {
-                User user = invocation.getArgument(0);
-                return new DSUserDetails(user, new ArrayList<>());
-            });
+            when(loginHelperService.userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class)))
+                    .thenAnswer(invocation -> {
+                        User user = invocation.getArgument(0);
+                        OidcUserInfo oidcUserInfo = invocation.getArgument(1);
+                        OidcIdToken oidcIdToken = invocation.getArgument(2);
+                        return new DSUserDetails(user, oidcUserInfo, oidcIdToken,
+                                List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                    });
 
             // When
             OidcUser result = spyService.loadUser(userRequest);
@@ -381,9 +390,10 @@ class DSOidcUserServiceTest {
             DSUserDetails dsUserDetails = (DSUserDetails) result;
             assertThat(dsUserDetails.getIdToken()).isNotNull();
             assertThat(dsUserDetails.getUserInfo()).isNotNull();
+            assertThat(dsUserDetails.getAuthorities()).isNotEmpty();
 
             verify(userRepository).save(any(User.class));
-            verify(loginHelperService).userLoginHelper(any(User.class));
+            verify(loginHelperService).userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class));
         }
 
         @Test
@@ -399,16 +409,11 @@ class DSOidcUserServiceTest {
             dbUser.setEmail("tokens@keycloak.com");
             dbUser.setProvider(User.Provider.KEYCLOAK);
 
-            // When
+            // When - Simulate what LoginHelperService.userLoginHelper() does for OIDC path
             User extractedUser = service.getUserFromKeycloakOidc2User(keycloakUser);
-            
-            // Simulate what happens in loadUser
-            DSUserDetails dsUserDetails = DSUserDetails.builder()
-                .user(dbUser)
-                .oidcUserInfo(keycloakUser.getUserInfo())
-                .oidcIdToken(keycloakUser.getIdToken())
-                .grantedAuthorities(keycloakUser.getAuthorities())
-                .build();
+
+            DSUserDetails dsUserDetails = new DSUserDetails(dbUser, keycloakUser.getUserInfo(),
+                    keycloakUser.getIdToken(), keycloakUser.getAuthorities());
 
             // Then
             assertThat(dsUserDetails.getIdToken()).isEqualTo(keycloakUser.getIdToken());
