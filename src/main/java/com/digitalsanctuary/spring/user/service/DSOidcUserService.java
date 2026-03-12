@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.Arrays;
+import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
@@ -10,6 +11,7 @@ import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -19,6 +21,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * OIDC user service implementation for handling OpenID Connect authentication (Keycloak).
@@ -36,16 +39,22 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, OidcUser> {
 
     /** The user repository. */
     private final UserRepository userRepository;
-    
+
     /** The role repository. */
     private final RoleRepository roleRepository;
 
+    private final LoginHelperService loginHelperService;
+
     private final RegistrationGuard registrationGuard;
+
+    /** The Event Publisher. */
+    private final ApplicationEventPublisher eventPublisher;
 
     OidcUserService defaultOidcUserService = new OidcUserService();
 
@@ -79,7 +88,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
                     "Unable to retrieve email address from " + registrationId + ". Please ensure you have granted email permissions.");
         }
         log.debug("handleOidcLoginSuccess: looking up user with email: {}", user.getEmail());
-        User existingUser = userRepository.findByEmail(user.getEmail());
+        User existingUser = userRepository.findByEmail(user.getEmail().toLowerCase());
         log.debug("handleOidcLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
             log.debug("handleOidcLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());
@@ -116,12 +125,17 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
      * @param user The User object representing the authenticated user.
      * @return A User object representing the newly registered user.
      */
+    @Transactional
     private User registerNewOidcUser(String registrationId, User user) {
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
         user.setRoles(Arrays.asList(roleRepository.findByName("ROLE_USER")));
-        // We will trust OAuth2 providers to provide us with a verified email address.
+        // We will trust OIDC providers to provide us with a verified email address.
         user.setEnabled(true);
+        AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user).action("OIDC Registration Success").actionStatus("Success")
+                .message("Registration Confirmed. User logged in.").build();
+
+        eventPublisher.publishEvent(registrationAuditEvent);
         return userRepository.save(user);
     }
 
@@ -180,12 +194,9 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.debug("registrationId: {}", registrationId);
         User dbUser = handleOidcLoginSuccess(registrationId, user);
-        DSUserDetails dsUserDetails = DSUserDetails.builder()
-                .user(dbUser)
-                .oidcUserInfo(user.getUserInfo())
-                .oidcIdToken(user.getIdToken())
-                .grantedAuthorities(user.getAuthorities())
-                .build();
+        DSUserDetails dsUserDetails = loginHelperService.userLoginHelper(dbUser);
+        dsUserDetails.setOidcUserInfo(user.getUserInfo());
+        dsUserDetails.setOidcIdToken(user.getIdToken());
         return dsUserDetails;
     }
 }

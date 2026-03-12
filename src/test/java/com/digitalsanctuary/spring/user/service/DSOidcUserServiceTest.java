@@ -24,6 +24,7 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import com.digitalsanctuary.spring.user.fixtures.OidcUserTestDataBuilder;
+import org.springframework.context.ApplicationEventPublisher;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
@@ -46,7 +47,13 @@ class DSOidcUserServiceTest {
     private RoleRepository roleRepository;
 
     @Mock
+    private LoginHelperService loginHelperService;
+
+    @Mock
     private RegistrationGuard registrationGuard;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private DSOidcUserService service;
@@ -360,6 +367,10 @@ class DSOidcUserServiceTest {
                 user.setId(999L);
                 return user;
             });
+            when(loginHelperService.userLoginHelper(any(User.class))).thenAnswer(invocation -> {
+                User user = invocation.getArgument(0);
+                return new DSUserDetails(user, new ArrayList<>());
+            });
 
             // When
             OidcUser result = spyService.loadUser(userRequest);
@@ -370,9 +381,9 @@ class DSOidcUserServiceTest {
             DSUserDetails dsUserDetails = (DSUserDetails) result;
             assertThat(dsUserDetails.getIdToken()).isNotNull();
             assertThat(dsUserDetails.getUserInfo()).isNotNull();
-            assertThat(dsUserDetails.getAuthorities()).isNotEmpty();
-            
+
             verify(userRepository).save(any(User.class));
+            verify(loginHelperService).userLoginHelper(any(User.class));
         }
 
         @Test
