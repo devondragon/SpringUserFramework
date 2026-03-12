@@ -65,6 +65,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
 
+	/** Error code returned when the {@link RegistrationGuard} denies a registration attempt. */
+	private static final int ERROR_CODE_REGISTRATION_DENIED = 6;
+
 	private final UserService userService;
 	private final UserEmailService userEmailService;
 	private final MessageSource messages;
@@ -113,7 +116,7 @@ public class UserAPI {
 					new RegistrationContext(userDto.getEmail(), RegistrationSource.FORM, null));
 			if (!decision.allowed()) {
 				log.info("Registration denied for email: {} source: FORM reason: {}", userDto.getEmail(), decision.reason());
-				return buildErrorResponse(decision.reason(), 6, HttpStatus.FORBIDDEN);
+				return buildErrorResponse(decision.reason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 			}
 
 			User registeredUser = userService.registerNewUserAccount(userDto);
@@ -411,7 +414,7 @@ public class UserAPI {
 					new RegistrationContext(dto.getEmail(), RegistrationSource.PASSWORDLESS, null));
 			if (!decision.allowed()) {
 				log.info("Registration denied for email: {} source: PASSWORDLESS reason: {}", dto.getEmail(), decision.reason());
-				return buildErrorResponse(decision.reason(), 6, HttpStatus.FORBIDDEN);
+				return buildErrorResponse(decision.reason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 			}
 
 			User registeredUser = userService.registerPasswordlessAccount(dto);
