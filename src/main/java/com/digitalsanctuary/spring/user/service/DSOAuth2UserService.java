@@ -110,7 +110,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
                 log.info("Registration denied for email: {} source: OAUTH2 provider: {} reason: {}",
                         user.getEmail(), registrationId, decision.reason());
                 throw new OAuth2AuthenticationException(
-                        new OAuth2Error("registration_denied"), decision.reason());
+                        new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
             }
             user = registerNewOAuthUser(registrationId, user);
             return user;

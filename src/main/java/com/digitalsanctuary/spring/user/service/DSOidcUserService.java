@@ -109,7 +109,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
                 log.info("Registration denied for email: {} source: OIDC provider: {} reason: {}",
                         user.getEmail(), registrationId, decision.reason());
                 throw new OAuth2AuthenticationException(
-                        new OAuth2Error("registration_denied"), decision.reason());
+                        new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
             }
             user = registerNewOidcUser(registrationId, user);
             return user;
