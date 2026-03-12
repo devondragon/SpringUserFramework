@@ -31,6 +31,10 @@ import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.registration.RegistrationContext;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
@@ -67,6 +71,7 @@ public class UserAPI {
 	private final ApplicationEventPublisher eventPublisher;
 	private final PasswordPolicyService passwordPolicyService;
 	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
+	private final RegistrationGuard registrationGuard;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -102,6 +107,12 @@ public class UserAPI {
 			if (!errors.isEmpty()) {
 				log.warn("Password validation failed: {}", errors);
 				return buildErrorResponse(String.join(" ", errors), 1, HttpStatus.BAD_REQUEST);
+			}
+
+			RegistrationDecision decision = registrationGuard.evaluate(
+					new RegistrationContext(userDto.getEmail(), RegistrationSource.FORM, null));
+			if (!decision.allowed()) {
+				return buildErrorResponse(decision.reason(), 6, HttpStatus.FORBIDDEN);
 			}
 
 			User registeredUser = userService.registerNewUserAccount(userDto);
@@ -395,6 +406,12 @@ public class UserAPI {
 			return buildErrorResponse("Passwordless registration is not available", 1, HttpStatus.BAD_REQUEST);
 		}
 		try {
+			RegistrationDecision decision = registrationGuard.evaluate(
+					new RegistrationContext(dto.getEmail(), RegistrationSource.PASSWORDLESS, null));
+			if (!decision.allowed()) {
+				return buildErrorResponse(decision.reason(), 6, HttpStatus.FORBIDDEN);
+			}
+
 			User registeredUser = userService.registerPasswordlessAccount(dto);
 			publishRegistrationEvent(registeredUser, request);
 			logAuditEvent("PasswordlessRegistration", "Success", "Passwordless registration successful", registeredUser, request);

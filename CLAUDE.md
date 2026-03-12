@@ -192,6 +192,7 @@ Integration tests use `TestApplication` (in `test.app` package) as their Spring 
 
 - `TESTING.md` - Comprehensive testing guide with patterns and troubleshooting
 - `PROFILE.md` - User profile extension framework
+- `REGISTRATION-GUARD.md` - Registration Guard SPI for pre-registration hooks
 - `CONFIG.md` - Configuration reference
 - `MIGRATION.md` - Version migration guide
 - `CONTRIBUTING.md` - Contributor guidelines (fork/branch/PR workflow)
