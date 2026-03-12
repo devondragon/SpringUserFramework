@@ -58,11 +58,11 @@ public class WebAuthnCredential {
 	private boolean backupState;
 
 	/** Attestation data from registration (can be several KB). */
-	@Column(name = "attestation_object", length = 65536)
+	@Column(name = "attestation_object", length = 65535)
 	private byte[] attestationObject;
 
 	/** Client data JSON from registration (can be several KB). */
-	@Column(name = "attestation_client_data_json", length = 65536)
+	@Column(name = "attestation_client_data_json", length = 65535)
 	private byte[] attestationClientDataJson;
 
 	/** Creation timestamp. */
