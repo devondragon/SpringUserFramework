@@ -58,6 +58,9 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
     /** The Event Publisher. */
     private final ApplicationEventPublisher eventPublisher;
 
+    /** The user role name. */
+    private static final String USER_ROLE_NAME = "ROLE_USER";
+
     OidcUserService defaultOidcUserService = new OidcUserService();
 
     /**
@@ -133,7 +136,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
     private User registerNewOidcUser(String registrationId, User user) {
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
-        user.setRoles(Arrays.asList(roleRepository.findByName("ROLE_USER")));
+        user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
         // We will trust OIDC providers to provide us with a verified email address.
         user.setEnabled(true);
         User savedUser = userRepository.save(user);
@@ -190,7 +193,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
      */
     @Override
     public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
-        log.debug("Loading user from OAuth2 provider with userRequest: {}", userRequest);
+        log.debug("Loading user from OIDC provider with userRequest: {}", userRequest);
         OidcUser user = defaultOidcUserService.loadUser(userRequest);
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.debug("registrationId: {}", registrationId);
