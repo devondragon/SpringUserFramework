@@ -3,6 +3,8 @@ package com.digitalsanctuary.spring.user.service;
 import java.util.Collection;
 import java.util.Date;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -48,5 +50,25 @@ public class LoginHelperService {
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(dbUser);
         DSUserDetails userDetails = new DSUserDetails(dbUser, authorities);
         return userDetails;
+    }
+
+    /**
+     * Helper method to authenticate an OIDC user after login, attaching the OIDC-specific tokens
+     * and claims to the principal while keeping {@link DSUserDetails} immutable.
+     *
+     * @param dbUser       The user to authenticate.
+     * @param oidcUserInfo The OIDC user info claims.
+     * @param oidcIdToken  The OIDC ID token.
+     * @return The user details object with OIDC tokens set.
+     */
+    public DSUserDetails userLoginHelper(User dbUser, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken) {
+        // Updating lastActivity date for this login
+        dbUser.setLastActivityDate(new Date());
+
+        // Check if the user account is locked, but should be unlocked now, and unlock it
+        dbUser = loginAttemptService.checkIfUserShouldBeUnlocked(dbUser);
+
+        Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(dbUser);
+        return new DSUserDetails(dbUser, oidcUserInfo, oidcIdToken, authorities);
     }
 }

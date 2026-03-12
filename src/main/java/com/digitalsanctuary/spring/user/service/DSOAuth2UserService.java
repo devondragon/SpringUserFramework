@@ -110,7 +110,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
                 log.info("Registration denied for email: {} source: OAUTH2 provider: {} reason: {}",
                         user.getEmail(), registrationId, decision.reason());
                 throw new OAuth2AuthenticationException(
-                        new OAuth2Error("registration_denied"), decision.reason());
+                        new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
             }
             user = registerNewOAuthUser(registrationId, user);
             return user;
@@ -126,18 +126,17 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @param user The User object representing the authenticated user.
      * @return A User object representing the newly registered user.
      */
-    @Transactional
     private User registerNewOAuthUser(String registrationId, User user) {
         User.Provider provider = User.Provider.valueOf(registrationId.toUpperCase());
         user.setProvider(provider);
         user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
         // We will trust OAuth2 providers to provide us with a verified email address.
         user.setEnabled(true);
-        AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user).action("OAuth2 Registration Success").actionStatus("Success")
+        User savedUser = userRepository.save(user);
+        AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(savedUser).action("OAuth2 Registration Success").actionStatus("Success")
                 .message("Registration Confirmed. User logged in.").build();
-
         eventPublisher.publishEvent(registrationAuditEvent);
-        return userRepository.save(user);
+        return savedUser;
     }
 
     /**

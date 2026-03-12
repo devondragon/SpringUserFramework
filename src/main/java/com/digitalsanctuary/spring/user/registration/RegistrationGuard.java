@@ -40,6 +40,7 @@ package com.digitalsanctuary.spring.user.registration;
  * @see RegistrationDecision
  * @see DefaultRegistrationGuard
  */
+@FunctionalInterface
 public interface RegistrationGuard {
 
     /**

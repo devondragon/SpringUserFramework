@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
@@ -38,7 +39,13 @@ class DSOidcUserServiceRegistrationGuardTest {
     private RoleRepository roleRepository;
 
     @Mock
+    private LoginHelperService loginHelperService;
+
+    @Mock
     private RegistrationGuard registrationGuard;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private DSOidcUserService service;
