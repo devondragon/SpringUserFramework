@@ -28,6 +28,8 @@ import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 
 /**
  * Comprehensive unit tests for DSOidcUserService that verify actual business logic
@@ -43,6 +45,9 @@ class DSOidcUserServiceTest {
     @Mock
     private RoleRepository roleRepository;
 
+    @Mock
+    private RegistrationGuard registrationGuard;
+
     @InjectMocks
     private DSOidcUserService service;
 
@@ -54,6 +59,7 @@ class DSOidcUserServiceTest {
         userRole.setName("ROLE_USER");
         userRole.setId(1L);
         lenient().when(roleRepository.findByName("ROLE_USER")).thenReturn(userRole);
+        lenient().when(registrationGuard.evaluate(any())).thenReturn(RegistrationDecision.allow());
     }
 
     @Nested

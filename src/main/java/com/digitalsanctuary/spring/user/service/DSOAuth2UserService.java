@@ -14,6 +14,10 @@ import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationContext;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,7 +47,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
 
     private final LoginHelperService loginHelperService;
 
-
+    private final RegistrationGuard registrationGuard;
 
     /** The Event Publisher. */
     private final ApplicationEventPublisher eventPublisher;
@@ -100,6 +104,14 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             return userRepository.save(existingUser);
         } else {
             log.debug("handleOAuthLoginSuccess: registering new user with email: {}", user.getEmail());
+            RegistrationDecision decision = registrationGuard.evaluate(
+                    new RegistrationContext(user.getEmail(), RegistrationSource.OAUTH2, registrationId));
+            if (!decision.allowed()) {
+                log.info("Registration denied for email: {} source: OAUTH2 provider: {} reason: {}",
+                        user.getEmail(), registrationId, decision.reason());
+                throw new OAuth2AuthenticationException(
+                        new OAuth2Error("registration_denied"), decision.reason());
+            }
             user = registerNewOAuthUser(registrationId, user);
             return user;
         }

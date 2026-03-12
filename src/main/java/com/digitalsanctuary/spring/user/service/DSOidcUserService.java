@@ -4,6 +4,10 @@ import java.util.Arrays;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationContext;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
@@ -40,6 +44,8 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
     
     /** The role repository. */
     private final RoleRepository roleRepository;
+
+    private final RegistrationGuard registrationGuard;
 
     OidcUserService defaultOidcUserService = new OidcUserService();
 
@@ -88,6 +94,14 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             return userRepository.save(existingUser);
         } else {
             log.debug("handleOidcLoginSuccess: registering new user with email: {}", user.getEmail());
+            RegistrationDecision decision = registrationGuard.evaluate(
+                    new RegistrationContext(user.getEmail(), RegistrationSource.OIDC, registrationId));
+            if (!decision.allowed()) {
+                log.info("Registration denied for email: {} source: OIDC provider: {} reason: {}",
+                        user.getEmail(), registrationId, decision.reason());
+                throw new OAuth2AuthenticationException(
+                        new OAuth2Error("registration_denied"), decision.reason());
+            }
             user = registerNewOidcUser(registrationId, user);
             return user;
         }
