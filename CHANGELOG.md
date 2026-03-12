@@ -1,3 +1,80 @@
+## [4.3.0] - 2026-03-12
+### Features
+- RegistrationGuard SPI to gate all registration paths
+  - Introduces a single pre-registration hook invoked before account creation across:
+    - Form registration
+    - Passwordless registration
+    - OAuth2 social login auto-registration
+    - OIDC (e.g., Keycloak) auto-registration
+  - Core types:
+    - RegistrationGuard (functional interface): evaluate(RegistrationContext) -> RegistrationDecision
+    - RegistrationContext (record): email (nullable), source (FORM/PASSWORDLESS/OAUTH2/OIDC, non-null), providerName (nullable)
+    - RegistrationDecision (record): allowed + reason, with factories allow() and deny(String)
+    - RegistrationSource enum
+    - DefaultRegistrationGuard (permit-all fallback)
+  - Auto-configuration with bean-presence activation (@ConditionalOnMissingBean). If no custom guard is defined, a default permit-all guard is registered; startup logs at INFO: “No custom RegistrationGuard bean found — using DefaultRegistrationGuard (permit-all)”.
+  - Framework integration points:
+    - UserAPI: Guard is evaluated before form/passwordless registration. Denials return HTTP 403 with JSON error code 6 and the guard’s reason; denials logged at INFO.
+    - DSOAuth2UserService and DSOidcUserService: Guard is evaluated before creating a new user via OAuth2/OIDC. Denials throw OAuth2AuthenticationException with error code "registration_denied" and the denial reason in the OAuth2Error description; denials logged at INFO.
+  - Documentation: New REGISTRATION-GUARD.md with overview, usage examples, denial behavior (including code 6), constraints, and troubleshooting.
+
+### Fixes
+- OIDC parity and robustness with OAuth2
+  - Email normalization:
+    - Trim + toLowerCase(Locale.ROOT) applied to both extraction and lookup in OIDC flow to avoid case/whitespace issues.
+  - Transactional boundaries:
+    - DSOidcUserService now annotated @Transactional at class level to ensure DB operations are atomic (e.g., user save + role assignment).
+  - Registration auditing:
+    - Publish “OIDC Registration Success” AuditEvent after user save; same change mirrored for OAuth2 (“OAuth2 Registration Success”) to avoid audit records on failed saves.
+  - Post-login updates and immutable tokens:
+    - DSOidcUserService now uses LoginHelperService.userLoginHelper(User, OidcUserInfo, OidcIdToken) to:
+      - Update lastActivityDate, process unlock checks, compute authorities.
+      - Return a DSUserDetails with OIDC tokens set via constructor (preserving immutability; no setters).
+  - Error detail for UI handlers:
+    - On guard denial, both OAuth2 and OIDC now include the denial reason in OAuth2Error’s description, enabling AuthenticationFailureHandlers to retrieve it via getError().getDescription().
+  - Consistency and cleanup:
+    - Extracted USER_ROLE_NAME ("ROLE_USER") in services.
+    - Fixed stale log text: “OIDC provider”.
+- RegistrationGuard SPI polish
+  - RegistrationContext enforces non-null source (NPE with message “source must not be null”); email/providerName can be null.
+  - RegistrationDecision.deny(String) defaults to “Registration denied.” when null/blank (uses isBlank and a shared constant).
+  - RegistrationGuard marked @FunctionalInterface.
+  - UserAPI replaces magic number with ERROR_CODE_REGISTRATION_DENIED constant (6).
+  - INFO-level denial logs added across form/passwordless/OAuth2/OIDC paths.
+
+### Breaking Changes
+- None. The default permit-all guard preserves existing behavior unless a custom RegistrationGuard bean is provided. New denial flows only apply when a custom guard denies registration.
+
+### Refactoring
+- Extracted constants:
+  - UserAPI: ERROR_CODE_REGISTRATION_DENIED = 6.
+  - Services: USER_ROLE_NAME = "ROLE_USER".
+- Reordered imports per project guidelines; minor log message corrections.
+- Moved audit publish to after save() in both OAuth2 and OIDC registration paths.
+
+### Documentation
+- Added REGISTRATION-GUARD.md and linked it from CLAUDE.md.
+- README updated to reference version 4.3.0 in dependency snippets.
+- REGISTRATION-GUARD.md troubleshooting enhanced:
+  - Notes INFO startup log when default guard is active.
+  - Documents JSON error code 6 for registration denials.
+  - Advises on reading denial reason from OAuth2Error description and customizing failure handlers.
+
+### Testing
+- New and updated tests to cover the SPI and OIDC/OAuth2 flows:
+  - UserAPIRegistrationGuardTest: form/passwordless denials and success paths (includes code 6 assertions).
+  - DSOAuth2UserServiceRegistrationGuardTest and DSOidcUserServiceRegistrationGuardTest: guard denial handling (exception type/code).
+  - DefaultRegistrationGuardTest: permit-all baseline.
+  - RegistrationDecisionTest: default denial reason when null/blank; allow/deny factories.
+  - RegistrationContextTest: null source validation and field handling.
+  - DSOidcUserServiceTest:
+    - Uses mocked LoginHelperService and ApplicationEventPublisher.
+    - Asserts authorities present, audit event published after save, and tokens preserved via new constructor path.
+
+### Other Changes
+- Gradle: version bumped to 4.2.3-SNAPSHOT (release plugin).
+- Merge commit for RegistrationGuard PR integration.
+
 ## [4.2.2] - 2026-03-11
 ### Features
 - Opt-in Multi-Factor Authentication (MFA) via simple user.mfa.* properties
