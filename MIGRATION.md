@@ -359,6 +359,32 @@ The `/user/updateUser` endpoint now uses `UserProfileUpdateDto`.
 
 ---
 
+**Issue: `user_credentials` table not created on MariaDB/MySQL (WebAuthn)**
+
+With `ddl-auto: update` or `create`, Hibernate previously mapped the `attestationObject` and
+`attestationClientDataJson` columns to `VARBINARY(65535)`. Two such columns exceed MariaDB's
+InnoDB 65,535-byte row-size limit, causing silent table creation failure. Symptoms include 500
+errors on `/user/auth-methods` or `/user/webauthn/credentials`.
+
+**Solution (upgrading from a version prior to this fix):**
+
+If the `user_credentials` table was never created, it will be created automatically on next
+startup with `ddl-auto: update` once you upgrade to this version.
+
+If the table exists with `VARBINARY` columns (created on a non-MariaDB database), run:
+
+```sql
+ALTER TABLE user_credentials
+    MODIFY COLUMN public_key              LONGBLOB NOT NULL,
+    MODIFY COLUMN attestation_object      LONGBLOB,
+    MODIFY COLUMN attestation_client_data_json LONGBLOB;
+```
+
+With `ddl-auto: update`, Hibernate will handle this automatically on MariaDB/MySQL. On
+PostgreSQL no schema change is needed — the columns map to `bytea` in both old and new versions.
+
+---
+
 **Issue: Java version incompatibility**
 
 Spring Boot 4.0 requires Java 21.
