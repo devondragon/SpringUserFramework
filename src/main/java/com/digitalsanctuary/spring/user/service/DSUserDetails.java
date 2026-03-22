@@ -60,15 +60,27 @@ public class DSUserDetails implements UserDetails, OidcUser {
 	private OidcIdToken oidcIdToken;
 
 	/**
-	 * Instantiates a new DS user details.
+	 * Instantiates a new DS user details with OAuth2 provider attributes.
+	 *
+	 * @param user the user
+	 * @param grantedAuthorities the granted authorities (optional, default = empty list)
+	 * @param attributes the OAuth2 provider attributes (optional, falls back to User entity fields)
+	 */
+	public DSUserDetails(User user, Collection<? extends GrantedAuthority> grantedAuthorities, Map<String, Object> attributes) {
+		this.user = user;
+		this.grantedAuthorities = grantedAuthorities != null ? grantedAuthorities : new ArrayList<>();
+		this.attributes = attributes != null ? new HashMap<>(attributes) : buildFallbackAttributes(user);
+	}
+
+	/**
+	 * Instantiates a new DS user details without provider attributes. Attributes will be populated
+	 * from the {@link User} entity fields as a fallback.
 	 *
 	 * @param user the user
 	 * @param grantedAuthorities the granted authorities (optional, default = empty list)
 	 */
 	public DSUserDetails(User user, Collection<? extends GrantedAuthority> grantedAuthorities) {
-		this.user = user;
-		this.grantedAuthorities = grantedAuthorities != null ? grantedAuthorities : new ArrayList<>();
-		this.attributes = new HashMap<>();
+		this(user, grantedAuthorities, (Map<String, Object>) null);
 	}
 
 	/**
@@ -77,35 +89,81 @@ public class DSUserDetails implements UserDetails, OidcUser {
 	 * @param user the user
 	 */
 	public DSUserDetails(User user) {
-		this(user, null);
+		this(user, null, (Map<String, Object>) null);
 	}
 
 	/**
-	 * Instantiates a new DS user details.
+	 * Instantiates a new DS user details with OIDC tokens and provider attributes.
+	 *
+	 * @param user the user
+	 * @param oidcUserInfo containing claims about the user
+	 * @param oidcIdToken containing claims about the user
+	 * @param grantedAuthorities the granted authorities (optional, default = empty list)
+	 * @param attributes the OAuth2/OIDC provider attributes (optional, falls back to idToken claims or User entity)
+	 */
+	@Builder
+	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken,
+			Collection<? extends GrantedAuthority> grantedAuthorities, Map<String, Object> attributes) {
+		this.user = user;
+		this.oidcUserInfo = oidcUserInfo;
+		this.oidcIdToken = oidcIdToken;
+		this.grantedAuthorities = grantedAuthorities != null ? grantedAuthorities : new ArrayList<>();
+		if (attributes != null) {
+			this.attributes = new HashMap<>(attributes);
+		} else if (oidcIdToken != null) {
+			this.attributes = new HashMap<>(oidcIdToken.getClaims());
+		} else {
+			this.attributes = buildFallbackAttributes(user);
+		}
+	}
+
+	/**
+	 * Instantiates a new DS user details with OIDC tokens. Attributes will be populated from the
+	 * OIDC ID token claims or {@link User} entity as a fallback.
 	 *
 	 * @param user the user
 	 * @param oidcUserInfo containing claims about the user
 	 * @param oidcIdToken containing claims about the user
 	 * @param grantedAuthorities the granted authorities (optional, default = empty list)
 	 */
-	@Builder
-	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken, Collection<? extends GrantedAuthority> grantedAuthorities) {
-		this.user = user;
-		this.oidcUserInfo = oidcUserInfo;
-		this.oidcIdToken = oidcIdToken;
-		this.grantedAuthorities = grantedAuthorities != null ? grantedAuthorities : new ArrayList<>();
+	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken,
+			Collection<? extends GrantedAuthority> grantedAuthorities) {
+		this(user, oidcUserInfo, oidcIdToken, grantedAuthorities, null);
 	}
 
 	/**
-	 * Instantiates a new DS user details.
+	 * Instantiates a new DS user details with OIDC tokens and no authorities.
 	 *
 	 * @param user the user
 	 * @param oidcUserInfo containing claims about the user
 	 * @param oidcIdToken containing claims about the user
 	 */
-	@Builder
 	public DSUserDetails(User user, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken) {
-		this(user, oidcUserInfo, oidcIdToken, null);
+		this(user, oidcUserInfo, oidcIdToken, null, null);
+	}
+
+	/**
+	 * Builds a fallback attributes map from the {@link User} entity fields. Used when no provider
+	 * attributes are available (e.g., local/password login).
+	 *
+	 * @param user the user entity
+	 * @return a map containing available user fields using standard OAuth2/OIDC claim names
+	 */
+	private static Map<String, Object> buildFallbackAttributes(User user) {
+		Map<String, Object> attrs = new HashMap<>();
+		if (user.getEmail() != null) {
+			attrs.put("email", user.getEmail());
+		}
+		if (user.getFirstName() != null) {
+			attrs.put("given_name", user.getFirstName());
+		}
+		if (user.getLastName() != null) {
+			attrs.put("family_name", user.getLastName());
+		}
+		if (user.getFirstName() != null || user.getLastName() != null) {
+			attrs.put("name", user.getFullName());
+		}
+		return attrs;
 	}
 
 	/**
