@@ -1,3 +1,78 @@
+## [4.3.1] - 2026-03-22
+### Features
+- No new user-facing features in this release.
+
+### Fixes
+- WebAuthn (MariaDB row-size limit): Prevent silent table creation failures when using ddl-auto: update/create
+  - What happened: Hibernate previously mapped attestationObject and attestationClientDataJson to VARBINARY(65535). Two such large inline columns can exceed MariaDB/InnoDB’s 65,535-byte row-size limit, causing user_credentials table creation to fail silently and leading to 500s on /user/auth-methods or /user/webauthn/credentials.
+  - Implementation details:
+    - In WebAuthnCredential:
+      - publicKey, attestationObject, attestationClientDataJson are now annotated with @Column(length = Length.LONG32).
+      - This forces Hibernate to use LONGBLOB on MariaDB/MySQL (stored off-page, avoiding row-size limits) and bytea on PostgreSQL.
+      - Explicitly avoids using @Lob to prevent PostgreSQL OID mapping per Hibernate docs.
+      - Added Javadoc to these fields explaining the rationale to prevent regressions.
+    - Additional polish: import ordering standardized.
+  - Migration:
+    - If user_credentials was never created on MariaDB/MySQL, it will be created successfully on next startup with ddl-auto: update.
+    - If the table exists with VARBINARY columns (e.g., created on a non-MariaDB DB), convert to LONGBLOB:
+      - ALTER TABLE user_credentials
+          MODIFY COLUMN public_key LONGBLOB NOT NULL,
+          MODIFY COLUMN attestation_object LONGBLOB,
+          MODIFY COLUMN attestation_client_data_json LONGBLOB;
+    - With ddl-auto: update on MariaDB/MySQL, Hibernate will handle this automatically. No change required on PostgreSQL (remains bytea).
+
+- OAuth2/OIDC attributes: Populate DSUserDetails.getAttributes() correctly and harden against mutation
+  - What happened: DSUserDetails implemented OAuth2User/OidcUser but getAttributes() returned empty for OAuth2 and null for OIDC, breaking standard patterns like getAttribute("email").
+  - Implementation details:
+    - DSUserDetails constructors now initialize attributes properly:
+      - New 3-arg constructor accepts provider attributes and defensively copies them.
+      - OIDC constructor now falls back to ID token claims, then User entity fields if provider attributes are missing.
+      - Added a buildFallbackAttributes(User) helper that maps User fields to standard claims (email, given_name, family_name, name) so attributes are never null.
+    - LoginHelperService:
+      - Added overloads: userLoginHelper(User, Map) and userLoginHelper(User, OidcUserInfo, OidcIdToken, Map) to propagate provider attributes into DSUserDetails.
+      - Original overloads retained for local/password login compatibility.
+    - DSOAuth2UserService and DSOidcUserService now pass through provider attributes to LoginHelperService.
+    - Security hardening: DSUserDetails.getAttributes() now returns Collections.unmodifiableMap to prevent callers from mutating internal state.
+    - Name claim building now ignores missing parts to avoid values like "Test null" or "null User".
+  - Result: getAttribute("email") and other attribute access now work reliably for OAuth2/OIDC users, with immutable attribute maps.
+
+- Dependencies: Remove redundant webauthn4j-core direct dependency
+  - Spring Security’s spring-security-webauthn already brings webauthn4j-core transitively, and this project has no direct com.webauthn4j.* imports.
+  - Reduces transitive footprint for consuming applications and avoids unnecessarily forcing an implementation dependency.
+
+### Breaking Changes
+- None expected for typical usage.
+- Subtle behavior change: DSUserDetails.getAttributes() is now unmodifiable. If your application previously mutated the returned Map (not recommended), update your code to work with an immutable view.
+- Schema note: On MariaDB/MySQL, byte[] columns for WebAuthn credentials now use LONGBLOB. With ddl-auto: update, Hibernate will migrate automatically. If you manually manage schema, see the Migration section under Fixes for the ALTER TABLE commands.
+
+### Refactoring
+- Minor code hygiene:
+  - Import ordering standardized (alphabetical: jakarta < java < lombok < org).
+  - Javadoc added to WebAuthnCredential’s byte[] fields explaining use of Length.LONG32.
+
+### Documentation
+- README install snippets updated to reference version 4.3.1.
+- MIGRATION.md expanded with clear guidance for WebAuthn schema issues on MariaDB/MySQL, including SQL to convert existing VARBINARY columns to LONGBLOB and notes about PostgreSQL behavior.
+
+### Testing
+- Database schema validation via Testcontainers (MariaDB and PostgreSQL):
+  - Verifies all expected tables are created with ddl-auto: create on real containers.
+  - Ensures WebAuthn byte[] columns are mapped to BLOB-compatible types (longblob on MariaDB, bytea on PostgreSQL), not inline VARBINARY.
+  - Added testcontainers-junit-jupiter and testcontainers-postgresql dependencies.
+- Column mapping unit test ensures WebAuthnCredential byte[] fields use Length.LONG32.
+- DSUserDetails test suite substantially expanded:
+  - Covers OAuth2, OIDC, and local paths; fallback behavior; getAttribute("email"); defensive copying; unmodifiable attributes; and name claim building with partial names.
+- Test polish:
+  - Typed ArgumentMatchers to eliminate raw types in OAuth2/OIDC service tests.
+  - LoginHelperService tests updated to use typed collections and doReturn stubbing to remove unchecked warnings.
+
+### Other Changes
+- Build/versioning:
+  - gradle.properties bumped to 4.3.1-SNAPSHOT.
+  - Lombok upgraded from 1.18.42 to 1.18.44.
+- Repo hygiene:
+  - .gitignore: added docs/superpowers/ to ignore tool-generated artifacts.
+
 ## [4.3.0] - 2026-03-12
 ### Features
 - RegistrationGuard SPI to gate all registration paths
