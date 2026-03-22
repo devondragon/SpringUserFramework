@@ -1,7 +1,7 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,21 +81,18 @@ public class User {
 
 	/** The registration date. */
 	@CreatedDate
-	@Temporal(TemporalType.TIMESTAMP)
-	private Date registrationDate;
+	private Instant registrationDate;
 
 	/** The last activity date. */
 	@LastModifiedDate
-	@Temporal(TemporalType.TIMESTAMP)
-	private Date lastActivityDate;
+	private Instant lastActivityDate;
 
 	private int failedLoginAttempts;
 
 	/** The locked. */
 	private boolean locked;
 
-	@Temporal(TemporalType.TIMESTAMP)
-	private Date lockedDate;
+	private Instant lockedDate;
 
 	/** The roles - stored as Set to avoid Hibernate immutable collection issues */
 	@ToString.Exclude
@@ -124,7 +121,7 @@ public class User {
 	 */
 	@PreUpdate
 	public void setLastActivityDate() {
-		setLastActivityDate(new Date());
+		setLastActivityDate(Instant.now());
 	}
 
 	/**

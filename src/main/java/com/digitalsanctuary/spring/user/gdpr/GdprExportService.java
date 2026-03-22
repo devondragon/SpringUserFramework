@@ -113,10 +113,8 @@ public class GdprExportService {
                 .email(user.getEmail())
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
-                .registrationDate(user.getRegistrationDate() != null
-                        ? user.getRegistrationDate().toInstant() : null)
-                .lastActivityDate(user.getLastActivityDate() != null
-                        ? user.getLastActivityDate().toInstant() : null)
+                .registrationDate(user.getRegistrationDate())
+                .lastActivityDate(user.getLastActivityDate())
                 .enabled(user.isEnabled())
                 .locked(user.isLocked())
                 .provider(user.getProvider() != null ? user.getProvider().name() : null)

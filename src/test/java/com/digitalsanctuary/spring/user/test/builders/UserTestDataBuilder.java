@@ -1,9 +1,9 @@
 package com.digitalsanctuary.spring.user.test.builders;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -34,11 +34,11 @@ public class UserTestDataBuilder {
     private String password = "password123";
     private boolean passwordEncoded = false;
     private boolean enabled = false;
-    private Date registrationDate = new Date();
-    private Date lastActivityDate = new Date();
+    private Instant registrationDate = Instant.now();
+    private Instant lastActivityDate = Instant.now();
     private int failedLoginAttempts = 0;
     private boolean locked = false;
-    private Date lockedDate = null;
+    private Instant lockedDate = null;
     private List<Role> roles = new ArrayList<>();
 
     private UserTestDataBuilder() {
@@ -139,27 +139,23 @@ public class UserTestDataBuilder {
         return this;
     }
 
-    public UserTestDataBuilder withRegistrationDate(Date registrationDate) {
+    public UserTestDataBuilder withRegistrationDate(Instant registrationDate) {
         this.registrationDate = registrationDate;
         return this;
     }
 
     public UserTestDataBuilder registeredDaysAgo(int days) {
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DAY_OF_YEAR, -days);
-        this.registrationDate = cal.getTime();
+        this.registrationDate = Instant.now().minus(days, ChronoUnit.DAYS);
         return this;
     }
 
-    public UserTestDataBuilder withLastActivityDate(Date lastActivityDate) {
+    public UserTestDataBuilder withLastActivityDate(Instant lastActivityDate) {
         this.lastActivityDate = lastActivityDate;
         return this;
     }
 
     public UserTestDataBuilder lastActiveDaysAgo(int days) {
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DAY_OF_YEAR, -days);
-        this.lastActivityDate = cal.getTime();
+        this.lastActivityDate = Instant.now().minus(days, ChronoUnit.DAYS);
         return this;
     }
 
@@ -170,7 +166,7 @@ public class UserTestDataBuilder {
 
     public UserTestDataBuilder locked() {
         this.locked = true;
-        this.lockedDate = new Date();
+        this.lockedDate = Instant.now();
         return this;
     }
 
@@ -181,7 +177,7 @@ public class UserTestDataBuilder {
         return this;
     }
 
-    public UserTestDataBuilder withLockedDate(Date lockedDate) {
+    public UserTestDataBuilder withLockedDate(Instant lockedDate) {
         this.lockedDate = lockedDate;
         this.locked = (lockedDate != null);
         return this;
