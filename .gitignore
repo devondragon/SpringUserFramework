@@ -139,3 +139,6 @@ application-local.yml
 
 # Claude configuration
 .claude/
+
+# Superpowers generated artifacts
+docs/superpowers/
