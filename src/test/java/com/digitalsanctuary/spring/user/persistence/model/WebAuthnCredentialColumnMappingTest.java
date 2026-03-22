@@ -1,8 +1,8 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import java.lang.reflect.Field;
 import jakarta.persistence.Column;
+import java.lang.reflect.Field;
 import org.hibernate.Length;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;

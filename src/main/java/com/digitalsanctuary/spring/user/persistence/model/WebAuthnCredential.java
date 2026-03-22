@@ -1,7 +1,5 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
-import java.time.Instant;
-import org.hibernate.Length;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,7 +7,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.Data;
+import org.hibernate.Length;
 
 /**
  * JPA entity for the {@code user_credentials} table. Stores WebAuthn credentials (public keys) for passkey
@@ -30,7 +30,15 @@ public class WebAuthnCredential {
 	@JoinColumn(name = "user_entity_user_id", nullable = false)
 	private WebAuthnUserEntity userEntity;
 
-	/** COSE-encoded public key (typically 77-300 bytes, RSA keys can be larger). */
+	/**
+	 * COSE-encoded public key (typically 77-300 bytes, RSA keys can be larger).
+	 *
+	 * <p>{@code length = Length.LONG32} is intentional: it forces Hibernate to emit {@code LONGBLOB} on
+	 * MariaDB/MySQL (stored off-page, avoiding the 65,535-byte InnoDB row-size limit) while mapping to
+	 * {@code bytea} on PostgreSQL. Do not reduce this to a smaller value — doing so reintroduces the
+	 * MariaDB DDL failure described in GitHub issue #286. Do not replace with {@code @Lob}, which maps
+	 * to {@code OID} on PostgreSQL.</p>
+	 */
 	@Column(name = "public_key", nullable = false, length = Length.LONG32)
 	private byte[] publicKey;
 
@@ -58,11 +66,19 @@ public class WebAuthnCredential {
 	@Column(name = "backup_state", nullable = false)
 	private boolean backupState;
 
-	/** Attestation data from registration (can be several KB). */
+	/**
+	 * Attestation data from registration (can be several KB).
+	 *
+	 * <p>See {@link #publicKey} for why {@code length = Length.LONG32} is used here.</p>
+	 */
 	@Column(name = "attestation_object", length = Length.LONG32)
 	private byte[] attestationObject;
 
-	/** Client data JSON from registration (can be several KB). */
+	/**
+	 * Client data JSON from registration (can be several KB).
+	 *
+	 * <p>See {@link #publicKey} for why {@code length = Length.LONG32} is used here.</p>
+	 */
 	@Column(name = "attestation_client_data_json", length = Length.LONG32)
 	private byte[] attestationClientDataJson;
 
