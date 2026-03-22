@@ -198,6 +198,6 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.debug("registrationId: {}", registrationId);
         User dbUser = handleOidcLoginSuccess(registrationId, user);
-        return loginHelperService.userLoginHelper(dbUser, user.getUserInfo(), user.getIdToken());
+        return loginHelperService.userLoginHelper(dbUser, user.getUserInfo(), user.getIdToken(), user.getAttributes());
     }
 }

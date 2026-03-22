@@ -219,7 +219,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         String registrationId = userRequest.getClientRegistration().getRegistrationId();
         log.debug("registrationId: {}", registrationId);
         User dbUser = handleOAuthLoginSuccess(registrationId, user);
-        DSUserDetails userDetails = loginHelperService.userLoginHelper(dbUser);
+        DSUserDetails userDetails = loginHelperService.userLoginHelper(dbUser, user.getAttributes());
         return userDetails;
     }
 

@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -372,13 +374,14 @@ class DSOidcUserServiceTest {
                 user.setId(999L);
                 return user;
             });
-            when(loginHelperService.userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class)))
+            when(loginHelperService.userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class), ArgumentMatchers.<Map<String, Object>>any()))
                     .thenAnswer(invocation -> {
                         User user = invocation.getArgument(0);
                         OidcUserInfo oidcUserInfo = invocation.getArgument(1);
                         OidcIdToken oidcIdToken = invocation.getArgument(2);
+                        Map<String, Object> attributes = invocation.getArgument(3);
                         return new DSUserDetails(user, oidcUserInfo, oidcIdToken,
-                                List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                                List.of(new SimpleGrantedAuthority("ROLE_USER")), attributes);
                     });
 
             // When
@@ -391,9 +394,10 @@ class DSOidcUserServiceTest {
             assertThat(dsUserDetails.getIdToken()).isNotNull();
             assertThat(dsUserDetails.getUserInfo()).isNotNull();
             assertThat(dsUserDetails.getAuthorities()).isNotEmpty();
+            assertThat(dsUserDetails.getAttributes()).isNotEmpty();
 
             verify(userRepository).save(any(User.class));
-            verify(loginHelperService).userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class));
+            verify(loginHelperService).userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class), ArgumentMatchers.<Map<String, Object>>any());
         }
 
         @Test
