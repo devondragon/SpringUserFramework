@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
@@ -23,6 +25,7 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
  * <p>Verifies that {@code getAttributes()} satisfies the {@code OAuth2User} contract across all
  * constructor paths: OAuth2, OIDC, and local/password login.</p>
  */
+@ExtendWith(MockitoExtension.class)
 @DisplayName("DSUserDetails Tests")
 class DSUserDetailsTest {
 
@@ -81,6 +84,44 @@ class DSUserDetailsTest {
 
             assertThat(details.getAttributes()).isNotNull();
             assertThat(details.getAttributes()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should build name from first name only without 'null' suffix")
+        void shouldBuildNameFromFirstNameOnly() {
+            User user = new User();
+            user.setFirstName("Test");
+
+            DSUserDetails details = new DSUserDetails(user);
+
+            assertThat(details.getAttributes()).containsEntry("given_name", "Test");
+            assertThat(details.getAttributes()).containsEntry("name", "Test");
+            assertThat((String) details.getAttributes().get("name")).doesNotContain("null");
+        }
+
+        @Test
+        @DisplayName("Should build name from last name only without 'null' prefix")
+        void shouldBuildNameFromLastNameOnly() {
+            User user = new User();
+            user.setLastName("User");
+
+            DSUserDetails details = new DSUserDetails(user);
+
+            assertThat(details.getAttributes()).containsEntry("family_name", "User");
+            assertThat(details.getAttributes()).containsEntry("name", "User");
+            assertThat((String) details.getAttributes().get("name")).doesNotContain("null");
+        }
+
+        @Test
+        @DisplayName("Should return an unmodifiable map from getAttributes()")
+        void shouldReturnUnmodifiableAttributes() {
+            Map<String, Object> providerAttrs = new HashMap<>();
+            providerAttrs.put("email", "test@example.com");
+
+            DSUserDetails details = new DSUserDetails(testUser,
+                    List.of(new SimpleGrantedAuthority("ROLE_USER")), providerAttrs);
+
+            assertThat(details.getAttributes()).isUnmodifiable();
         }
 
         @Test

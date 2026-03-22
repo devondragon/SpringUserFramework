@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
 import java.util.List;
@@ -373,7 +374,7 @@ class DSOidcUserServiceTest {
                 user.setId(999L);
                 return user;
             });
-            when(loginHelperService.userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class), any(Map.class)))
+            when(loginHelperService.userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class), ArgumentMatchers.<Map<String, Object>>any()))
                     .thenAnswer(invocation -> {
                         User user = invocation.getArgument(0);
                         OidcUserInfo oidcUserInfo = invocation.getArgument(1);
@@ -396,7 +397,7 @@ class DSOidcUserServiceTest {
             assertThat(dsUserDetails.getAttributes()).isNotEmpty();
 
             verify(userRepository).save(any(User.class));
-            verify(loginHelperService).userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class), any(Map.class));
+            verify(loginHelperService).userLoginHelper(any(User.class), any(OidcUserInfo.class), any(OidcIdToken.class), ArgumentMatchers.<Map<String, Object>>any());
         }
 
         @Test

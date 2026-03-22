@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.ArgumentMatchers;
+
 import static org.mockito.Mockito.*;
 
 import java.util.Arrays;
@@ -416,7 +418,7 @@ class DSOAuth2UserServiceTest {
             when(spyService.defaultOAuth2UserService.loadUser(userRequest)).thenReturn(googleUser);
             
             DSUserDetails mockUserDetails = mock(DSUserDetails.class);
-            when(loginHelperService.userLoginHelper(any(User.class), any(Map.class))).thenReturn(mockUserDetails);
+            when(loginHelperService.userLoginHelper(any(User.class), ArgumentMatchers.<Map<String, Object>>any())).thenReturn(mockUserDetails);
             when(userRepository.findByEmail("loadtest@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -425,7 +427,7 @@ class DSOAuth2UserServiceTest {
 
             // Then
             assertThat(result).isEqualTo(mockUserDetails);
-            verify(loginHelperService).userLoginHelper(any(User.class), any(Map.class));
+            verify(loginHelperService).userLoginHelper(any(User.class), ArgumentMatchers.<Map<String, Object>>any());
             verify(userRepository).save(any(User.class));
         }
     }

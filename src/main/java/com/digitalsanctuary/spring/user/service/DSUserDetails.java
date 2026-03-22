@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.security.core.GrantedAuthority;
@@ -160,8 +161,18 @@ public class DSUserDetails implements UserDetails, OidcUser {
 		if (user.getLastName() != null) {
 			attrs.put("family_name", user.getLastName());
 		}
-		if (user.getFirstName() != null || user.getLastName() != null) {
-			attrs.put("name", user.getFullName());
+		StringBuilder name = new StringBuilder();
+		if (user.getFirstName() != null && !user.getFirstName().trim().isEmpty()) {
+			name.append(user.getFirstName().trim());
+		}
+		if (user.getLastName() != null && !user.getLastName().trim().isEmpty()) {
+			if (name.length() > 0) {
+				name.append(' ');
+			}
+			name.append(user.getLastName().trim());
+		}
+		if (name.length() > 0) {
+			attrs.put("name", name.toString());
 		}
 		return attrs;
 	}
@@ -247,7 +258,7 @@ public class DSUserDetails implements UserDetails, OidcUser {
 
 	@Override
 	public Map<String, Object> getAttributes() {
-		return attributes;
+		return Collections.unmodifiableMap(attributes);
 	}
 
 	@Override

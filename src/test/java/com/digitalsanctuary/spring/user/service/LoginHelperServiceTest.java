@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import java.time.Instant;
@@ -96,7 +97,7 @@ class LoginHelperServiceTest {
             // Given
             Date beforeLogin = testUser.getLastActivityDate();
             when(loginAttemptService.checkIfUserShouldBeUnlocked(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -122,7 +123,7 @@ class LoginHelperServiceTest {
             unlockedUser.setLockedDate(null);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(unlockedUser);
-            when(authorityService.getAuthoritiesFromUser(unlockedUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(unlockedUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -138,7 +139,7 @@ class LoginHelperServiceTest {
         void shouldCreateUserDetailsWithAuthorities() {
             // Given
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -178,7 +179,7 @@ class LoginHelperServiceTest {
             testUser.setLockedDate(lockedDate);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser); // User remains locked
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -196,7 +197,7 @@ class LoginHelperServiceTest {
             // Given
             testUser.setEnabled(false);
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -217,7 +218,7 @@ class LoginHelperServiceTest {
             // Note: imageUrl and usingMfa fields don't exist in User class
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -253,7 +254,7 @@ class LoginHelperServiceTest {
             unlockedUser.setEnabled(true);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(unlockedUser);
-            when(authorityService.getAuthoritiesFromUser(unlockedUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(unlockedUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -271,7 +272,7 @@ class LoginHelperServiceTest {
             // Given
             Date testStartTime = new Date();
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -359,7 +360,7 @@ class LoginHelperServiceTest {
             testUser.setLastName("User");
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -383,7 +384,7 @@ class LoginHelperServiceTest {
             testUser.setPassword(null); // OAuth2 users don't have passwords
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -407,7 +408,7 @@ class LoginHelperServiceTest {
             testUser.setLastActivityDate(null);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -422,7 +423,7 @@ class LoginHelperServiceTest {
         void shouldHandleRapidSuccessiveLogins() {
             // Given
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When - Simulate rapid successive logins
             DSUserDetails result1 = loginHelperService.userLoginHelper(testUser);
@@ -459,7 +460,7 @@ class LoginHelperServiceTest {
             providerAttrs.put("picture", "https://example.com/photo.jpg");
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser, providerAttrs);
@@ -477,7 +478,7 @@ class LoginHelperServiceTest {
         void shouldFallBackWhenOAuth2AttributesNull() {
             // Given
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser);
@@ -503,7 +504,7 @@ class LoginHelperServiceTest {
             providerAttrs.put("extra_claim", "extra_value");
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser, userInfo, idToken, providerAttrs);
@@ -528,7 +529,7 @@ class LoginHelperServiceTest {
             OidcUserInfo userInfo = new OidcUserInfo(Map.of("sub", "oidc-sub-123"));
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) testAuthorities);
+            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
             // When
             DSUserDetails result = loginHelperService.userLoginHelper(testUser, userInfo, idToken);
