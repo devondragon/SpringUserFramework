@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -169,7 +169,7 @@ class LoginHelperServiceTest {
             // Given
             testUser.setLocked(true);
             testUser.setFailedLoginAttempts(5);
-            Date lockedDate = new Date(System.currentTimeMillis() - 60000); // 1 minute ago
+            Instant lockedDate = Instant.now().minusSeconds(60); // 1 minute ago
             testUser.setLockedDate(lockedDate);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser); // User remains locked

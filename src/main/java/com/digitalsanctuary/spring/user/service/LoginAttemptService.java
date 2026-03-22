@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
-import java.util.Date;
+import java.time.Duration;
+import java.time.Instant;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,7 +89,7 @@ public class LoginAttemptService {
 		user.setFailedLoginAttempts(++currentAttempts);
 		if (currentAttempts >= maxFailedLoginAttempts) {
 			user.setLocked(true);
-			user.setLockedDate(new Date());
+			user.setLockedDate(Instant.now());
 		}
 		userRepository.save(user);
 	}
@@ -124,10 +125,7 @@ public class LoginAttemptService {
 	public User checkIfUserShouldBeUnlocked(User user) {
 		log.debug("Checking if user should be unlocked: {}", user.getEmail());
 		if (user.isLocked() && user.getLockedDate() != null && accountLockoutDuration >= 0) {
-			Date lockedDate = user.getLockedDate();
-			Date now = new Date();
-			long diff = now.getTime() - lockedDate.getTime();
-			long diffMinutes = diff / (60 * 1000);
+			long diffMinutes = Duration.between(user.getLockedDate(), Instant.now()).toMinutes();
 			if (diffMinutes >= accountLockoutDuration) {
 				log.debug("User should be unlocked: {}", user.getEmail());
 				user.setLocked(false);

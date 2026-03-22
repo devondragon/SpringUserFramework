@@ -1,7 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
+import java.time.Instant;
 import java.util.Collection;
-import java.util.Date;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
@@ -42,7 +42,7 @@ public class LoginHelperService {
      */
     public DSUserDetails userLoginHelper(User dbUser) {
         // Updating lastActivity date for this login
-        dbUser.setLastActivityDate(new Date());
+        dbUser.setLastActivityDate(Instant.now());
 
         // Check if the user account is locked, but should be unlocked now, and unlock it
         dbUser = loginAttemptService.checkIfUserShouldBeUnlocked(dbUser);
@@ -63,7 +63,7 @@ public class LoginHelperService {
      */
     public DSUserDetails userLoginHelper(User dbUser, OidcUserInfo oidcUserInfo, OidcIdToken oidcIdToken) {
         // Updating lastActivity date for this login
-        dbUser.setLastActivityDate(new Date());
+        dbUser.setLastActivityDate(Instant.now());
 
         // Check if the user account is locked, but should be unlocked now, and unlock it
         dbUser = loginAttemptService.checkIfUserShouldBeUnlocked(dbUser);
