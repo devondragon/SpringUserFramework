@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.time.Instant;
+import org.hibernate.Length;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -30,7 +31,7 @@ public class WebAuthnCredential {
 	private WebAuthnUserEntity userEntity;
 
 	/** COSE-encoded public key (typically 77-300 bytes, RSA keys can be larger). */
-	@Column(name = "public_key", nullable = false, length = 2048)
+	@Column(name = "public_key", nullable = false, length = Length.LONG32)
 	private byte[] publicKey;
 
 	/** Counter to detect cloned authenticators. */
@@ -58,11 +59,11 @@ public class WebAuthnCredential {
 	private boolean backupState;
 
 	/** Attestation data from registration (can be several KB). */
-	@Column(name = "attestation_object", length = 65535)
+	@Column(name = "attestation_object", length = Length.LONG32)
 	private byte[] attestationObject;
 
 	/** Client data JSON from registration (can be several KB). */
-	@Column(name = "attestation_client_data_json", length = 65535)
+	@Column(name = "attestation_client_data_json", length = Length.LONG32)
 	private byte[] attestationClientDataJson;
 
 	/** Creation timestamp. */
