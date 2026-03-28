@@ -1,3 +1,14 @@
+## [Unreleased]
+### Features
+- HTMX-aware AuthenticationEntryPoint for session expiry handling (#294)
+  - When HTMX requests (identified by `HX-Request: true` header) hit an expired session, the framework now returns a 401 JSON response with an `HX-Redirect` header instead of the default 302 redirect that causes HTMX to swap login page HTML into fragment targets.
+  - New classes:
+    - `HtmxAwareAuthenticationEntryPoint` — detects HTMX requests and returns 401 + JSON + `HX-Redirect`; delegates to wrapped entry point for standard browser requests
+    - `HtmxAwareAuthenticationEntryPointConfiguration` — registers the entry point via `@ConditionalOnMissingBean(AuthenticationEntryPoint.class)`
+  - `WebSecurityConfig` now always configures `exceptionHandling()` with the injected entry point (previously only configured when OAuth2 was enabled)
+  - Consumer override: define any `AuthenticationEntryPoint` bean to replace the default
+  - 100% backward-compatible: non-HTMX browser requests get the same 302 redirect as before
+
 ## [4.3.1] - 2026-03-22
 ### Features
 - No new user-facing features in this release.
