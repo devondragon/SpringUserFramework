@@ -57,11 +57,16 @@ public class HtmxAwareAuthenticationEntryPoint implements AuthenticationEntryPoi
                 return;
             }
 
+            // Prepend the servlet context path so deployments with server.servlet.context-path work correctly.
+            // LoginUrlAuthenticationEntryPoint does the same when building its redirect URL.
+            String contextPath = request.getContextPath();
+            String fullLoginUrl = contextPath + loginUrl;
+
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setCharacterEncoding("UTF-8");
             response.setContentType("application/json;charset=UTF-8");
-            response.setHeader(HX_REDIRECT_HEADER, loginUrl);
-            String escapedLoginUrl = loginUrl
+            response.setHeader(HX_REDIRECT_HEADER, fullLoginUrl);
+            String escapedLoginUrl = fullLoginUrl
                     .replace("\\", "\\\\")
                     .replace("\"", "\\\"")
                     .replace("\n", "\\n")

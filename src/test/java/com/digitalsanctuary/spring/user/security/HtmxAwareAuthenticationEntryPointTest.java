@@ -59,6 +59,7 @@ class HtmxAwareAuthenticationEntryPointTest {
         @BeforeEach
         void setUp() throws IOException {
             when(request.getHeader("HX-Request")).thenReturn("true");
+            when(request.getContextPath()).thenReturn("");
             responseBody = new StringWriter();
             when(response.getWriter()).thenReturn(new PrintWriter(responseBody));
         }
@@ -137,6 +138,7 @@ class HtmxAwareAuthenticationEntryPointTest {
         void shouldHandleHxRequestHeaderCaseInsensitively() throws IOException, ServletException {
             // Given
             when(request.getHeader("HX-Request")).thenReturn("TRUE");
+            when(request.getContextPath()).thenReturn("");
             AuthenticationException authException = new InsufficientAuthenticationException("Session expired");
 
             // When
@@ -145,6 +147,63 @@ class HtmxAwareAuthenticationEntryPointTest {
             // Then
             verify(response).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             verifyNoInteractions(delegate);
+        }
+    }
+
+    @Nested
+    @DisplayName("Servlet Context Path Handling")
+    class ServletContextPathHandling {
+
+        private StringWriter responseBody;
+
+        @BeforeEach
+        void setUp() throws IOException {
+            when(request.getHeader("HX-Request")).thenReturn("true");
+            responseBody = new StringWriter();
+            when(response.getWriter()).thenReturn(new PrintWriter(responseBody));
+        }
+
+        @Test
+        @DisplayName("Should prepend context path to HX-Redirect header when context path is non-empty")
+        void shouldPrependContextPathToHxRedirectWhenContextPathIsNonEmpty() throws IOException, ServletException {
+            // Given
+            when(request.getContextPath()).thenReturn("/app");
+            AuthenticationException authException = new InsufficientAuthenticationException("Session expired");
+
+            // When
+            entryPoint.commence(request, response, authException);
+
+            // Then
+            verify(response).setHeader("HX-Redirect", "/app" + LOGIN_URL);
+        }
+
+        @Test
+        @DisplayName("Should include context path in JSON loginUrl when context path is non-empty")
+        void shouldIncludeContextPathInJsonLoginUrlWhenContextPathIsNonEmpty() throws IOException, ServletException {
+            // Given
+            when(request.getContextPath()).thenReturn("/app");
+            AuthenticationException authException = new InsufficientAuthenticationException("Session expired");
+
+            // When
+            entryPoint.commence(request, response, authException);
+
+            // Then
+            assertThat(responseBody.toString()).contains("\"loginUrl\":\"/app" + LOGIN_URL + "\"");
+        }
+
+        @Test
+        @DisplayName("Should use login URL as-is when context path is empty")
+        void shouldUseLoginUrlAsIsWhenContextPathIsEmpty() throws IOException, ServletException {
+            // Given
+            when(request.getContextPath()).thenReturn("");
+            AuthenticationException authException = new InsufficientAuthenticationException("Session expired");
+
+            // When
+            entryPoint.commence(request, response, authException);
+
+            // Then
+            verify(response).setHeader("HX-Redirect", LOGIN_URL);
+            assertThat(responseBody.toString()).contains("\"loginUrl\":\"" + LOGIN_URL + "\"");
         }
     }
 
