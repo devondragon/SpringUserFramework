@@ -110,11 +110,11 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(testUser);
 
-        // Then
+        // Then - includes both role names and privilege names
         assertThat(authorities)
-                .hasSize(2)
+                .hasSize(4)
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrder("READ_PRIVILEGE", "WRITE_PRIVILEGE");
+                .containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN", "READ_PRIVILEGE", "WRITE_PRIVILEGE");
     }
 
     // Tests for getAuthoritiesFromRoles
@@ -145,11 +145,11 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
 
-        // Then
+        // Then - includes role name and privilege name
         assertThat(authorities)
-                .hasSize(1)
+                .hasSize(2)
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactly("READ_PRIVILEGE");
+                .containsExactlyInAnyOrder("ROLE_USER", "READ_PRIVILEGE");
     }
 
     @Test
@@ -161,11 +161,11 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
 
-        // Then
+        // Then - includes role name and both privilege names
         assertThat(authorities)
-                .hasSize(2)
+                .hasSize(3)
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrder("READ_PRIVILEGE", "WRITE_PRIVILEGE");
+                .containsExactlyInAnyOrder("ROLE_ADMIN", "READ_PRIVILEGE", "WRITE_PRIVILEGE");
     }
 
     @Test
@@ -177,16 +177,16 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
 
-        // Then - READ_PRIVILEGE appears in both roles but should only appear once
+        // Then - READ_PRIVILEGE appears in both roles but should only appear once; role names included
         assertThat(authorities)
-                .hasSize(2)
+                .hasSize(4)
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrder("READ_PRIVILEGE", "WRITE_PRIVILEGE");
+                .containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN", "READ_PRIVILEGE", "WRITE_PRIVILEGE");
     }
 
     @Test
-    @DisplayName("Should handle role with empty privileges")
-    void getAuthoritiesFromRoles_roleWithEmptyPrivileges_returnsEmptyAuthorities() {
+    @DisplayName("Should include role name even when role has no privileges")
+    void getAuthoritiesFromRoles_roleWithEmptyPrivileges_returnsRoleNameOnly() {
         // Given
         Role emptyRole = RoleTestDataBuilder.aRole()
                 .withName("ROLE_EMPTY")
@@ -197,8 +197,11 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
 
-        // Then
-        assertThat(authorities).isEmpty();
+        // Then - role name is still included even with no privileges
+        assertThat(authorities)
+                .hasSize(1)
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_EMPTY");
     }
 
     @Test
@@ -275,11 +278,11 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
 
-        // Then
+        // Then - includes role name and all privilege names with case preserved
         assertThat(authorities)
-                .hasSize(3)
+                .hasSize(4)
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrder("read_privilege", "WRITE_PRIVILEGE", "Delete_Privilege");
+                .containsExactlyInAnyOrder("ROLE_TEST", "read_privilege", "WRITE_PRIVILEGE", "Delete_Privilege");
     }
 
     @Test
@@ -303,8 +306,8 @@ class AuthorityServiceTest {
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
         long endTime = System.currentTimeMillis();
 
-        // Then
-        assertThat(authorities).hasSize(1000);
+        // Then - 1000 privileges + 1 role name
+        assertThat(authorities).hasSize(1001);
         assertThat(endTime - startTime).isLessThan(100); // Should complete in less than 100ms
     }
 
@@ -338,10 +341,48 @@ class AuthorityServiceTest {
         // When
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
 
-        // Then
+        // Then - 3 role names + 4 unique privilege names
         assertThat(authorities)
-                .hasSize(4) // COMMON_PRIVILEGE, UNIQUE_1, UNIQUE_2, UNIQUE_3
+                .hasSize(7)
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactlyInAnyOrder("COMMON_PRIVILEGE", "UNIQUE_1", "UNIQUE_2", "UNIQUE_3");
+                .containsExactlyInAnyOrder("ROLE_1", "ROLE_2", "ROLE_3", "COMMON_PRIVILEGE", "UNIQUE_1", "UNIQUE_2", "UNIQUE_3");
+    }
+
+    @Test
+    @DisplayName("Should include role names as authorities alongside privileges")
+    void shouldIncludeRoleNamesAsAuthorities() {
+        // Given
+        List<Role> roles = Arrays.asList(adminRole);
+
+        // When
+        Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
+
+        // Then - ROLE_ADMIN is present as an authority (needed for hasRole('ADMIN'))
+        assertThat(authorities)
+                .extracting(GrantedAuthority::getAuthority)
+                .contains("ROLE_ADMIN");
+    }
+
+    @Test
+    @DisplayName("Should deduplicate when role name matches a privilege name")
+    void shouldDeduplicateWhenRoleNameMatchesPrivilegeName() {
+        // Given - a role whose name also appears as a privilege name
+        Privilege roleNamePrivilege = new Privilege("ROLE_SPECIAL");
+        roleNamePrivilege.setId(10L);
+
+        Role specialRole = RoleTestDataBuilder.aRole()
+                .withName("ROLE_SPECIAL")
+                .withPrivilege(roleNamePrivilege)
+                .build();
+        List<Role> roles = Arrays.asList(specialRole);
+
+        // When
+        Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromRoles(roles);
+
+        // Then - ROLE_SPECIAL appears only once despite being both a role name and privilege name
+        assertThat(authorities)
+                .hasSize(1)
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_SPECIAL");
     }
 }

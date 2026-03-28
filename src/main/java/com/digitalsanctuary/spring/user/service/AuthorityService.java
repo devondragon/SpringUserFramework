@@ -1,7 +1,8 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.Collection;
-import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
@@ -39,21 +40,24 @@ public class AuthorityService {
     }
 
     /**
+     * Returns a collection of Spring Security's {@link GrantedAuthority} objects that includes both the role names and
+     * the privilege names associated with the given collection of roles.
      *
-     * Returns a collection of Spring Security's GrantedAuthority objects that corresponds to the privileges associated with the given collection of
-     * roles.
+     * <p>Including role names as authorities is required for Spring Security's {@code hasRole()} checks
+     * (e.g., {@code @PreAuthorize("hasRole('ADMIN')")}) to work correctly.</p>
      *
-     * @param roles a collection of roles whose privileges should be converted into Spring Security's GrantedAuthority objects
-     * @return a collection of Spring Security's GrantedAuthority objects that corresponds to the privileges associated with the given collection of
-     *         roles
+     * @param roles a collection of roles whose names and privileges should be converted into GrantedAuthority objects
+     * @return a deduplicated set of GrantedAuthority objects containing both role names and privilege names
      */
     public Collection<? extends GrantedAuthority> getAuthoritiesFromRoles(Collection<Role> roles) {
-        // flatMap streams the roles, and maps each Role to its privileges (a Collection of Privilege objects).
-        // The stream of Collection<Privilege> objects is then flattened into a single stream of Privilege objects.
-        // Finally, each Privilege is mapped to its name as a String, wrapped in a SimpleGrantedAuthority object,
-        // and collected into a Set of GrantedAuthority objects.
-        return roles.stream().flatMap(role -> role.getPrivileges().stream()).map(Privilege::getName).map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toSet());
+        Set<GrantedAuthority> authorities = new HashSet<>();
+        for (Role role : roles) {
+            authorities.add(new SimpleGrantedAuthority(role.getName()));
+            for (Privilege privilege : role.getPrivileges()) {
+                authorities.add(new SimpleGrantedAuthority(privilege.getName()));
+            }
+        }
+        return authorities;
     }
 
 }
