@@ -693,7 +693,7 @@ class UserEmailServiceTest {
 
         @Test
         @DisplayName("deprecated method with adminIdentifier still works but ignores parameter")
-        @SuppressWarnings("deprecation")
+        @SuppressWarnings({"deprecation", "removal"})
         void deprecatedMethod_stillWorksButIgnoresAdminIdentifier() {
             // Given
             String ignoredAdminIdentifier = "ignored@example.com";

@@ -122,10 +122,10 @@ test {
 	testLogging {
 		events "PASSED", "FAILED", "SKIPPED"
 		if (isExplicitTest) {
-			exceptionFormat "full"
+			exceptionFormat = "full"
 			showStandardStreams true
 		} else {
-			exceptionFormat "short"
+			exceptionFormat = "short"
 		}
 	}
 }
@@ -164,10 +164,10 @@ def registerJdkTestTask(name, jdkVersion) {
         testLogging {
             events "PASSED", "FAILED", "SKIPPED"
             if (isExplicitTest) {
-                exceptionFormat "full"
+                exceptionFormat = "full"
                 showStandardStreams true
             } else {
-                exceptionFormat "short"
+                exceptionFormat = "short"
             }
         }
         doFirst {
