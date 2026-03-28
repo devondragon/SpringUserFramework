@@ -1,3 +1,62 @@
+## [4.3.2] - 2026-03-28
+### Features
+- HTMX-aware AuthenticationEntryPoint for session expiry handling
+  - Adds HtmxAwareAuthenticationEntryPoint that detects HTMX requests (HX-Request: true) and, instead of a 302 redirect, returns:
+    - Status: 401 Unauthorized
+    - Header: HX-Redirect: <loginUrl>
+    - Body: {"error":"authentication_required","message":"Session expired. Please log in.","loginUrl":"<loginUrl>"}
+  - Preserves existing behavior for non-HTMX requests by delegating to the underlying AuthenticationEntryPoint.
+  - Auto-configuration: HtmxAwareAuthenticationEntryPointConfiguration registers the entry point only if no AuthenticationEntryPoint bean is provided by the consumer (@ConditionalOnMissingBean). The bean is marked @Primary to avoid NoUniqueBeanDefinitionException if multiple candidates exist.
+  - Login entry point selection:
+    - When spring.security.oauth2.enabled=true, wraps CustomOAuth2AuthenticationEntryPoint (failureHandler intentionally null to allow the expected redirect behavior).
+    - Otherwise wraps LoginUrlAuthenticationEntryPoint.
+  - Security configuration update: WebSecurityConfig now always wires exceptionHandling().authenticationEntryPoint(authenticationEntryPoint) using the injected bean (HTMX-aware by default), not just when OAuth2 is enabled. This centralizes and standardizes exception handling.
+  - Response details and robustness:
+    - Sets response character encoding to UTF-8 and content type to application/json;charset=UTF-8.
+    - Escapes backslash, quote, newline, carriage return, and tab in the loginUrl JSON value.
+    - Processes HX-Request header case-insensitively.
+    - Skips writing if the response is already committed.
+  - Consumer override: Define your own AuthenticationEntryPoint bean to replace the default behavior.
+
+### Fixes
+- HTMX redirect respects servlet context path
+  - When server.servlet.context-path is configured (e.g., /app), the HX-Redirect header and the JSON loginUrl now prepend the context path (e.g., /app/user/login.html), aligning with LoginUrlAuthenticationEntryPoint behavior.
+- Build and test deprecation/compilation cleanups
+  - Gradle: Replace deprecated Groovy space-assignment with equals assignment for testLogging.exceptionFormat (compatible with Gradle 9, required for Gradle 10).
+  - Tests: Suppress “removal” warning (in addition to “deprecation”) in UserEmailServiceTest where an intentionally deprecated 4-parameter initiateAdminPasswordReset method is exercised.
+
+### Breaking Changes
+- None. The HTMX-aware entry point is opt-out (overridable) and delegates non-HTMX requests to the existing behavior. WebSecurityConfig now always sets an AuthenticationEntryPoint, but the bean is compatible and designed to preserve existing redirect behavior for standard browser flows.
+
+### Refactoring
+- Security configuration streamlined
+  - Exception handling is now configured once in securityFilterChain using the injected AuthenticationEntryPoint rather than conditionally in the OAuth2 setup path, reducing duplication and potential inconsistency.
+
+### Documentation
+- Added HTMX Support documentation
+  - README: New “HTMX Support” section explaining the 401 + HX-Redirect behavior, JSON payload, and how to override via a custom AuthenticationEntryPoint bean. Updated features list and table of contents accordingly.
+  - CHANGELOG.md: Added [Unreleased] entry describing the new HTMX-aware AuthenticationEntryPoint and configuration/override notes.
+  - CLAUDE.md: Listed HtmxAwareAuthenticationEntryPoint under Security and documented AuthenticationEntryPoint as an extension point.
+- Install instructions updated to 4.3.2
+  - README dependency coordinates changed from 4.3.1 to 4.3.2 (Maven and Gradle snippets).
+
+### Testing
+- Comprehensive tests for the new HTMX entry point
+  - HtmxAwareAuthenticationEntryPointTest:
+    - Verifies 401 status, content type with UTF-8, HX-Redirect header, JSON body content, case-insensitive HX-Request handling, response-committed shortcut, and correct delegation for non-HTMX requests.
+  - Servlet context path handling tests:
+    - Ensure HX-Redirect and JSON loginUrl include the servlet context path when non-empty and are unchanged when empty.
+  - HtmxAwareAuthenticationEntryPointConfigurationTest:
+    - Validates auto-registration for OAuth2 enabled/disabled paths, and that a user-defined AuthenticationEntryPoint prevents library bean registration (confirming @ConditionalOnMissingBean behavior).
+
+### Other Changes
+- Dependency updates
+  - Spring Boot Gradle plugin: 4.0.3 → 4.0.4.
+  - Testcontainers (core/junit-jupiter/mariadb/postgresql): 2.0.3 → 2.0.4.
+  - Gradle wrapper: 9.4.0 → 9.4.1.
+- Version bump for development
+  - gradle.properties set to 4.3.2-SNAPSHOT.
+
 ## [Unreleased]
 ### Features
 - HTMX-aware AuthenticationEntryPoint for session expiry handling (#294)
