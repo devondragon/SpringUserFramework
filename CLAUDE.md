@@ -111,12 +111,14 @@ com.digitalsanctuary.spring.user
 - `DSUserDetails` - Custom UserDetails implementation wrapping User entity
 - `DSOAuth2UserService` / `DSOidcUserService` - OAuth2/OIDC user services
 - `LoginAttemptService` - Brute force protection with account lockout
+- `HtmxAwareAuthenticationEntryPoint` - Returns 401 JSON for HTMX requests instead of 302 redirect on session expiry
 
 **Extension Points:**
 - `BaseUserProfile` - Extend for custom user data (see PROFILE.md)
 - `UserProfileService<T>` - Interface for profile management
 - `BaseSessionProfile<T>` - Session-scoped profile access
 - `UserPreDeleteEvent` - Listen for user deletion to clean up related data
+- `AuthenticationEntryPoint` - Override via `@ConditionalOnMissingBean` to customize session expiry behavior
 
 ### Auto-Configuration
 

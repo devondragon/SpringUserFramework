@@ -39,6 +39,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Role-Based Access Control](#role-based-access-control)
     - [Account Lockout](#account-lockout)
     - [Audit Logging](#audit-logging)
+    - [HTMX Support](#htmx-support)
   - [User Management](#user-management)
     - [Registration](#registration)
     - [Profile Management](#profile-management)
@@ -83,6 +84,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - Audit event framework for recording and logging security events, customizable to store audit events in a database or publish them via a REST API.
   - Role and Privilege setup service to define roles, associated privileges, and role inheritance hierarchy using `application.yml`.
   - Configurable Account Lockout after too many failed login attempts
+  - HTMX-aware session expiry handling — returns 401 JSON instead of 302 redirect for HTMX requests, preventing broken UI fragments
 
 - **Advanced Security**
   - Role and privilege-based authorization
@@ -502,6 +504,29 @@ user:
     logFilePath: /path/to/audit/log
     flushOnWrite: false
     flushRate: 10000
+```
+
+### HTMX Support
+
+When HTMX-powered pages make requests (polling, fragment loading, etc.) and the user's session expires, Spring Security's default 302 redirect causes HTMX to swap the full login page HTML into each target element, breaking the UI.
+
+The framework automatically detects HTMX requests (via the `HX-Request` header) and returns a proper 401 response instead:
+
+- **Status**: `401 Unauthorized`
+- **Header**: `HX-Redirect: <loginUrl>` (triggers HTMX full-page redirect)
+- **Body**: `{"error": "authentication_required", "message": "Session expired. Please log in.", "loginUrl": "<loginUrl>"}`
+
+Non-HTMX browser requests continue to receive the standard 302 redirect to the login page.
+
+**Overriding the default behavior:**
+
+To provide a custom `AuthenticationEntryPoint`, define your own bean and the framework's default will back off automatically:
+
+```java
+@Bean
+public AuthenticationEntryPoint authenticationEntryPoint() {
+    return new MyCustomAuthenticationEntryPoint();
+}
 ```
 
 ## User Management
