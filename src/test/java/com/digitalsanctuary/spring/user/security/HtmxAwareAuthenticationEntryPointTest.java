@@ -77,7 +77,7 @@ class HtmxAwareAuthenticationEntryPointTest {
         }
 
         @Test
-        @DisplayName("Should set JSON content type when HTMX request received")
+        @DisplayName("Should set JSON content type with UTF-8 charset when HTMX request received")
         void shouldSetJsonContentTypeWhenHtmxRequestReceived() throws IOException, ServletException {
             // Given
             AuthenticationException authException = new InsufficientAuthenticationException("Session expired");
@@ -86,7 +86,8 @@ class HtmxAwareAuthenticationEntryPointTest {
             entryPoint.commence(request, response, authException);
 
             // Then
-            verify(response).setContentType("application/json");
+            verify(response).setCharacterEncoding("UTF-8");
+            verify(response).setContentType("application/json;charset=UTF-8");
         }
 
         @Test

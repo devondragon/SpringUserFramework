@@ -58,9 +58,15 @@ public class HtmxAwareAuthenticationEntryPoint implements AuthenticationEntryPoi
             }
 
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.setContentType("application/json;charset=UTF-8");
             response.setHeader(HX_REDIRECT_HEADER, loginUrl);
-            String escapedLoginUrl = loginUrl.replace("\\", "\\\\").replace("\"", "\\\"");
+            String escapedLoginUrl = loginUrl
+                    .replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                    .replace("\t", "\\t");
             response.getWriter().write("{\"error\":\"authentication_required\","
                     + "\"message\":\"Session expired. Please log in.\","
                     + "\"loginUrl\":\"" + escapedLoginUrl + "\"}");

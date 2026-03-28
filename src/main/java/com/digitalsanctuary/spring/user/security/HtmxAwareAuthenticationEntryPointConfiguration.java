@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import lombok.extern.slf4j.Slf4j;
@@ -40,15 +41,18 @@ public class HtmxAwareAuthenticationEntryPointConfiguration {
      * @return an {@link HtmxAwareAuthenticationEntryPoint} wrapping the appropriate inner entry point
      */
     @Bean
+    @Primary
     @ConditionalOnMissingBean(AuthenticationEntryPoint.class)
     public AuthenticationEntryPoint authenticationEntryPoint() {
         AuthenticationEntryPoint inner;
         if (oauth2Enabled) {
+            // null failureHandler is intentional: OAuth2AuthenticationExceptions without a handler fall through
+            // to the redirect path in CustomOAuth2AuthenticationEntryPoint, which is the desired behavior.
             inner = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
-            log.info("Configuring HtmxAwareAuthenticationEntryPoint wrapping CustomOAuth2AuthenticationEntryPoint");
+            log.debug("Configuring HtmxAwareAuthenticationEntryPoint wrapping CustomOAuth2AuthenticationEntryPoint");
         } else {
             inner = new LoginUrlAuthenticationEntryPoint(loginPageURI);
-            log.info("Configuring HtmxAwareAuthenticationEntryPoint wrapping LoginUrlAuthenticationEntryPoint");
+            log.debug("Configuring HtmxAwareAuthenticationEntryPoint wrapping LoginUrlAuthenticationEntryPoint");
         }
         return new HtmxAwareAuthenticationEntryPoint(inner, loginPageURI);
     }
