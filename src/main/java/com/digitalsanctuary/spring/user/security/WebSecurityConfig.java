@@ -22,6 +22,7 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -122,6 +123,7 @@ public class WebSecurityConfig {
 	@Value("${user.dev.auto-login-enabled:false}")
 	private boolean devAutoLoginEnabled;
 
+	private final AuthenticationEntryPoint authenticationEntryPoint;
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
 	private final LogoutSuccessService logoutSuccessService;
@@ -149,6 +151,9 @@ public class WebSecurityConfig {
 
 		http.formLogin(
 				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll());
+
+		// Always configure exception handling with the injected entry point (HTMX-aware by default)
+		http.exceptionHandling(handling -> handling.authenticationEntryPoint(authenticationEntryPoint));
 
 		// Configure remember-me only if explicitly enabled and key is provided
 		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
@@ -211,10 +216,8 @@ public class WebSecurityConfig {
 	 * @throws Exception the exception
 	 */
 	private void setupOAuth2(HttpSecurity http) throws Exception {
-		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
-
-		http.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint))
-				.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
+		// Entry point is handled globally in securityFilterChain via the injected authenticationEntryPoint bean
+		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
 					log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
 					request.getSession().setAttribute("error.message", exception.getMessage());
 					response.sendRedirect(loginPageURI);
