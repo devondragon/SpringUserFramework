@@ -42,7 +42,7 @@ dependencies {
     // Note: thymeleaf-extras-springsecurity6 is compatible with Spring Security 7
     // No springsecurity7 artifact exists yet - Thymeleaf team uses springsecurity6 for 6.x+
     compileOnly 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.3.RELEASE'
-    compileOnly 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:4.0.0'
+    compileOnly 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:4.0.1'
 
     // Other dependencies (moved to test scope for library)
     implementation 'org.passay:passay:1.6.6'
