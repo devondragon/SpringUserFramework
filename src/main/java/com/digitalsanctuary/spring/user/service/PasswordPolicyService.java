@@ -4,15 +4,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import org.apache.commons.text.similarity.LevenshteinDistance;
-import org.passay.CharacterData;
-import org.passay.CharacterRule;
-import org.passay.DictionaryRule;
-import org.passay.EnglishCharacterData;
-import org.passay.LengthRule;
+import org.passay.DefaultPasswordValidator;
 import org.passay.PasswordData;
 import org.passay.PasswordValidator;
-import org.passay.Rule;
-import org.passay.RuleResult;
+import org.passay.ValidationResult;
+import org.passay.data.CharacterData;
+import org.passay.data.EnglishCharacterData;
+import org.passay.rule.CharacterRule;
+import org.passay.rule.DictionaryRule;
+import org.passay.rule.LengthRule;
+import org.passay.rule.Rule;
 import org.passay.dictionary.ArrayWordList;
 import org.passay.dictionary.WordListDictionary;
 import org.passay.dictionary.WordLists;
@@ -281,19 +282,19 @@ public class PasswordPolicyService {
      * @return list of error messages if validation fails, empty if valid
      */
     private List<String> validateWithPassay(String password, List<Rule> rules, Locale locale) {
-        PasswordValidator validator = new PasswordValidator(
+        PasswordValidator validator = new DefaultPasswordValidator(
                 (detail) -> messages.getMessage(detail.getErrorCode(), detail.getValues(), locale),
                 rules);
         PasswordData passwordData = new PasswordData(password);
 
-        RuleResult result = validator.validate(passwordData);
+        ValidationResult result = validator.validate(passwordData);
 
         if (result.isValid()) {
             log.debug("Password is valid.");
             return List.of();
         } else {
-            log.warn("Password validation failed: {}", validator.getMessages(result));
-            return validator.getMessages(result);
+            log.warn("Password validation failed: {}", result.getMessages());
+            return result.getMessages();
         }
     }
 }
