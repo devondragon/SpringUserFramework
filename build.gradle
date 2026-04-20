@@ -46,7 +46,7 @@ dependencies {
 
     // Other dependencies (moved to test scope for library)
     implementation 'org.passay:passay:2.0.0'
-    implementation 'com.google.guava:guava:33.5.0-jre'
+    implementation 'com.google.guava:guava:33.6.0-jre'
     implementation 'org.apache.commons:commons-text:1.15.0'
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
     compileOnly 'org.springframework.retry:spring-retry:2.0.12'
