@@ -41,7 +41,7 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-web'
     // Note: thymeleaf-extras-springsecurity6 is compatible with Spring Security 7
     // No springsecurity7 artifact exists yet - Thymeleaf team uses springsecurity6 for 6.x+
-    compileOnly 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.4.RELEASE'
+    compileOnly 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6:3.1.5.RELEASE'
     compileOnly 'nz.net.ultraq.thymeleaf:thymeleaf-layout-dialect:4.0.1'
 
     // Other dependencies (moved to test scope for library)
