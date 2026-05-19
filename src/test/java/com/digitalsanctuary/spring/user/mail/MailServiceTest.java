@@ -56,9 +56,10 @@ class MailServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Provider returns the mock mailSender by default; individual tests can override to simulate missing config.
+        // Provider returns the mock mailSender by default.
         lenient().when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
         mailService = new MailService(mailSenderProvider, mailContentBuilder);
+        mailService.init(); // simulate @PostConstruct — caches the resolved sender
         ReflectionTestUtils.setField(mailService, "fromAddress", FROM_ADDRESS);
 
         // Setup default mock behavior
@@ -514,29 +515,30 @@ class MailServiceTest {
     @DisplayName("Missing JavaMailSender Tests")
     class MissingMailSenderTests {
 
+        private MailService unconfiguredMailService;
+
+        @BeforeEach
+        void setUpUnconfigured() {
+            // Separate service instance where the sender is absent from startup.
+            when(mailSenderProvider.getIfAvailable()).thenReturn(null);
+            unconfiguredMailService = new MailService(mailSenderProvider, mailContentBuilder);
+            unconfiguredMailService.init();
+            ReflectionTestUtils.setField(unconfiguredMailService, "fromAddress", FROM_ADDRESS);
+        }
+
         @Test
         @DisplayName("sendSimpleMessage should no-op when JavaMailSender is not configured")
         void sendSimpleMessageNoOpsWhenSenderMissing() {
-            // Given
-            when(mailSenderProvider.getIfAvailable()).thenReturn(null);
+            unconfiguredMailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Body");
 
-            // When
-            mailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Body");
-
-            // Then
             verify(mailSender, never()).send(any(MimeMessagePreparator.class));
         }
 
         @Test
         @DisplayName("sendTemplateMessage should no-op when JavaMailSender is not configured")
         void sendTemplateMessageNoOpsWhenSenderMissing() {
-            // Given
-            when(mailSenderProvider.getIfAvailable()).thenReturn(null);
+            unconfiguredMailService.sendTemplateMessage(TO_ADDRESS, SUBJECT, new HashMap<>(), "email/test");
 
-            // When
-            mailService.sendTemplateMessage(TO_ADDRESS, SUBJECT, new HashMap<>(), "email/test");
-
-            // Then
             verify(mailSender, never()).send(any(MimeMessagePreparator.class));
             verify(mailContentBuilder, never()).build(anyString(), any(Context.class));
         }

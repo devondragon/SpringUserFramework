@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.mail;
 
 import java.util.Map;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
@@ -20,17 +21,19 @@ import lombok.extern.slf4j.Slf4j;
  * emails.
  *
  * <p>Email is treated as optional: if no {@link JavaMailSender} bean is available (typically because {@code spring.mail.host} is not configured),
- * send operations log a warning and return without throwing, so the application starts and runs normally with email-dependent features degraded.</p>
+ * a single warning is logged at startup and all send operations silently no-op, so the application starts and runs normally with email-dependent
+ * features degraded.</p>
  */
 @Slf4j
 @Service
 public class MailService {
 
-	/** Provider for the mail sender — resolved lazily so the bean is optional. */
 	private final ObjectProvider<JavaMailSender> mailSenderProvider;
 
-	/** The mail content builder. */
 	private final MailContentBuilder mailContentBuilder;
+
+	/** Resolved once at startup; null when JavaMailSender is not configured. */
+	private JavaMailSender resolvedSender;
 
 	/** The from address. */
 	@Value("${user.mail.fromAddress}")
@@ -48,17 +51,15 @@ public class MailService {
 	}
 
 	/**
-	 * Resolve the {@link JavaMailSender}, or log a warning and return null when none is available.
-	 *
-	 * @param to the recipient (for log context only)
-	 * @return the sender, or {@code null} if not configured
+	 * Resolves and caches the {@link JavaMailSender} once at startup. Logs a single warning when no sender is available so operators are informed
+	 * without flooding logs during normal operation.
 	 */
-	private JavaMailSender resolveMailSender(String to) {
-		JavaMailSender sender = mailSenderProvider.getIfAvailable();
-		if (sender == null) {
-			log.warn("Email send to '{}' skipped: JavaMailSender is not configured. Set 'spring.mail.host' to enable email sending.", to);
+	@PostConstruct
+	void init() {
+		resolvedSender = mailSenderProvider.getIfAvailable();
+		if (resolvedSender == null) {
+			log.warn("JavaMailSender is not configured — email sending is disabled. Set 'spring.mail.host' to enable.");
 		}
-		return sender;
 	}
 
 	/**
@@ -72,12 +73,10 @@ public class MailService {
 	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendSimpleMessage(String to, String subject, String text) {
-		log.debug("Attempting to send simple email to: {}", to);
-
-		JavaMailSender sender = resolveMailSender(to);
-		if (sender == null) {
+		if (resolvedSender == null) {
 			return;
 		}
+		log.debug("Attempting to send simple email to: {}", to);
 
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
 			MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
@@ -87,7 +86,7 @@ public class MailService {
 			messageHelper.setText(text, true);
 		};
 
-		sender.send(messagePreparator);
+		resolvedSender.send(messagePreparator);
 		log.debug("Successfully sent simple email to: {}", to);
 	}
 
@@ -103,12 +102,10 @@ public class MailService {
 	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {
-		log.debug("Attempting to send template email to: {}, template: {}", to, templatePath);
-
-		JavaMailSender sender = resolveMailSender(to);
-		if (sender == null) {
+		if (resolvedSender == null) {
 			return;
 		}
+		log.debug("Attempting to send template email to: {}, template: {}", to, templatePath);
 
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
 			MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
@@ -121,7 +118,7 @@ public class MailService {
 			messageHelper.setText(content, true);
 		};
 
-		sender.send(messagePreparator);
+		resolvedSender.send(messagePreparator);
 		log.debug("Successfully sent template email to: {}", to);
 	}
 

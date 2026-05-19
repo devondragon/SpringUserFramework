@@ -261,7 +261,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
    ```
 
    **Notes:**
-   - `spring-boot-starter-oauth2-client` is required even if you don't plan to enable social login. The framework's security chain wires OAuth2 user services at startup; the dependency must be on the classpath so the classes resolve. OAuth2 login itself remains disabled by default (`spring.security.oauth2.enabled=false`).
+   - `spring-boot-starter-oauth2-client` is required even if you don't plan to use social login. The framework's security chain wires OAuth2 user services at startup; the dependency must be on the classpath so the classes resolve. The OAuth2 login flow itself is disabled by default and opt-in — set `spring.security.oauth2.enabled=true` in your application properties only when you configure OAuth2 provider credentials (this is a framework property, not a standard Spring Security key).
    - `spring-retry` needs an explicit version because Spring Boot's BOM may not manage this artifact. The version shown matches what the framework is built against.
 
 ### Step 2: Database Configuration
