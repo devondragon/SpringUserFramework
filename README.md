@@ -240,8 +240,13 @@ Follow these steps to get up and running with the Spring User Framework in your 
        <artifactId>spring-boot-starter-security</artifactId>
    </dependency>
    <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-oauth2-client</artifactId>
+   </dependency>
+   <dependency>
        <groupId>org.springframework.retry</groupId>
        <artifactId>spring-retry</artifactId>
+       <version>2.0.12</version>
    </dependency>
    ```
 
@@ -251,8 +256,13 @@ Follow these steps to get up and running with the Spring User Framework in your 
    implementation 'org.springframework.boot:spring-boot-starter-mail'
    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
    implementation 'org.springframework.boot:spring-boot-starter-security'
-   implementation 'org.springframework.retry:spring-retry'
+   implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+   implementation 'org.springframework.retry:spring-retry:2.0.12'
    ```
+
+   **Notes:**
+   - `spring-boot-starter-oauth2-client` is required even if you don't plan to enable social login. The framework's security chain wires OAuth2 user services at startup; the dependency must be on the classpath so the classes resolve. OAuth2 login itself remains disabled by default (`spring.security.oauth2.enabled=false`).
+   - `spring-retry` needs an explicit version because Spring Boot's BOM may not manage this artifact. The version shown matches what the framework is built against.
 
 ### Step 2: Database Configuration
 
@@ -298,7 +308,7 @@ spring:
 
 ### Step 4: Email Configuration (Optional but Recommended)
 
-For password reset and email verification features:
+If `spring.mail.host` is not configured, the framework starts cleanly but any feature that would send mail (password reset, registration verification) logs a warning and silently skips the send. Configure mail when you want those features to actually deliver messages:
 
 ```yaml
 spring:
@@ -384,17 +394,24 @@ public class AppUserProfile extends BaseUserProfile {
 - Navigate to `/user/login.html`
 - Use the credentials you just created
 
-### Step 9: Customize Pages (Optional)
+### Step 9: Customize Pages (Required for user-facing pages)
 
-The framework provides default HTML templates, but you can override them:
+The framework ships email templates (`templates/mail/*.html`) but does **not** ship the user-facing HTML pages (login, register, forgot-password, etc). You provide those yourself, typically by copying the reference set from the demo app and styling them to match your app.
 
-1. **Create custom templates** in `src/main/resources/templates/user/`:
+1. **Grab the reference templates** from [SpringUserFrameworkDemoApp/src/main/resources/templates/user/](https://github.com/devondragon/SpringUserFrameworkDemoApp/tree/main/src/main/resources/templates/user) and drop them into `src/main/resources/templates/user/` in your project:
    - `login.html` - Login page
    - `register.html` - Registration page
-   - `forgot-password.html` - Password reset page
-   - And more...
+   - `forgot-password.html` - Password reset request
+   - `forgot-password-change.html` - Password reset form
+   - `update-password.html` - Authenticated password change
+   - `update-user.html` - Profile update
+   - `registration-complete.html`, `registration-pending-verification.html`, `request-new-verification-email.html`, `forgot-password-pending-verification.html`, `delete-account.html`
 
-2. **Use your own CSS** by adding stylesheets to `src/main/resources/static/css/`
+   The demo's templates use a Thymeleaf layout (`layout.html`) and shared fragments. If you don't want that, strip the `layout:decorate` / `th:fragment` references and inline the markup.
+
+2. **Use your own CSS** by adding stylesheets to `src/main/resources/static/css/`.
+
+The framework only requires that the templates exist at the URLs configured under `user.security.*` (e.g. `loginPageURI`, `registrationURI`) and post back to the matching `/user/*` API endpoints; the HTML structure inside them is yours.
 
 ### Complete Example Configuration
 

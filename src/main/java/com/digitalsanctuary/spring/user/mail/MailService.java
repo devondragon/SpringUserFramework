@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.mail;
 
 import java.util.Map;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -17,13 +18,16 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * The MailService provides outbound email sending services on top of the Spring mail framework, and leverages Thymeleaf templates for rich dynamic
  * emails.
+ *
+ * <p>Email is treated as optional: if no {@link JavaMailSender} bean is available (typically because {@code spring.mail.host} is not configured),
+ * send operations log a warning and return without throwing, so the application starts and runs normally with email-dependent features degraded.</p>
  */
 @Slf4j
 @Service
 public class MailService {
 
-	/** The mail sender. */
-	private final JavaMailSender mailSender;
+	/** Provider for the mail sender — resolved lazily so the bean is optional. */
+	private final ObjectProvider<JavaMailSender> mailSenderProvider;
 
 	/** The mail content builder. */
 	private final MailContentBuilder mailContentBuilder;
@@ -35,12 +39,26 @@ public class MailService {
 	/**
 	 * Instantiates a new mail service.
 	 *
-	 * @param mailSender the mail sender
+	 * @param mailSenderProvider provider for the mail sender; may resolve to null when mail is not configured
 	 * @param mailContentBuilder the mail content builder
 	 */
-	public MailService(JavaMailSender mailSender, MailContentBuilder mailContentBuilder) {
-		this.mailSender = mailSender;
+	public MailService(ObjectProvider<JavaMailSender> mailSenderProvider, MailContentBuilder mailContentBuilder) {
+		this.mailSenderProvider = mailSenderProvider;
 		this.mailContentBuilder = mailContentBuilder;
+	}
+
+	/**
+	 * Resolve the {@link JavaMailSender}, or log a warning and return null when none is available.
+	 *
+	 * @param to the recipient (for log context only)
+	 * @return the sender, or {@code null} if not configured
+	 */
+	private JavaMailSender resolveMailSender(String to) {
+		JavaMailSender sender = mailSenderProvider.getIfAvailable();
+		if (sender == null) {
+			log.warn("Email send to '{}' skipped: JavaMailSender is not configured. Set 'spring.mail.host' to enable email sending.", to);
+		}
+		return sender;
 	}
 
 	/**
@@ -51,11 +69,16 @@ public class MailService {
 	 * @param text the text to include as the email message body
 	 */
 	@Async
-	@Retryable(retryFor = {MailException.class}, maxAttempts = 3, 
+	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendSimpleMessage(String to, String subject, String text) {
 		log.debug("Attempting to send simple email to: {}", to);
-		
+
+		JavaMailSender sender = resolveMailSender(to);
+		if (sender == null) {
+			return;
+		}
+
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
 			MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
 			messageHelper.setFrom(fromAddress);
@@ -64,7 +87,7 @@ public class MailService {
 			messageHelper.setText(text, true);
 		};
 
-		mailSender.send(messagePreparator);
+		sender.send(messagePreparator);
 		log.debug("Successfully sent simple email to: {}", to);
 	}
 
@@ -77,11 +100,16 @@ public class MailService {
 	 * @param templatePath the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
 	 */
 	@Async
-	@Retryable(retryFor = {MailException.class}, maxAttempts = 3, 
+	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {
 		log.debug("Attempting to send template email to: {}, template: {}", to, templatePath);
-		
+
+		JavaMailSender sender = resolveMailSender(to);
+		if (sender == null) {
+			return;
+		}
+
 		MimeMessagePreparator messagePreparator = mimeMessage -> {
 			MimeMessageHelper messageHelper = new MimeMessageHelper(mimeMessage);
 			messageHelper.setFrom(fromAddress);
@@ -92,8 +120,8 @@ public class MailService {
 			String content = mailContentBuilder.build(templatePath, context);
 			messageHelper.setText(content, true);
 		};
-		
-		mailSender.send(messagePreparator);
+
+		sender.send(messagePreparator);
 		log.debug("Successfully sent template email to: {}", to);
 	}
 
@@ -107,7 +135,7 @@ public class MailService {
 	 */
 	@Recover
 	public void recoverSendSimpleMessage(MailException ex, String to, String subject, String text) {
-		log.error("Failed to send simple email to {} after all retry attempts. Subject: '{}'. Error: {}", 
+		log.error("Failed to send simple email to {} after all retry attempts. Subject: '{}'. Error: {}",
 				  to, subject, ex.getMessage());
 	}
 
@@ -121,9 +149,9 @@ public class MailService {
 	 * @param templatePath the template path
 	 */
 	@Recover
-	public void recoverSendTemplateMessage(MailException ex, String to, String subject, 
+	public void recoverSendTemplateMessage(MailException ex, String to, String subject,
 										   Map<String, Object> variables, String templatePath) {
-		log.error("Failed to send template email to {} after all retry attempts. Subject: '{}', Template: '{}'. Error: {}", 
+		log.error("Failed to send template email to {} after all retry attempts. Subject: '{}', Template: '{}'. Error: {}",
 				  to, subject, templatePath, ex.getMessage());
 	}
 }
