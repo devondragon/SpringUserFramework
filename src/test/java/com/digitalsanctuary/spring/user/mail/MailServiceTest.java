@@ -17,9 +17,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -40,12 +40,14 @@ class MailServiceTest {
     private JavaMailSender mailSender;
 
     @Mock
+    private ObjectProvider<JavaMailSender> mailSenderProvider;
+
+    @Mock
     private MailContentBuilder mailContentBuilder;
 
     @Mock
     private MimeMessage mimeMessage;
 
-    @InjectMocks
     private MailService mailService;
 
     private static final String FROM_ADDRESS = "noreply@example.com";
@@ -54,9 +56,12 @@ class MailServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Set the from address via reflection since it's a @Value field
+        // Provider returns the mock mailSender by default.
+        lenient().when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
+        mailService = new MailService(mailSenderProvider, mailContentBuilder);
+        mailService.init(); // simulate @PostConstruct — caches the resolved sender
         ReflectionTestUtils.setField(mailService, "fromAddress", FROM_ADDRESS);
-        
+
         // Setup default mock behavior
         lenient().when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
     }
@@ -503,6 +508,39 @@ class MailServiceTest {
             assertThatThrownBy(() -> preparatorCaptor.getValue().prepare(mimeMessage))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("Template not found");
+        }
+    }
+
+    @Nested
+    @DisplayName("Missing JavaMailSender Tests")
+    class MissingMailSenderTests {
+
+        private MailService unconfiguredMailService;
+
+        @BeforeEach
+        void setUpUnconfigured() {
+            // Separate service instance where the sender is absent from startup.
+            when(mailSenderProvider.getIfAvailable()).thenReturn(null);
+            unconfiguredMailService = new MailService(mailSenderProvider, mailContentBuilder);
+            unconfiguredMailService.init();
+            ReflectionTestUtils.setField(unconfiguredMailService, "fromAddress", FROM_ADDRESS);
+        }
+
+        @Test
+        @DisplayName("sendSimpleMessage should no-op when JavaMailSender is not configured")
+        void sendSimpleMessageNoOpsWhenSenderMissing() {
+            unconfiguredMailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Body");
+
+            verify(mailSender, never()).send(any(MimeMessagePreparator.class));
+        }
+
+        @Test
+        @DisplayName("sendTemplateMessage should no-op when JavaMailSender is not configured")
+        void sendTemplateMessageNoOpsWhenSenderMissing() {
+            unconfiguredMailService.sendTemplateMessage(TO_ADDRESS, SUBJECT, new HashMap<>(), "email/test");
+
+            verify(mailSender, never()).send(any(MimeMessagePreparator.class));
+            verify(mailContentBuilder, never()).build(anyString(), any(Context.class));
         }
     }
 
