@@ -143,7 +143,7 @@ public class WebSecurityConfig {
 	 * @throws Exception if there is an issue creating the SecurityFilterChain
 	 */
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry) throws Exception {
 		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
 		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(getUnprotectedURIsArray()));
 		List<String> unprotectedURIs = getUnprotectedURIsList();
@@ -162,6 +162,12 @@ public class WebSecurityConfig {
 
 		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));
+
+		// Register sessions in the SessionRegistry so SessionInvalidationService and concurrent-session
+		// features actually work. maximumSessions(-1) = unlimited concurrent sessions, but still tracked
+		// in the registry. The SessionRegistry is injected (rather than calling the local bean method) so
+		// consumers and tests can override it via a @Primary / @ConditionalOnMissingBean bean.
+		http.sessionManagement(session -> session.maximumSessions(-1).sessionRegistry(sessionRegistry));
 
 		// If we have URIs to disable CSRF validation on, do so here
 		String[] baseDisableCSRFURIs = getDisableCSRFURIsArray();
