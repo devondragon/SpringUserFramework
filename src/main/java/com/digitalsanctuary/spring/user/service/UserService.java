@@ -464,6 +464,8 @@ public class UserService {
 		user.setPassword(encodedPassword);
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
+		// Terminate all existing sessions so a reset/change forces re-auth everywhere (OWASP).
+		sessionInvalidationService.invalidateUserSessions(user);
 	}
 
 	/**

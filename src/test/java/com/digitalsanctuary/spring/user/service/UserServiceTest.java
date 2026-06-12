@@ -189,6 +189,20 @@ public class UserServiceTest {
         verify(userRepository).save(testUser);
     }
 
+    @Test
+    void changeUserPassword_invalidatesExistingSessions() {
+        // Given
+        String newPassword = "newTestPassword";
+        when(passwordEncoder.encode(newPassword)).thenReturn("encodedNewPassword");
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+        // When
+        userService.changeUserPassword(testUser, newPassword);
+
+        // Then
+        verify(sessionInvalidationService).invalidateUserSessions(testUser);
+    }
+
     // Additional tests for comprehensive coverage
     @Test
     @DisplayName("saveRegisteredUser - saves and returns user")
