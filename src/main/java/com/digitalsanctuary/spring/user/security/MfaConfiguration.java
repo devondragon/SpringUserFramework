@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.DefaultAuthorizationManagerFactory;
 import org.springframework.security.authorization.RequiredFactor;
 import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,13 +23,43 @@ import lombok.extern.slf4j.Slf4j;
  * Configuration that registers {@link MfaConfigProperties} and provides MFA-related beans.
  * <p>
  * This configuration is always active because {@code WebSecurityConfig} requires {@link MfaConfigProperties} regardless
- * of whether MFA is enabled. The {@code DefaultAuthorizationManagerFactory} bean is only created when MFA is enabled.
+ * of whether MFA is enabled. The MFA beans are only created when MFA is enabled.
+ * </p>
+ *
+ * <h2>Spike conclusion (Spring Security 7.0.5 factor merging, H4)</h2>
+ * <p>
+ * Multi-factor login has two distinct sides in SS7 and this framework was only wiring one of them:
+ * </p>
+ * <ol>
+ * <li><b>Enforcement</b> &mdash; the {@link DefaultAuthorizationManagerFactory} produced by
+ * {@link #mfaAuthorizationManagerFactory()} sets an {@link AllRequiredFactorsAuthorizationManager} (AND semantics) so
+ * {@code .authenticated()} additionally requires every <em>configured</em> factor authority. This was already present
+ * and correct, scoped to the property-driven subset (so a {@code PASSWORD}-only deployment is not locked out).</li>
+ * <li><b>Merging</b> &mdash; the missing half. SS7 merges factor authorities across login steps inside
+ * {@code org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter#doFilter}: when its
+ * {@code mfaEnabled} flag is {@code true} and an already-authenticated context exists for the same principal, the new
+ * authentication result is rebuilt via {@code authenticationResult.toBuilder().authorities(...)} to additively carry the
+ * authorities of the existing authentication. That merged result is then passed through {@code successfulAuthentication}
+ * to the success handler. Without {@code mfaEnabled=true}, completing a second factor REPLACES the authentication
+ * (dropping the first factor) and the user can never satisfy "all required factors" &mdash; the H4 lockout.</li>
+ * </ol>
+ * <p>
+ * The {@code mfaEnabled} flag is normally flipped by {@code @EnableMultiFactorAuthentication}, whose
+ * {@code MultiFactorAuthenticationSelector} imports {@code AuthorizationManagerFactoryConfiguration} (a second, static
+ * {@link DefaultAuthorizationManagerFactory} bean built from the annotation's STATIC {@code authorities()} superset) and
+ * {@code EnableMfaFiltersConfiguration} (an {@code EnableMfaFiltersPostProcessor} that calls
+ * {@code setMfaEnabled(true)} on every authentication processing filter). We deliberately do NOT use the annotation here
+ * for two reasons: (a) its {@code authorities()} is a static superset, but AllRequiredFactors is AND-enforcement, so a
+ * superset would lock out subset deployments (e.g. {@code PASSWORD}-only); and (b) its factory bean is registered
+ * by-type with no {@code @ConditionalOnMissingBean}, which would collide with our property-driven factory &mdash;
+ * {@code AuthorizeHttpRequestsConfigurer} resolves the factory via {@code getBeanProvider(...).getIfAvailable()}, which
+ * returns {@code null} on ambiguity and silently falls back to a non-enforcing default, disabling factor enforcement.
  * </p>
  * <p>
- * When enabled, the {@code DefaultAuthorizationManagerFactory} is configured with an
- * {@link AllRequiredFactorsAuthorizationManager} that makes {@code .authenticated()} in
- * {@code authorizeHttpRequests} additionally require all configured factor authorities. Spring Security 7's built-in
- * infrastructure handles enforcement and session management automatically.
+ * Therefore we keep our single property-driven enforcement factory and activate ONLY the merging side using public
+ * SS7 API: {@link #mfaFilterMergingPostProcessor()} replicates {@code EnableMfaFiltersPostProcessor} by invoking the
+ * public {@link AbstractAuthenticationProcessingFilter#setMfaEnabled(boolean)} on the form-login and WebAuthn
+ * processing filters. This is gated on {@code user.mfa.enabled=true}, leaving the default (no-MFA) path untouched.
  * </p>
  *
  * @see MfaConfigProperties
@@ -81,6 +113,42 @@ public class MfaConfiguration {
 
 		log.info("MFA enabled with required factors: {}", mfaConfigProperties.getFactors());
 		return factory;
+	}
+
+	/**
+	 * Activates Spring Security 7 factor merging by enabling MFA mode on every authentication processing filter.
+	 * <p>
+	 * This replicates the behaviour of {@code @EnableMultiFactorAuthentication}'s internal
+	 * {@code EnableMfaFiltersPostProcessor} using only public API. When MFA mode is enabled,
+	 * {@link AbstractAuthenticationProcessingFilter} merges the factor authorities of the existing authentication onto
+	 * the authentication produced by a subsequent login step (for the same principal) instead of replacing it. Without
+	 * this, completing a second factor would drop the first factor's authority and the user could never satisfy all
+	 * required factors (H4 lockout).
+	 * </p>
+	 * <p>
+	 * The bean is only created when MFA is enabled, so the default (no-MFA) login path is completely unaffected.
+	 * </p>
+	 *
+	 * @return a {@link BeanPostProcessor} that calls {@code setMfaEnabled(true)} on authentication processing filters
+	 */
+	@Bean
+	@ConditionalOnProperty(name = "user.mfa.enabled", havingValue = "true", matchIfMissing = false)
+	public static BeanPostProcessor mfaFilterMergingPostProcessor() {
+		return new BeanPostProcessor() {
+			@Override
+			public Object postProcessAfterInitialization(Object bean, String beanName) {
+				// Intentionally scoped to AbstractAuthenticationProcessingFilter, which covers every
+				// authentication mechanism this framework configures: formLogin, webAuthn, and oauth2Login
+				// all extend it. SS's internal EnableMfaFiltersPostProcessor additionally flips the flag on
+				// AuthenticationFilter, BasicAuthenticationFilter, and pre-authentication filters; this
+				// framework does not configure those mechanisms, so they are deliberately not targeted here.
+				if (bean instanceof AbstractAuthenticationProcessingFilter filter) {
+					filter.setMfaEnabled(true);
+					log.debug("MFA factor merging enabled on filter: {}", bean.getClass().getName());
+				}
+				return bean;
+			}
+		};
 	}
 
 	/**
