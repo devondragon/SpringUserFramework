@@ -1,6 +1,12 @@
 {
   "properties": [
     {
+      "name": "user.jpa.auditing.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable the library's JPA auditing (@EnableJpaAuditing) and its AuditorAware. Set to false if the consuming application runs its own JPA auditing or supplies its own AuditorAware.",
+      "defaultValue": true
+    },
+    {
       "name": "user.registration.facebookEnabled",
       "type": "java.lang.Boolean",
       "description": "Enable Facebook OAuth2 registration"

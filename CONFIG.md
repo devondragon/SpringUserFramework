@@ -40,6 +40,10 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 - **Flush on Write (`user.audit.flushOnWrite`)**: Set to `true` for immediate log flushing. Defaults to `false` for performance.
 - **Max Query Results (`user.audit.maxQueryResults`)**: Maximum number of audit events returned from queries. Prevents memory issues with large logs. Defaults to `10000`.
 
+## JPA Auditing
+
+- **Enable JPA Auditing (`user.jpa.auditing.enabled`)**: Controls whether the library enables Spring Data JPA auditing (`@EnableJpaAuditing`) and registers an `AuditorAware` that captures the current user from the Spring Security context for `@CreatedBy`/`@LastModifiedBy` fields. Defaults to `true`. Set to `false` if your application runs its own JPA auditing or supplies its own `AuditorAware` bean, so the library does not hijack it. This property is the primary opt-out, because the library's `@EnableJpaAuditing` resolves the auditor bean by name (`auditorProvider`).
+
 ## GDPR Compliance
 
 GDPR features are disabled by default and must be explicitly enabled.

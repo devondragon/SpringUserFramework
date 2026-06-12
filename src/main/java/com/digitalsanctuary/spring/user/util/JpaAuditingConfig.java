@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.util;
 
 import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.AuditorAware;
@@ -19,9 +20,25 @@ import lombok.extern.slf4j.Slf4j;
  * {@code @CreatedBy} and {@code @LastModifiedBy} annotations to automatically track
  * which user created or modified them.
  * </p>
+ * <p>
+ * <strong>Consumer opt-out (H5):</strong> This configuration is gated by the {@code user.jpa.auditing.enabled} property
+ * (default {@code true}). A consuming application that runs its own JPA auditing, or that supplies its own
+ * {@link AuditorAware}, can disable the library's auditing entirely by setting {@code user.jpa.auditing.enabled=false}.
+ * Disabling the whole configuration is the single, reliable opt-out: because
+ * {@code @EnableJpaAuditing(auditorAwareRef = "auditorProvider")} resolves the auditor bean strictly <em>by name</em>,
+ * a consumer with their own auditing must disable this configuration via the property so the library's name-bound
+ * {@code @EnableJpaAuditing} (and its {@code "auditorProvider"} bean) are not registered at all.
+ * </p>
+ * <p>
+ * A {@code @ConditionalOnMissingBean} on {@code auditorProvider} was intentionally <em>not</em> used. In this
+ * component-scanned (non-auto-configuration) context it does not reliably defer to a consumer bean, and combined with
+ * the {@code auditorAwareRef = "auditorProvider"} name binding it can leave {@code @EnableJpaAuditing} searching for a
+ * suppressed bean. The class-level property gate is the supported mechanism.
+ * </p>
  */
 @Slf4j
 @Configuration
+@ConditionalOnProperty(name = "user.jpa.auditing.enabled", havingValue = "true", matchIfMissing = true)
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
 public class JpaAuditingConfig {
 
