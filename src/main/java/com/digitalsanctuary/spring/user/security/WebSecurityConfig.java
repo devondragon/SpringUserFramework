@@ -135,15 +135,20 @@ public class WebSecurityConfig {
 	private final Environment environment;
 
 	/**
-	 *
-	 * The securityFilterChain method builds the security filter chain for Spring Security.
+	 * Builds the library's security filter chain for Spring Security.
+	 * <p>
+	 * This method is invoked by {@link WebSecurityFilterChainAutoConfiguration}, which exposes the result as a {@link SecurityFilterChain} bean at a
+	 * low precedence and backs off entirely when the consuming application defines its own {@link SecurityFilterChain}. It is intentionally NOT a
+	 * {@code @Bean} method here: {@code @ConditionalOnMissingBean} is only reliable on auto-configuration classes (which load after user-defined
+	 * beans), so the conditional/ordering lives on the auto-configuration class rather than on this component-scanned {@code @Configuration}.
+	 * </p>
 	 *
 	 * @param http the HttpSecurity object
+	 * @param sessionRegistry the SessionRegistry used to track active sessions
 	 * @return the SecurityFilterChain object
 	 * @throws Exception if there is an issue creating the SecurityFilterChain
 	 */
-	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry) throws Exception {
+	public SecurityFilterChain buildSecurityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry) throws Exception {
 		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
 		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(getUnprotectedURIsArray()));
 		List<String> unprotectedURIs = getUnprotectedURIsList();

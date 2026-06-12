@@ -266,7 +266,19 @@ If you have a custom `WebSecurityConfig` or extend the framework's security conf
 2. **Update to lambda DSL style** (required in Spring Security 7)
 3. **Review method security annotations** - `@PreAuthorize`, `@PostAuthorize` unchanged
 
-**Example custom security configuration:**
+#### SecurityFilterChain override model (4.x)
+
+The library now contributes its `SecurityFilterChain` through a dedicated auto-configuration with two important properties:
+
+- **Ordered at low precedence.** The library's chain is registered with `@Order(Ordered.LOWEST_PRECEDENCE - 5)` — the same low precedence Spring Boot uses for its own default servlet security chain. This value is sourced from `SecurityFilterProperties.BASIC_AUTH_ORDER`; the constant was `SecurityProperties.BASIC_AUTH_ORDER` in Spring Boot 3.x and was relocated to `SecurityFilterProperties.BASIC_AUTH_ORDER` in Spring Boot 4.0 (still `Ordered.LOWEST_PRECEDENCE - 5`). This means any consumer-supplied chain with a lower (higher-precedence) `@Order` is consulted first by Spring Security's `FilterChainProxy`.
+- **Backs off entirely if you define your own.** The library's chain is annotated `@ConditionalOnMissingBean(SecurityFilterChain.class)`. If your application defines **any** `SecurityFilterChain` bean, the library's chain is suppressed completely.
+
+This gives you two ways to customize security:
+
+**Option A — Replace the library's chain (you own all the rules).**
+
+Define your own `SecurityFilterChain`. Because of `@ConditionalOnMissingBean`, the library's chain backs off entirely and **does not** apply any of its rules. You are now responsible for protecting *all* URIs, including the framework's endpoints (login, registration, password reset, profile, etc.). Use this when you want full control.
+
 ```java
 @Configuration
 @EnableWebSecurity
@@ -279,6 +291,9 @@ public class CustomSecurityConfig {
                 // All patterns must start with /
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // You must also permit/secure the framework's own URIs here,
+                // since the library chain no longer applies:
+                .requestMatchers("/user/registration", "/user/login", "/user/resetPassword").permitAll()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
@@ -289,6 +304,14 @@ public class CustomSecurityConfig {
     }
 }
 ```
+
+**Option B — Layer your own higher-precedence chain in front of the library's.**
+
+Define your own `SecurityFilterChain` with a `securityMatcher` scoping it to a subset of requests and a higher-precedence (lower) `@Order`. Spring Security evaluates chains in order and uses the **first** chain whose matcher matches. Requests that don't match your chain fall through to the library's chain.
+
+> Note: As soon as you define *any* `SecurityFilterChain` bean, the library's `@ConditionalOnMissingBean` causes its chain to back off. So Option B does **not** keep the library's chain active automatically — if you want both your chain and the library's behavior, you currently need to reproduce the rules you care about in your own chain(s). The `@Order` mechanism is what lets multiple consumer-defined chains coexist with predictable precedence.
+
+For most applications that only need to *add* a few rules, the simplest path is to rely on the library's chain and the `user.security.*` properties (`protectedURIs`, `unprotectedURIs`, `defaultAction`, etc.) rather than defining your own `SecurityFilterChain`.
 
 ### Custom User Services
 

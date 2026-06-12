@@ -1,1 +1,2 @@
 com.digitalsanctuary.spring.user.UserConfiguration
+com.digitalsanctuary.spring.user.security.WebSecurityFilterChainAutoConfiguration
