@@ -15,25 +15,19 @@ import org.springframework.core.env.Environment;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
 import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
-import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
@@ -111,9 +105,6 @@ public class WebSecurityConfig {
 	@Value("${spring.security.oauth2.enabled:false}")
 	private boolean oauth2Enabled;
 
-	@Value("${user.security.bcryptStrength}")
-	private int bcryptStrength = 10;
-
 	@Value("${user.security.rememberMe.enabled:false}")
 	private boolean rememberMeEnabled;
 
@@ -127,7 +118,6 @@ public class WebSecurityConfig {
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
 	private final LogoutSuccessService logoutSuccessService;
-	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
 	private final WebAuthnConfigProperties webAuthnConfigProperties;
@@ -337,58 +327,6 @@ public class WebSecurityConfig {
 		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
-	}
-
-	/**
-	 * The authProvider method creates a DaoAuthenticationProvider and sets the UserDetailsService and PasswordEncoder for the provider.
-	 *
-	 * @return the DaoAuthenticationProvider object
-	 */
-	@Bean
-	public DaoAuthenticationProvider authProvider() {
-		DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
-		authProvider.setPasswordEncoder(encoder());
-		return authProvider;
-	}
-
-	/**
-	 * The encoder method creates a BCryptPasswordEncoder with the bcryptStrength value.
-	 *
-	 * @return the BCryptPasswordEncoder object
-	 */
-	@Bean
-	public PasswordEncoder encoder() {
-		return new BCryptPasswordEncoder(bcryptStrength);
-	}
-
-	/**
-	 * The sessionRegistry method creates a SessionRegistryImpl object.
-	 *
-	 * @return the SessionRegistryImpl object
-	 */
-	@Bean
-	public SessionRegistry sessionRegistry() {
-		return new SessionRegistryImpl();
-	}
-
-	/**
-	 * The roleHierarchy method creates a RoleHierarchyImpl object from the roleHierarchyString in the rolesAndPrivilegesConfig object.
-	 *
-	 * @return the RoleHierarchyImpl object
-	 */
-	@Bean
-	public RoleHierarchy roleHierarchy() {
-		if (rolesAndPrivilegesConfig == null) {
-			log.error("WebSecurityConfig.roleHierarchy: rolesAndPrivilegesConfig is null!");
-			return null;
-		}
-		if (rolesAndPrivilegesConfig.getRoleHierarchyString() == null) {
-			log.error("WebSecurityConfig.roleHierarchy: rolesAndPrivilegesConfig.getRoleHierarchyString() is null!");
-			return null;
-		}
-		RoleHierarchyImpl roleHierarchy = RoleHierarchyImpl.fromHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
-		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
-		return roleHierarchy;
 	}
 
 	/**
