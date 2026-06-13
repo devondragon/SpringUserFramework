@@ -189,13 +189,12 @@ public class WebSecurityConfig {
 	private void setupOAuth2(HttpSecurity http) throws Exception {
 		CustomOAuth2AuthenticationEntryPoint loginAuthenticationEntryPoint = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
 
+		// The failure handler stores only a GENERIC message in the session for the UI (raw exception messages can
+		// leak account emails from Locked/Disabled exceptions and the registered provider from conflict errors);
+		// the real detail is logged server-side by the handler itself.
 		http.exceptionHandling(handling -> handling.authenticationEntryPoint(loginAuthenticationEntryPoint))
-				.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
-					log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
-					request.getSession().setAttribute("error.message", exception.getMessage());
-					response.sendRedirect(loginPageURI);
-					// handler.onAuthenticationFailure(request, response, exception);
-				}).userInfoEndpoint(userInfo -> {
+				.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService)
+						.failureHandler(new SanitizingOAuth2AuthenticationFailureHandler(loginPageURI)).userInfoEndpoint(userInfo -> {
 					userInfo.userService(dsOAuth2UserService);
 					userInfo.oidcUserService(dsOidcUserService);
 				}));

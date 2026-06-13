@@ -163,6 +163,13 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             return null;
         }
         log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
+        // Reject the login if Google explicitly reports the email as NOT verified.
+        // Providers that do not expose email_verified are trusted; only an explicit false is rejected.
+        if (isExplicitlyUnverified(principal.getAttribute("email_verified"))) {
+            log.warn("getUserFromGoogleOAuth2User: rejecting login because Google reports email_verified=false");
+            throw new OAuth2AuthenticationException(new OAuth2Error("email_not_verified"),
+                    "Your email address is not verified with your login provider.");
+        }
         User user = new User();
         String email = principal.getAttribute("email");
         user.setEmail(email != null ? email.toLowerCase() : null);
@@ -170,6 +177,33 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         user.setLastName(principal.getAttribute("family_name"));
         user.setProvider(User.Provider.GOOGLE);
         return user;
+    }
+
+    /**
+     * Determines whether an {@code email_verified} claim value represents an explicit "not verified" signal.
+     *
+     * <p>
+     * Google's userinfo serializes {@code email_verified} as either a {@link Boolean} or a {@link String}
+     * ({@code "true"}/{@code "false"}) depending on the response format, so both are handled here. The value is
+     * treated as explicitly unverified only when it is {@link Boolean#FALSE} or the case-insensitive String
+     * {@code "false"}. An absent ({@code null}) claim is trusted and is NOT treated as unverified.
+     * </p>
+     *
+     * @param emailVerified the raw {@code email_verified} attribute value (may be {@code Boolean}, {@code String}, or {@code null})
+     * @return {@code true} only when the provider explicitly reports the email as not verified
+     */
+    private boolean isExplicitlyUnverified(Object emailVerified) {
+        if (emailVerified == null) {
+            return false;
+        }
+        if (emailVerified instanceof Boolean booleanValue) {
+            return Boolean.FALSE.equals(booleanValue);
+        }
+        if (emailVerified instanceof String stringValue) {
+            return "false".equalsIgnoreCase(stringValue.trim());
+        }
+        // Unknown type: trust (do not reject) rather than risk locking out legitimate users.
+        return false;
     }
 
     /**
