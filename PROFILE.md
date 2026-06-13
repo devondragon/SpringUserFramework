@@ -165,12 +165,25 @@ public class AppUserProfileService implements UserProfileService<AppUserProfile>
 
 ### Step 4: Create a Session Profile Manager
 
-Create a session-scoped component to access the current user's profile:
+Create a session-scoped component to access the current user's profile.
+
+> **⚠️ IMPORTANT — `@Scope` is NOT inherited.** Spring does not propagate the `@Scope` declared on
+> `BaseSessionProfile` to your subclass. If you annotate your subclass with only `@Component` (and omit
+> `@Scope`), it becomes a **singleton shared across all HTTP sessions**, leaking one user's profile to every
+> other user — a serious security bug. Always declare session scoping on the subclass itself, either with the
+> explicit `@Scope` shown below, or with the convenience meta-annotation `@SessionScopedProfile`
+> (`com.digitalsanctuary.spring.user.profile.session.SessionScopedProfile`), which carries `@Component` and the
+> correct `@Scope` in a single annotation.
 
 ```java
+// Option A — explicit @Scope:
 @Component
 @Scope(value = WebApplicationContext.SCOPE_SESSION, proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class AppSessionProfile extends BaseSessionProfile<AppUserProfile> {
+
+// Option B (equivalent) — the convenience meta-annotation:
+// @SessionScopedProfile
+// public class AppSessionProfile extends BaseSessionProfile<AppUserProfile> {
 
     // Add custom accessor methods for your application
     public String getDisplayName() {

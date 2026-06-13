@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
@@ -144,6 +145,13 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(savedUser).action("OIDC Registration Success").actionStatus("Success")
                 .message("Registration Confirmed. User logged in.").build();
         eventPublisher.publishEvent(registrationAuditEvent);
+        // Publish a registration event for this first-time social registration so consumers can hook it the
+        // same way they hook form registrations. This method is only reached for brand-new users (existing
+        // users take the update branch in handleOidcLoginSuccess). OIDC users are created ENABLED, so the
+        // RegistrationListener intentionally skips sending them a verification email; the event still fires.
+        // No HttpServletRequest is available here, so locale defaults and appUrl is null (only the verification
+        // email, which is skipped for enabled users, would have used appUrl).
+        eventPublisher.publishEvent(new OnRegistrationCompleteEvent(savedUser, Locale.getDefault(), null));
         return savedUser;
     }
 

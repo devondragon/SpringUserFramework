@@ -123,6 +123,7 @@ public class WebSecurityConfig {
 	private final WebAuthnConfigProperties webAuthnConfigProperties;
 	private final MfaConfigProperties mfaConfigProperties;
 	private final Environment environment;
+	private final ApplicationEventPublisher applicationEventPublisher;
 
 	/**
 	 * Builds the library's security filter chain for Spring Security.
@@ -292,7 +293,7 @@ public class WebSecurityConfig {
 		return new ObjectPostProcessor<WebAuthnAuthenticationFilter>() {
 			@Override
 			public <O extends WebAuthnAuthenticationFilter> O postProcess(O filter) {
-				filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService));
+				filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService, applicationEventPublisher));
 				return filter;
 			}
 		};

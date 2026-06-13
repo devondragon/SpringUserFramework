@@ -30,6 +30,7 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.fixtures.OAuth2UserTestDataBuilder;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -115,6 +116,13 @@ class DSOAuth2UserServiceTest {
             assertThat(auditEvent.getAction()).isEqualTo("OAuth2 Registration Success");
             assertThat(auditEvent.getActionStatus()).isEqualTo("Success");
             assertThat(auditEvent.getUser().getEmail()).isEqualTo("john.doe@gmail.com");
+
+            // Verify a registration event was published for the first-time social registration so consumers
+            // can observe OAuth2 registrations the same way they observe form registrations.
+            ArgumentCaptor<OnRegistrationCompleteEvent> regCaptor = ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
+            verify(eventPublisher).publishEvent(regCaptor.capture());
+            assertThat(regCaptor.getValue().getUser().getEmail()).isEqualTo("john.doe@gmail.com");
+            assertThat(regCaptor.getValue().getUser().isEnabled()).isTrue();
         }
 
         @Test

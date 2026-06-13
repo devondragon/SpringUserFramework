@@ -29,6 +29,7 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.fixtures.OidcUserTestDataBuilder;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -109,6 +110,14 @@ class DSOidcUserServiceTest {
             
             verify(userRepository).save(any(User.class));
             verify(eventPublisher).publishEvent(any(AuditEvent.class));
+
+            // Verify a registration event was published for the first-time social registration so consumers
+            // can observe OIDC registrations the same way they observe form registrations.
+            org.mockito.ArgumentCaptor<OnRegistrationCompleteEvent> regCaptor =
+                    org.mockito.ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
+            verify(eventPublisher).publishEvent(regCaptor.capture());
+            assertThat(regCaptor.getValue().getUser().getEmail()).isEqualTo("john.doe@company.com");
+            assertThat(regCaptor.getValue().getUser().isEnabled()).isTrue();
         }
 
         @Test

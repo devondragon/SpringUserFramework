@@ -12,9 +12,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -40,6 +42,9 @@ class WebAuthnAuthenticationSuccessHandlerTest {
 	@Mock
 	private AuthenticationSuccessHandler delegate;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private WebAuthnAuthenticationSuccessHandler handler;
 
 	private MockHttpServletRequest request;
@@ -49,7 +54,7 @@ class WebAuthnAuthenticationSuccessHandlerTest {
 	@BeforeEach
 	void setUp() {
 		testUser = TestFixtures.Users.standardUser();
-		handler = new WebAuthnAuthenticationSuccessHandler(userDetailsService, delegate);
+		handler = new WebAuthnAuthenticationSuccessHandler(userDetailsService, delegate, eventPublisher);
 		request = new MockHttpServletRequest();
 		response = new MockHttpServletResponse();
 		SecurityContextHolder.clearContext();
@@ -106,6 +111,55 @@ class WebAuthnAuthenticationSuccessHandlerTest {
 			Authentication contextAuth = SecurityContextHolder.getContext().getAuthentication();
 			assertThat(contextAuth.getPrincipal()).isInstanceOf(DSUserDetails.class);
 			assertThat(((DSUserDetails) contextAuth.getPrincipal()).getUser().getEmail()).isEqualTo(testUser.getEmail());
+		}
+
+		@Test
+		@DisplayName("should publish InteractiveAuthenticationSuccessEvent for the converted authentication")
+		void shouldPublishInteractiveAuthenticationSuccessEvent() throws Exception {
+			// Given
+			Collection<GrantedAuthority> authorities = Set.of(new SimpleGrantedAuthority("ROLE_USER"));
+			PublicKeyCredentialUserEntity userEntity = ImmutablePublicKeyCredentialUserEntity.builder()
+					.name(testUser.getEmail()).id(new Bytes(new byte[] {1, 2, 3})).displayName(testUser.getFullName()).build();
+
+			WebAuthnAuthentication webAuthnAuth = new WebAuthnAuthentication(userEntity, authorities);
+
+			DSUserDetails dsUserDetails = new DSUserDetails(testUser, authorities);
+			when(userDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(dsUserDetails);
+
+			// When
+			handler.onAuthenticationSuccess(request, response, webAuthnAuth);
+
+			// Then - an InteractiveAuthenticationSuccessEvent is published so BaseAuthenticationListener fires
+			// for passkey logins, matching form/OAuth2 logins.
+			ArgumentCaptor<InteractiveAuthenticationSuccessEvent> eventCaptor =
+					ArgumentCaptor.forClass(InteractiveAuthenticationSuccessEvent.class);
+			verify(eventPublisher).publishEvent(eventCaptor.capture());
+			InteractiveAuthenticationSuccessEvent event = eventCaptor.getValue();
+			assertThat(event.getAuthentication()).isInstanceOf(WebAuthnAuthenticationToken.class);
+			assertThat(event.getAuthentication().getPrincipal()).isInstanceOf(DSUserDetails.class);
+			assertThat(((DSUserDetails) event.getAuthentication().getPrincipal()).getUser().getEmail())
+					.isEqualTo(testUser.getEmail());
+		}
+
+		@Test
+		@DisplayName("should not fail when no event publisher is configured")
+		void shouldNotFailWithoutEventPublisher() throws Exception {
+			// Given - handler constructed without an event publisher (null)
+			WebAuthnAuthenticationSuccessHandler handlerNoPublisher =
+					new WebAuthnAuthenticationSuccessHandler(userDetailsService, delegate);
+			Collection<GrantedAuthority> authorities = Set.of(new SimpleGrantedAuthority("ROLE_USER"));
+			PublicKeyCredentialUserEntity userEntity = ImmutablePublicKeyCredentialUserEntity.builder()
+					.name(testUser.getEmail()).id(new Bytes(new byte[] {1, 2, 3})).displayName(testUser.getFullName()).build();
+
+			WebAuthnAuthentication webAuthnAuth = new WebAuthnAuthentication(userEntity, authorities);
+
+			DSUserDetails dsUserDetails = new DSUserDetails(testUser, authorities);
+			when(userDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(dsUserDetails);
+
+			// When / Then - no exception, delegate still invoked
+			handlerNoPublisher.onAuthenticationSuccess(request, response, webAuthnAuth);
+			verify(delegate).onAuthenticationSuccess(org.mockito.ArgumentMatchers.eq(request),
+					org.mockito.ArgumentMatchers.eq(response), org.mockito.ArgumentMatchers.any(Authentication.class));
 		}
 
 		@Test

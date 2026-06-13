@@ -22,11 +22,35 @@ import lombok.Data;
  * </p>
  *
  * <p>
- * Example usage:
+ * <strong>IMPORTANT:</strong> Spring's {@link Scope @Scope} annotation is <strong>NOT inherited</strong> by
+ * subclasses. The {@code @Scope} declared on this base class does <em>not</em> propagate to your concrete
+ * subclass. If your subclass is annotated only with {@code @Component} (and no {@code @Scope}), it becomes a
+ * <strong>singleton shared across every HTTP session</strong> &mdash; one user's profile data will leak to all
+ * other users, which is a serious security vulnerability. Every concrete subclass <strong>MUST</strong> declare
+ * session scoping on itself, either by repeating the {@code @Scope} annotation explicitly or by using the
+ * convenience meta-annotation {@link SessionScopedProfile @SessionScopedProfile}.
+ * </p>
+ *
+ * <p>
+ * Example usage &mdash; Option A, the convenience meta-annotation (recommended):
+ * </p>
+ *
+ * <pre>{@code
+ * @SessionScopedProfile
+ * public class CustomSessionProfile extends BaseSessionProfile<CustomUserProfile> {
+ *     public boolean hasSpecificPermission() {
+ *         return getUserProfile().getPermissions().contains("SPECIFIC_PERMISSION");
+ *     }
+ * }
+ * }</pre>
+ *
+ * <p>
+ * Example usage &mdash; Option B, an explicit {@code @Scope} on the subclass (equivalent to Option A):
  * </p>
  *
  * <pre>{@code
  * @Component
+ * @Scope(value = WebApplicationContext.SCOPE_SESSION, proxyMode = ScopedProxyMode.TARGET_CLASS)
  * public class CustomSessionProfile extends BaseSessionProfile<CustomUserProfile> {
  *     public boolean hasSpecificPermission() {
  *         return getUserProfile().getPermissions().contains("SPECIFIC_PERMISSION");
@@ -37,6 +61,7 @@ import lombok.Data;
  * @param <T> the type of user profile, must extend BaseUserProfile
  *
  * @see BaseUserProfile
+ * @see SessionScopedProfile
  * @see WebApplicationContext#SCOPE_SESSION
  */
 @Data

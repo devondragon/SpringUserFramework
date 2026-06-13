@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.CannotAcquireLockException;
@@ -35,6 +36,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
+import com.digitalsanctuary.spring.user.event.UserDisabledEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
@@ -522,41 +524,50 @@ public class UserService {
 			// for this event, so rather than annotate a listener we defer publication itself via a
 			// transaction synchronization. If no transaction is active (e.g. called outside a
 			// transactional context), fall back to publishing immediately.
-			publishUserDeletedEventAfterCommit(userId, userEmail);
+			publishEventAfterCommit(new UserDeletedEvent(this, userId, userEmail));
 		} else {
 			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user.getEmail());
+			// Capture user details before the save for the post-commit event, mirroring the delete path.
+			Long userId = user.getId();
+			String userEmail = user.getEmail();
+
 			user.setEnabled(false);
 			userRepository.save(user);
 			log.debug("UserService.deleteOrDisableUser: user {} has been disabled", user.getEmail());
+
+			// Publish UserDisabledEvent AFTER the surrounding transaction commits so listeners (often
+			// @Async, in consuming apps) never observe a not-yet-committed change. This makes the default
+			// soft-delete path observable, matching the hard-delete path's UserDeletedEvent.
+			publishEventAfterCommit(new UserDisabledEvent(this, userId, userEmail));
 		}
 	}
 
 	/**
-	 * Publishes a {@link UserDeletedEvent} after the current transaction commits.
+	 * Publishes the given application event after the current transaction commits.
 	 *
 	 * <p>
 	 * If a transaction is active, the event is published from
 	 * {@link TransactionSynchronization#afterCommit()} so listeners (especially {@code @Async}
-	 * ones) never act on a deletion that has not yet been committed. If no transaction is active,
+	 * ones) never act on a change that has not yet been committed. If no transaction is active,
 	 * the event is published immediately so the behavior is still correct in non-transactional
-	 * callers.
+	 * callers. Used for both {@link UserDeletedEvent} (hard delete) and {@link UserDisabledEvent}
+	 * (soft delete).
 	 * </p>
 	 *
-	 * @param userId    the id of the deleted user
-	 * @param userEmail the email of the deleted user
+	 * @param event the event to publish after commit
 	 */
-	private void publishUserDeletedEventAfterCommit(final Long userId, final String userEmail) {
+	private void publishEventAfterCommit(final ApplicationEvent event) {
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 				@Override
 				public void afterCommit() {
-					log.debug("Publishing UserDeletedEvent after commit");
-					eventPublisher.publishEvent(new UserDeletedEvent(UserService.this, userId, userEmail));
+					log.debug("Publishing {} after commit", event.getClass().getSimpleName());
+					eventPublisher.publishEvent(event);
 				}
 			});
 		} else {
-			log.debug("Publishing UserDeletedEvent (no active transaction)");
-			eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail));
+			log.debug("Publishing {} (no active transaction)", event.getClass().getSimpleName());
+			eventPublisher.publishEvent(event);
 		}
 	}
 

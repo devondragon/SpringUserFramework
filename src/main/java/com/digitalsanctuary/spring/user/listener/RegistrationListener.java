@@ -42,6 +42,16 @@ public class RegistrationListener {
 	@EventListener
 	public void onApplicationEvent(final OnRegistrationCompleteEvent event) {
 		log.debug("RegistrationListener.onApplicationEvent: called with event: {}", event.toString());
+		// Skip sending a verification email to users who are already enabled (e.g. first-time OAuth2/OIDC
+		// registrations, where the provider has already verified the email and the account is created
+		// ENABLED). Form registrations that require verification are created DISABLED, so they still receive
+		// the email. This lets OAuth/OIDC services publish OnRegistrationCompleteEvent so consumers can
+		// observe social registrations uniformly, without sending those users a pointless verification email.
+		if (event.getUser() != null && event.getUser().isEnabled()) {
+			log.debug("RegistrationListener.onApplicationEvent: user {} is already enabled; skipping verification email",
+					event.getUser().getEmail());
+			return;
+		}
 		if (sendRegistrationVerificationEmail) {
 			this.sendRegistrationVerificationEmail(event);
 		}

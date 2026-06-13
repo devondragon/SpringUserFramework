@@ -48,6 +48,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
+import com.digitalsanctuary.spring.user.event.UserDisabledEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
@@ -323,9 +324,9 @@ public class UserServiceTest {
         }
 
         @Test
-        @DisplayName("deleteOrDisableUser - when actuallyDeleteAccount is false - disables user")
+        @DisplayName("deleteOrDisableUser - when actuallyDeleteAccount is false - disables user and publishes UserDisabledEvent")
         void deleteOrDisableUser_whenActuallyDeleteFalse_disablesUser() {
-            // Given
+            // Given: no active transaction, so the disable event is published immediately (fallback path)
             ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", false);
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
@@ -336,7 +337,46 @@ public class UserServiceTest {
             assertThat(testUser.isEnabled()).isFalse();
             verify(userRepository).save(testUser);
             verify(userRepository, never()).delete(any());
-            verify(eventPublisher, never()).publishEvent(any());
+
+            // The soft-delete path is now observable via UserDisabledEvent.
+            ArgumentCaptor<UserDisabledEvent> captor = ArgumentCaptor.forClass(UserDisabledEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
+            assertThat(captor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
+            // No delete-path events should be published on the disable branch.
+            verify(eventPublisher, never()).publishEvent(any(UserPreDeleteEvent.class));
+            verify(eventPublisher, never()).publishEvent(any(UserDeletedEvent.class));
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - UserDisabledEvent is deferred until after transaction commit")
+        void deleteOrDisableUser_publishesUserDisabledEventAfterCommit() {
+            // Given: an active transaction synchronization (simulating the surrounding @Transactional)
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", false);
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                // When
+                userService.deleteOrDisableUser(testUser);
+
+                // Then: the disable event must NOT yet be published
+                verify(eventPublisher, never()).publishEvent(any(UserDisabledEvent.class));
+
+                // A synchronization was registered for after-commit delivery
+                List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+                assertThat(syncs).hasSize(1);
+
+                // When the transaction commits, the disable event is delivered
+                syncs.forEach(TransactionSynchronization::afterCommit);
+
+                // Then
+                ArgumentCaptor<UserDisabledEvent> captor = ArgumentCaptor.forClass(UserDisabledEvent.class);
+                verify(eventPublisher).publishEvent(captor.capture());
+                assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
+                assertThat(captor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
         }
 
         @Test
