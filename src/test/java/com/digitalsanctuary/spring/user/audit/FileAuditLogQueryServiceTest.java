@@ -136,6 +136,60 @@ class FileAuditLogQueryServiceTest {
     }
 
     @Nested
+    @DisplayName("Bounded query")
+    class BoundedQuery {
+
+        @Test
+        @DisplayName("caps results at maxQueryResults and returns the most recent window")
+        void capsResults_andReturnsMostRecent() throws IOException {
+            // Given - small cap, and more matching lines than the cap
+            setupLogFilePath();
+            when(auditConfig.getMaxQueryResults()).thenReturn(5);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("Date|Action|Action Status|User ID|Email|IP Address|SessionId|Message|User Agent|Extra Data\n");
+            // 20 events, increasing timestamps; the newest 5 are minutes 15..19
+            for (int i = 0; i < 20; i++) {
+                String ts = String.format("2025-01-15T10:%02d:00Z", i);
+                sb.append(ts).append("|Action").append(i)
+                        .append("|Success|1|test@example.com|127.0.0.1|sess").append(i)
+                        .append("|msg|Mozilla/5.0|null\n");
+            }
+            Files.writeString(logFile, sb.toString());
+
+            // When
+            List<AuditEventDTO> result = queryService.findByUser(testUser);
+
+            // Then - exactly maxQueryResults, newest first (Action19 .. Action15)
+            assertThat(result).hasSize(5);
+            assertThat(result).extracting(AuditEventDTO::getAction)
+                    .containsExactly("Action19", "Action18", "Action17", "Action16", "Action15");
+        }
+
+        @Test
+        @DisplayName("returns all matches when fewer than maxQueryResults, newest first")
+        void returnsAll_whenUnderCap() throws IOException {
+            // Given - cap larger than the number of matching lines
+            setupLogFilePath();
+            when(auditConfig.getMaxQueryResults()).thenReturn(100);
+            String logContent = """
+                Date|Action|Action Status|User ID|Email|IP Address|SessionId|Message|User Agent|Extra Data
+                2025-01-15T08:00:00Z|Login|Success|1|test@example.com|127.0.0.1|sess1|First|Mozilla/5.0|null
+                2025-01-15T12:00:00Z|Logout|Success|1|test@example.com|127.0.0.1|sess2|Third|Mozilla/5.0|null
+                2025-01-15T10:00:00Z|PasswordUpdate|Success|1|test@example.com|127.0.0.1|sess3|Second|Mozilla/5.0|null
+                """;
+            Files.writeString(logFile, logContent);
+
+            // When
+            List<AuditEventDTO> result = queryService.findByUser(testUser);
+
+            // Then - preserves newest-first ordering of the full result set
+            assertThat(result).extracting(AuditEventDTO::getAction)
+                    .containsExactly("Logout", "PasswordUpdate", "Login");
+        }
+    }
+
+    @Nested
     @DisplayName("findByUserAndAction")
     class FindByUserAndAction {
 

@@ -212,6 +212,30 @@
       "description": "Path for audit log file"
     },
     {
+      "name": "user.audit.flushRate",
+      "type": "java.lang.Integer",
+      "description": "Interval in milliseconds at which the buffered audit log is flushed to disk when flushOnWrite=false. Smaller values reduce the durability window at a small performance cost.",
+      "defaultValue": 30000
+    },
+    {
+      "name": "user.audit.maxQueryResults",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of audit events returned from a single query. The query service retains only the most-recent matching events in a bounded ring buffer, bounding memory regardless of file size. Set to 0 or negative to disable the limit (not recommended).",
+      "defaultValue": 10000
+    },
+    {
+      "name": "user.audit.maxFileSizeMb",
+      "type": "java.lang.Integer",
+      "description": "Maximum size in megabytes of the active audit log file before it is rotated. When exceeded, the active file is renamed to <name>.1 (shifting archives up to maxFiles) and a fresh file is opened. Set to 0 or negative to disable rotation (unbounded growth).",
+      "defaultValue": 10
+    },
+    {
+      "name": "user.audit.maxFiles",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of rotated audit log archive files to retain (e.g. user-audit.log.1 .. user-audit.log.5). The oldest archive beyond this count is deleted on rotation.",
+      "defaultValue": 5
+    },
+    {
       "name": "user.security.bcryptStrength",
       "type": "java.lang.Integer",
       "description": "BCrypt hash strength (4-31, default 10)"
