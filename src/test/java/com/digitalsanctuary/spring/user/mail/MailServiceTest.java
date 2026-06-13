@@ -7,16 +7,22 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import jakarta.mail.internet.MimeMessage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.slf4j.LoggerFactory;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
@@ -593,6 +599,81 @@ class MailServiceTest {
             // Execute preparator - it should not throw any exceptions
             MimeMessagePreparator preparator = preparatorCaptor.getValue();
             preparator.prepare(mimeMessage);
+        }
+    }
+
+    @Nested
+    @DisplayName("From Address Warning Tests")
+    class FromAddressWarningTests {
+
+        private static final String EXPECTED_WARNING_FRAGMENT = "user.mail.fromAddress";
+
+        private Logger mailServiceLogger;
+        private ListAppender<ILoggingEvent> listAppender;
+
+        @BeforeEach
+        void attachAppender() {
+            mailServiceLogger = (Logger) LoggerFactory.getLogger(MailService.class);
+            listAppender = new ListAppender<>();
+            listAppender.start();
+            mailServiceLogger.addAppender(listAppender);
+        }
+
+        @AfterEach
+        void detachAppender() {
+            mailServiceLogger.detachAppender(listAppender);
+        }
+
+        @Test
+        @DisplayName("Should warn when JavaMailSender is present but fromAddress is blank")
+        void shouldWarnWhenSenderPresentAndFromAddressBlank() {
+            // Given: sender available (mail enabled) but a blank fromAddress
+            when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
+            MailService service = new MailService(mailSenderProvider, mailContentBuilder);
+            ReflectionTestUtils.setField(service, "fromAddress", "  ");
+
+            // When
+            service.init();
+
+            // Then
+            assertThat(warningMessages()).anyMatch(msg -> msg.contains(EXPECTED_WARNING_FRAGMENT));
+        }
+
+        @Test
+        @DisplayName("Should NOT warn about fromAddress when sender present and fromAddress is valid")
+        void shouldNotWarnWhenSenderPresentAndFromAddressValid() {
+            // Given: sender available and a valid fromAddress
+            when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
+            MailService service = new MailService(mailSenderProvider, mailContentBuilder);
+            ReflectionTestUtils.setField(service, "fromAddress", "noreply@example.com");
+
+            // When
+            service.init();
+
+            // Then
+            assertThat(warningMessages()).noneMatch(msg -> msg.contains(EXPECTED_WARNING_FRAGMENT));
+        }
+
+        @Test
+        @DisplayName("Should NOT warn about fromAddress when sender is absent")
+        void shouldNotWarnAboutFromAddressWhenSenderAbsent() {
+            // Given: no sender (mail disabled) and a blank fromAddress
+            when(mailSenderProvider.getIfAvailable()).thenReturn(null);
+            MailService service = new MailService(mailSenderProvider, mailContentBuilder);
+            ReflectionTestUtils.setField(service, "fromAddress", "");
+
+            // When
+            service.init();
+
+            // Then: only the no-sender warning is expected, not the fromAddress warning
+            assertThat(warningMessages()).noneMatch(msg -> msg.contains(EXPECTED_WARNING_FRAGMENT));
+        }
+
+        private java.util.List<String> warningMessages() {
+            return listAppender.list.stream()
+                .filter(event -> event.getLevel() == Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
         }
     }
 }

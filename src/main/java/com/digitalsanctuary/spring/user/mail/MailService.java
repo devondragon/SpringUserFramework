@@ -61,6 +61,9 @@ public class MailService {
 		resolvedSender = mailSenderProvider.getIfAvailable();
 		if (resolvedSender == null) {
 			log.warn("JavaMailSender is not configured — email sending is disabled. Set 'spring.mail.host' to enable.");
+		} else if (fromAddress == null || fromAddress.isBlank()) {
+			log.warn("JavaMailSender is configured but 'user.mail.fromAddress' is not set — outbound emails will have no valid sender address. "
+					+ "Set 'user.mail.fromAddress' to a valid from address.");
 		}
 	}
 
