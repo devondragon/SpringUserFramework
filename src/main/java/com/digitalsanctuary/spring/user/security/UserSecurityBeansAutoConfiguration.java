@@ -3,15 +3,21 @@ package com.digitalsanctuary.spring.user.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.security.authentication.AuthenticationEventPublisher;
+import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.UserConfiguration;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import lombok.RequiredArgsConstructor;
@@ -115,5 +121,49 @@ public class UserSecurityBeansAutoConfiguration {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder);
         return authProvider;
+    }
+
+    /**
+     * Creates a {@link MethodSecurityExpressionHandler} wired with the configured {@link RoleHierarchy} so method
+     * security annotations (e.g. {@code @PreAuthorize}) honor the role hierarchy. Declared {@code static} so it is
+     * available to the method-security infrastructure during early initialization. Backs off entirely if the
+     * consuming application defines its own {@link MethodSecurityExpressionHandler}.
+     *
+     * @param roleHierarchy the effective {@link RoleHierarchy} (may be {@code null} when none is configured)
+     * @return the configured {@link MethodSecurityExpressionHandler}
+     */
+    @Bean
+    @ConditionalOnMissingBean(MethodSecurityExpressionHandler.class)
+    static MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
+        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+        expressionHandler.setRoleHierarchy(roleHierarchy);
+        return expressionHandler;
+    }
+
+    /**
+     * Creates the {@link HttpSessionEventPublisher} that bridges servlet {@code HttpSession} lifecycle events into
+     * the Spring event system (required for {@link SessionRegistry}-based concurrent-session tracking). Backs off
+     * entirely if the consuming application defines its own {@link HttpSessionEventPublisher}.
+     *
+     * @return the {@link HttpSessionEventPublisher}
+     */
+    @Bean
+    @ConditionalOnMissingBean(HttpSessionEventPublisher.class)
+    public HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
+    }
+
+    /**
+     * Publishes Spring Security authentication events to the application event system so listeners can react to
+     * successful/failed authentication. Backs off entirely if the consuming application defines its own
+     * {@link AuthenticationEventPublisher}.
+     *
+     * @param applicationEventPublisher the Spring {@link ApplicationEventPublisher}
+     * @return the default {@link AuthenticationEventPublisher}
+     */
+    @Bean
+    @ConditionalOnMissingBean(AuthenticationEventPublisher.class)
+    public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
+        return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
     }
 }

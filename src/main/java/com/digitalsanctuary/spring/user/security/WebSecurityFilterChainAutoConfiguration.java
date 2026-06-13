@@ -6,6 +6,7 @@ import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilte
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.SecurityFilterChain;
 import com.digitalsanctuary.spring.user.UserConfiguration;
@@ -24,9 +25,19 @@ import lombok.extern.slf4j.Slf4j;
  * <li><b>Fully replace it</b> by defining their own {@link SecurityFilterChain} bean &mdash; in which case the library's chain is suppressed entirely
  * and the consumer owns all security rules, including the library's protected URIs.</li>
  * </ul>
+ *
  * <p>
- * A consumer that wants to layer additional rules in front of the library's chain can define their own chain with a higher-precedence (lower)
- * {@code @Order} value; that chain is then consulted first by Spring Security's {@code FilterChainProxy}.
+ * <b>WARNING &mdash; this back-off is all-or-nothing.</b> The {@link ConditionalOnMissingBean} is keyed on the {@link SecurityFilterChain}
+ * <em>type</em>, so defining <em>any</em> {@link SecurityFilterChain} bean &mdash; even a narrow, single-purpose one (e.g. an actuator-only or
+ * API-only chain) &mdash; suppresses the library's entire chain (form login, logout, CSRF, session management, WebAuthn, OAuth2). There is no partial
+ * coexistence: a consumer who defines their own chain owns <em>all</em> security configuration, including every URI the library would otherwise
+ * protect. If you intend only to add rules for a subset of requests, you must reproduce the library's protections in your own chain rather than rely
+ * on both being active.
+ * </p>
+ * <p>
+ * The intended pattern for layering is to <em>not</em> define a {@link SecurityFilterChain} at all, and instead customize via the library's
+ * {@code user.security.*} properties and the documented extension beans. (Spring Security's multi-chain {@code @Order} layering does not apply here,
+ * because the library backs off entirely as soon as a second chain bean exists.)
  * </p>
  *
  * <p>
@@ -37,6 +48,7 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  */
 @Slf4j
+@EnableWebSecurity
 @AutoConfiguration(after = UserConfiguration.class)
 @RequiredArgsConstructor
 public class WebSecurityFilterChainAutoConfiguration {

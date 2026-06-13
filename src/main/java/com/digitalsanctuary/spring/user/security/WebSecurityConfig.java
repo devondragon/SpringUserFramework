@@ -12,21 +12,14 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.authentication.AuthenticationEventPublisher;
-import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -47,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 @EqualsAndHashCode(callSuper = false)
 @Configuration
 @RequiredArgsConstructor
-@EnableWebSecurity
 public class WebSecurityConfig {
 
 
@@ -329,41 +321,6 @@ public class WebSecurityConfig {
 		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
-	}
-
-	/**
-	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler. This
-	 * ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
-	 *
-	 * @return the MethodSecurityExpressionHandler object
-	 */
-	@Bean
-	static MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
-		DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
-		expressionHandler.setRoleHierarchy(roleHierarchy);
-		return expressionHandler;
-	}
-
-	/**
-	 * The httpSessionEventPublisher method creates an HttpSessionEventPublisher object.
-	 *
-	 * @return the HttpSessionEventPublisher object
-	 */
-	@Bean
-	public HttpSessionEventPublisher httpSessionEventPublisher() {
-		return new HttpSessionEventPublisher();
-	}
-
-	/**
-	 * This is required to publish authentication events to the Spring event system. This allows us to listen for authentication events and perform
-	 * actions based on successful or failed authentication.
-	 *
-	 * @param applicationEventPublisher the Spring ApplicationEventPublisher
-	 * @return the Spring Security default AuthenticationEventPublisher
-	 */
-	@Bean
-	public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-		return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
 	}
 
 	/**
