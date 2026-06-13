@@ -71,7 +71,7 @@ public class MailService {
 	 * @param subject the subject of the email
 	 * @param text the text to include as the email message body
 	 */
-	@Async
+	@Async("dsMailExecutor")
 	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendSimpleMessage(String to, String subject, String text) {
@@ -100,7 +100,7 @@ public class MailService {
 	 * @param variables a map of variables (key->value) to use in building the dynamic content via the template
 	 * @param templatePath the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
 	 */
-	@Async
+	@Async("dsMailExecutor")
 	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {

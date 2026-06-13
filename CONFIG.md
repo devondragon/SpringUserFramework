@@ -152,6 +152,13 @@ user:
 
 - **From Address (`spring.mail.fromAddress`)**: The email address used as the sender in outgoing emails.
 
+### Mail Executor
+
+Email is sent asynchronously (`@Async`) with retry/backoff. To prevent an SMTP outage from starving the shared application task executor that other
+async features rely on, mail runs on its own dedicated, bounded executor bean named `dsMailExecutor` (core pool 2, max pool 4, queue capacity 50, with
+a `CallerRunsPolicy` rejection handler that applies backpressure to the calling thread when the pool and queue are saturated). To change the sizing,
+supply your own `dsMailExecutor` bean (a `ThreadPoolTaskExecutor`); the library's default backs off via `@ConditionalOnMissingBean(name = "dsMailExecutor")`.
+
 
 ## Role and Privileges
 
