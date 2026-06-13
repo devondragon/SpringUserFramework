@@ -19,7 +19,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 class SanitizingOAuth2AuthenticationFailureHandlerTest {
 
     private static final String LOGIN_PAGE_URI = "/user/login.html";
-    private static final String SESSION_ATTRIBUTE = "error.message";
+    private static final String SESSION_ATTRIBUTE = SanitizingOAuth2AuthenticationFailureHandler.ERROR_MESSAGE_SESSION_ATTRIBUTE;
 
     private SanitizingOAuth2AuthenticationFailureHandler handler;
 

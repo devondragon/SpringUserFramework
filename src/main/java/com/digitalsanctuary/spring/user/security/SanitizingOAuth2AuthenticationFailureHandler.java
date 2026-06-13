@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.security;
 
 import java.io.IOException;
+import org.springframework.security.authentication.AccountStatusException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
@@ -29,7 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 public class SanitizingOAuth2AuthenticationFailureHandler implements AuthenticationFailureHandler {
 
     /** Session attribute key the login page reads to display an error message. */
-    static final String ERROR_MESSAGE_SESSION_ATTRIBUTE = "error.message";
+    public static final String ERROR_MESSAGE_SESSION_ATTRIBUTE = "error.message";
 
     /** OAuth2 error code raised when a provider explicitly reports the email is not verified. */
     static final String EMAIL_NOT_VERIFIED_ERROR_CODE = "email_not_verified";
@@ -56,13 +57,49 @@ public class SanitizingOAuth2AuthenticationFailureHandler implements Authenticat
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
             throws IOException, ServletException {
-        // Log the real detail server-side only. Server logs are an acceptable place for sensitive detail.
-        log.error("OAuth2 login failure: {}", exception.getMessage());
+        // Avoid placing potentially-sensitive raw exception messages into the ERROR/WARN log streams that
+        // commonly feed SIEM/centralized logging. LockedException/DisabledException messages can embed the
+        // account email, and a registration_denied error can carry a guard-specific reason. So we log only a
+        // NON-sensitive summary (exception type plus, for OAuth2 failures, the error code) at WARN for the
+        // expected failure categories, reserving ERROR for genuinely unexpected failures. The full exception
+        // (including its message and stack trace) remains available at DEBUG for operators who opt in.
+        if (isExpectedFailure(exception)) {
+            log.warn("OAuth2 login failure ({}): {}", exception.getClass().getSimpleName(), nonSensitiveDetail(exception));
+        } else {
+            log.error("Unexpected OAuth2 login failure ({})", exception.getClass().getSimpleName());
+        }
         log.debug("OAuth2 login failure detail", exception);
 
         // Store ONLY a generic, non-sensitive message for the UI. Never the raw exception message.
         request.getSession().setAttribute(ERROR_MESSAGE_SESSION_ATTRIBUTE, resolveUserFacingMessage(exception));
         response.sendRedirect(loginPageURI);
+    }
+
+    /**
+     * Identifies authentication failures that are expected during normal operation (a locked/disabled account, a
+     * provider-conflict, an unverified email, or a denied registration) and therefore warrant only a WARN-level,
+     * non-sensitive log line rather than an ERROR.
+     *
+     * @param exception the authentication failure
+     * @return {@code true} if this is an expected failure category
+     */
+    private boolean isExpectedFailure(AuthenticationException exception) {
+        return exception instanceof AccountStatusException || exception instanceof OAuth2AuthenticationException;
+    }
+
+    /**
+     * Produces a non-sensitive description of the failure for logging. For OAuth2 failures this is the error code
+     * (a fixed identifier such as {@code email_not_verified} or {@code registration_denied}); the error description
+     * and the raw exception message are intentionally excluded because they can contain PII (e.g. an account email).
+     *
+     * @param exception the authentication failure
+     * @return a non-sensitive, log-safe description
+     */
+    private String nonSensitiveDetail(AuthenticationException exception) {
+        if (exception instanceof OAuth2AuthenticationException oauth2Exception && oauth2Exception.getError() != null) {
+            return "error=" + oauth2Exception.getError().getErrorCode();
+        }
+        return "see DEBUG log for detail";
     }
 
     /**
