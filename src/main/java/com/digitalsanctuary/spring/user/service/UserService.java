@@ -354,9 +354,9 @@ public class UserService {
 	 */
 	@Transactional
 	public void deleteOrDisableUser(final User user) {
-		log.debug("UserService.deleteOrDisableUser: called with user: {}", user);
+		log.debug("UserService.deleteOrDisableUser: called for user: {}", user != null ? user.getEmail() : null);
 		if (actuallyDeleteAccount) {
-			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user);
+			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user.getEmail());
 			// Capture user details before deletion for the post-delete event
 			Long userId = user.getId();
 			String userEmail = user.getEmail();
@@ -383,7 +383,7 @@ public class UserService {
 			log.debug("Publishing UserDeletedEvent");
 			eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail));
 		} else {
-			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user);
+			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user.getEmail());
 			user.setEnabled(false);
 			userRepository.save(user);
 			log.debug("UserService.deleteOrDisableUser: user {} has been disabled", user.getEmail());
@@ -603,7 +603,7 @@ public class UserService {
 	@Transactional(isolation = Isolation.SERIALIZABLE)
 	public User registerPasswordlessAccount(final PasswordlessRegistrationDto dto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerPasswordlessAccount");
-		log.debug("UserService.registerPasswordlessAccount: called with dto: {}", dto);
+		log.debug("UserService.registerPasswordlessAccount: called for email: {}", dto != null ? dto.getEmail() : null);
 
 		if (emailExists(dto.getEmail())) {
 			log.debug("UserService.registerPasswordlessAccount: email already exists: {}", dto.getEmail());
@@ -687,7 +687,7 @@ public class UserService {
 	 * @param user The user to authenticate without password verification
 	 */
 	public void authWithoutPassword(User user) {
-		log.debug("UserService.authWithoutPassword: authenticating user: {}", user);
+		log.debug("UserService.authWithoutPassword: authenticating user: {}", user != null ? user.getEmail() : null);
 		if (user == null || user.getEmail() == null) {
 			log.error("Invalid user or user email");
 			return;

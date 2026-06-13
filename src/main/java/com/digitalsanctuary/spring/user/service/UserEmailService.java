@@ -83,7 +83,7 @@ public class UserEmailService {
      * @throws IllegalArgumentException if appUrl is null, blank, or uses a dangerous scheme
      */
     public void sendForgotPasswordVerificationEmail(final User user, final String appUrl) {
-        log.debug("UserEmailService.sendForgotPasswordVerificationEmail: called with user: {}", user);
+        log.debug("UserEmailService.sendForgotPasswordVerificationEmail: called for user: {}", user != null ? user.getEmail() : null);
         final String token = generateToken();
         createPasswordResetTokenForUser(user, token);
 

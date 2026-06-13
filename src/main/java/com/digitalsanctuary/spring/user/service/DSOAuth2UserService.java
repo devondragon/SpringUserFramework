@@ -161,11 +161,11 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @return A User object representing the authenticated user.
      */
     public User getUserFromGoogleOAuth2User(OAuth2User principal) {
-        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal);
+        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal != null ? principal.getName() : null);
         if (principal == null) {
             return null;
         }
-        log.debug("Principal attributes: {}", principal.getAttributes());
+        log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
         User user = new User();
         String email = principal.getAttribute("email");
         user.setEmail(email != null ? email.toLowerCase() : null);
@@ -182,11 +182,11 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @return A User object representing the authenticated user.
      */
     public User getUserFromFacebookOAuth2User(OAuth2User principal) {
-        log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal);
+        log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal != null ? principal.getName() : null);
         if (principal == null) {
             return null;
         }
-        log.debug("Principal attributes: {}", principal.getAttributes());
+        log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
         User user = new User();
         String email = principal.getAttribute("email");
         user.setEmail(email != null ? email.toLowerCase() : null);

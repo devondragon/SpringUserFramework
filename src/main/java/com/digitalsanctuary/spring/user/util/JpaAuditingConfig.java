@@ -65,16 +65,17 @@ public class JpaAuditingConfig {
 		@Override
 		public Optional<User> getCurrentAuditor() {
 			Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-			log.debug("AuditorAwareImpl.getCurrentAuditor: Authentication: {}", authentication);
+			log.debug("AuditorAwareImpl.getCurrentAuditor: Authentication for user: {}",
+					authentication != null ? authentication.getName() : null);
 
 			if (authentication == null || !authentication.isAuthenticated()) {
 				return Optional.empty();
 			}
 
-			log.debug("AuditorAwareImpl.getCurrentAuditor: Principal: {}", authentication.getPrincipal());
+			log.debug("AuditorAwareImpl.getCurrentAuditor: Principal for user: {}", authentication.getName());
 
 			if (authentication.getPrincipal() instanceof String) {
-				log.info("AuditorAwareImpl.getCurrentAuditor: principal is String: {}. Returning empty.", authentication.getPrincipal());
+				log.info("AuditorAwareImpl.getCurrentAuditor: principal is String for user: {}. Returning empty.", authentication.getName());
 				return Optional.empty();
 			}
 
