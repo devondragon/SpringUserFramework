@@ -321,6 +321,22 @@ If you extend `UserService` or implement custom user management:
 2. **Password encoding** - Still uses BCrypt, no changes required
 3. **User entity** - No schema changes required
 
+#### Password hashing moved outside the transaction (perf)
+
+To avoid holding a pooled DB connection during the deliberately slow bcrypt hash, password
+hashing now runs *outside* the database transaction. As a result `registerNewUserAccount`,
+`changeUserPassword`, and `setInitialPassword` are annotated `Propagation.NOT_SUPPORTED` and
+delegate the actual DB write to short, separate transactions of their own.
+
+**Consumer-facing behavior change:** these three methods no longer participate in a caller's
+transaction. If you previously called one of them from inside your own `@Transactional`, that
+outer transaction is now suspended for the call and the registration / password change commits
+independently — **an outer rollback will not roll back the registration or password change.**
+
+Most consumers call these methods from controllers (which are not transactional) and are
+unaffected. If you depend on enlisting these operations in a surrounding transaction, you will
+need to restructure that flow.
+
 ### Custom Controllers
 
 If you have controllers that extend or work alongside framework controllers:

@@ -7,8 +7,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,6 +25,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -235,6 +238,25 @@ public class UserService {
 	/** Hashes tokens before they are stored / looked up at rest. */
 	private final TokenHasher tokenHasher;
 
+	/**
+	 * Self-reference, resolved through the Spring proxy, used to invoke the transactional persistence
+	 * methods from the non-transactional public entry points.
+	 *
+	 * <p>
+	 * bcrypt hashing is deliberately slow (~100ms+). Running it inside an open transaction holds a
+	 * pooled DB connection for the full hash and starves the pool under load. The public entry methods
+	 * are therefore annotated {@link Propagation#NOT_SUPPORTED} so they run with no transaction (no
+	 * connection held) while the encode happens, then delegate the actual DB write to a short
+	 * {@code @Transactional} persist method invoked <em>through this proxy reference</em>. Calling the
+	 * persist method directly ({@code this.persistX(...)}) would be a self-invocation that bypasses the
+	 * proxy, so the transaction would never start — hence the proxied self-reference. It is injected
+	 * {@link Lazy} to break the construction-time circular dependency on itself.
+	 * </p>
+	 */
+	@Lazy
+	@Autowired
+	private UserService self;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -262,11 +284,18 @@ public class UserService {
 	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
 	 * </p>
 	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
+	 *           transaction (and no pooled connection) held, and the DB write is delegated to a
+	 *           short, separate transaction. As a result this method does <em>not</em> enlist in a
+	 *           caller's transaction — if a consumer calls it from inside their own
+	 *           {@code @Transactional}, that outer transaction is suspended and the registration
+	 *           commits independently, so an outer rollback will not undo the persisted user.
+	 *
 	 * @return the newly created user entity
 	 * @throws UserAlreadyExistException if an account with the same email already
 	 *                                   exists
 	 */
-	@Transactional(isolation = Isolation.SERIALIZABLE)
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
@@ -282,19 +311,14 @@ public class UserService {
 			throw new IllegalArgumentException("Passwords do not match");
 		}
 
-		if (emailExists(newUserDto.getEmail())) {
-			log.debug("UserService.registerNewUserAccount: email already exists: {}", newUserDto.getEmail());
-			throw new UserAlreadyExistException(
-					"There is an account with that email address: " + newUserDto.getEmail());
-		}
-
-		// Create a new User entity
+		// Create a new User entity. The (deliberately slow) bcrypt encode runs HERE, with NO
+		// transaction active (this method is Propagation.NOT_SUPPORTED), so it never holds a pooled
+		// DB connection. The DB write happens afterward in the short, proxied persistNewUserAccount.
 		User user = new User();
 		user.setFirstName(newUserDto.getFirstName());
 		user.setLastName(newUserDto.getLastName());
 		user.setPassword(passwordEncoder.encode(newUserDto.getPassword()));
 		user.setEmail(newUserDto.getEmail().toLowerCase());
-		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
 
 		// If we are not sending a verification email
 		if (!sendRegistrationVerificationEmail) {
@@ -302,23 +326,64 @@ public class UserService {
 			user.setEnabled(true);
 		}
 
+		// Persist through the proxy so the SERIALIZABLE transaction actually applies (a direct
+		// this.persistNewUserAccount(...) self-invocation would bypass the proxy and run no transaction).
+		User saved = self.persistNewUserAccount(user);
+		// authWithoutPassword(saved);
+		timeLogger.end();
+		return saved;
+	}
+
+	/**
+	 * Persists a new user account inside a short, serializable transaction.
+	 *
+	 * <p>
+	 * This is the DB-only half of {@link #registerNewUserAccount(UserDto)}: the password has already
+	 * been encoded by the (non-transactional) caller, so no slow bcrypt work happens while this
+	 * connection-holding transaction is open. It runs with {@link Isolation#SERIALIZABLE} to close the
+	 * duplicate-registration race when two requests register the same email concurrently. The
+	 * {@link #emailExists} pre-check handles the common case, but a concurrent insert can still fail at
+	 * commit; in that case the resulting {@link DataIntegrityViolationException} (unique-constraint
+	 * violation) or serialization failure ({@link CannotAcquireLockException} /
+	 * {@link ConcurrencyFailureException}) is translated into a {@link UserAlreadyExistException}
+	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies, and is not
+	 * intended to be called directly by consumers.
+	 * </p>
+	 *
+	 * @param user the fully built user entity (password already encoded)
+	 * @return the saved user entity
+	 * @throws UserAlreadyExistException if an account with the same email already exists
+	 */
+	@Transactional(isolation = Isolation.SERIALIZABLE)
+	public User persistNewUserAccount(final User user) {
+		if (emailExists(user.getEmail())) {
+			log.debug("UserService.persistNewUserAccount: email already exists: {}", user.getEmail());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + user.getEmail());
+		}
+
+		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
+
 		try {
-			user = userRepository.save(user);
-			savePasswordHistory(user, user.getPassword());
+			User saved = userRepository.save(user);
+			savePasswordHistory(saved, saved.getPassword());
+			return saved;
 		} catch (DataIntegrityViolationException | ConcurrencyFailureException e) {
 			// A concurrent registration won the race: the unique-email constraint was violated
 			// (DataIntegrityViolationException) or the SERIALIZABLE transaction could not be
 			// serialized (ConcurrencyFailureException, e.g. CannotAcquireLockException). Translate
 			// to a 409 instead of letting it surface as a 500. Only these duplicate/serialization
 			// cases are translated; unrelated exceptions propagate unchanged.
-			log.debug("UserService.registerNewUserAccount: concurrent registration detected for email {}: {}",
-					newUserDto.getEmail(), e.getClass().getSimpleName());
+			log.debug("UserService.persistNewUserAccount: concurrent registration detected for email {}: {}",
+					user.getEmail(), e.getClass().getSimpleName());
 			throw new UserAlreadyExistException(
-					"There is an account with that email address: " + newUserDto.getEmail());
+					"There is an account with that email address: " + user.getEmail());
 		}
-		// authWithoutPassword(user);
-		timeLogger.end();
-		return user;
 	}
 
 	/**
@@ -609,10 +674,45 @@ public class UserService {
 	 *
 	 * @param user     the user
 	 * @param password the password
+	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
+	 *           transaction (and no pooled connection) held, and the DB write is delegated to a
+	 *           short, separate transaction. As a result this method does <em>not</em> enlist in a
+	 *           caller's transaction — if a consumer calls it from inside their own
+	 *           {@code @Transactional}, that outer transaction is suspended and the password change
+	 *           commits independently, so an outer rollback will not undo it.
 	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void changeUserPassword(final User user, final String password) {
+		// Encode the new password with NO transaction active (this method is
+		// Propagation.NOT_SUPPORTED) so the slow bcrypt hash never holds a pooled DB connection.
 		String encodedPassword = passwordEncoder.encode(password);
 		user.setPassword(encodedPassword);
+		// Persist through the proxy so the short transaction applies.
+		self.persistChangedPassword(user, encodedPassword);
+	}
+
+	/**
+	 * Persists a changed password inside a short transaction.
+	 *
+	 * <p>
+	 * The DB-only half of {@link #changeUserPassword(User, String)}: the password has already been
+	 * encoded by the (non-transactional) caller, so no bcrypt work happens while this transaction holds
+	 * a connection. Saves the user, records password history, and invalidates all existing sessions so
+	 * a reset/change forces re-auth everywhere (OWASP).
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies, and is not
+	 * intended to be called directly by consumers.
+	 * </p>
+	 *
+	 * @param user            the user whose password changed (password field already set/encoded)
+	 * @param encodedPassword the already-encoded password to record in history
+	 */
+	@Transactional
+	public void persistChangedPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
 		// Terminate all existing sessions so a reset/change forces re-auth everywhere (OWASP).
@@ -666,17 +766,50 @@ public class UserService {
 	 * @param user the user to set the password for
 	 * @param rawPassword the raw password to encode and save
 	 * @throws IllegalStateException if the user already has a password
+	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
+	 *           transaction (and no pooled connection) held, and the DB write is delegated to a
+	 *           short, separate transaction. As a result this method does <em>not</em> enlist in a
+	 *           caller's transaction — if a consumer calls it from inside their own
+	 *           {@code @Transactional}, that outer transaction is suspended and the password change
+	 *           commits independently, so an outer rollback will not undo it.
 	 */
-	@Transactional
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void setInitialPassword(User user, String rawPassword) {
 		if (hasPassword(user)) {
 			throw new IllegalStateException("User already has a password");
 		}
+		// Encode with NO transaction active (this method is Propagation.NOT_SUPPORTED) so the slow
+		// bcrypt hash never holds a pooled DB connection. The DB write runs in the proxied persist.
 		String encodedPassword = passwordEncoder.encode(rawPassword);
 		user.setPassword(encodedPassword);
+		// Persist through the proxy so the short transaction applies.
+		self.persistInitialPassword(user, encodedPassword);
+		log.info("Initial password set for user: {}", user.getEmail());
+	}
+
+	/**
+	 * Persists an initial password inside a short transaction.
+	 *
+	 * <p>
+	 * The DB-only half of {@link #setInitialPassword(User, String)}: the password has already been
+	 * encoded by the (non-transactional) caller, so no bcrypt work happens while this transaction holds
+	 * a connection. Saves the user and records password history.
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies, and is not
+	 * intended to be called directly by consumers.
+	 * </p>
+	 *
+	 * @param user            the user whose initial password is being set (password field already set)
+	 * @param encodedPassword the already-encoded password to record in history
+	 */
+	@Transactional
+	public void persistInitialPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
-		log.info("Initial password set for user: {}", user.getEmail());
 	}
 
 	/**

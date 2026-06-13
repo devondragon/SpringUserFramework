@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -108,6 +110,13 @@ public class UserServiceTest {
         // Use centralized test fixtures for consistent test data
         testUser = TestFixtures.Users.standardUser();
         testUserDto = TestFixtures.DTOs.validUserRegistration();
+
+        // The public entry methods (registerNewUserAccount/changeUserPassword/setInitialPassword) run
+        // with NO transaction so bcrypt never holds a DB connection, then delegate the DB write to a
+        // @Transactional persist method invoked through the Spring proxy (the "self" reference). Under
+        // @InjectMocks there is no proxy and "self" is null, so wire it back to the unit-under-test so
+        // the real persist logic executes during these unit tests.
+        ReflectionTestUtils.setField(userService, "self", userService);
     }
 
     @Test
@@ -948,6 +957,99 @@ public class UserServiceTest {
             assertThatThrownBy(() -> userService.registerPasswordlessAccount(dto))
                     .isInstanceOf(UserAlreadyExistException.class)
                     .hasMessageContaining("There is an account with that email address");
+        }
+    }
+
+    @Nested
+    @DisplayName("Password Hashing Outside Transaction Tests")
+    class PasswordHashingOutsideTransactionTests {
+
+        /**
+         * bcrypt is deliberately slow, so it must run BEFORE the connection-holding DB write. Since the
+         * encode now happens in the non-transactional public entry method and the save happens in the
+         * proxied @Transactional persist method, asserting that {@code passwordEncoder.encode(...)}
+         * fires strictly before {@code userRepository.save(...)} proves the hash is computed outside the
+         * transactional persistence step.
+         */
+        @Test
+        @DisplayName("registerNewUserAccount - encodes password BEFORE the persisting save (hash outside the DB write)")
+        void registerNewUserAccount_encodesBeforeSave() {
+            // Given
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.registerNewUserAccount(testUserDto);
+
+            // Then: encode runs before the repository save (hash computed outside the persist step)
+            InOrder inOrder = inOrder(passwordEncoder, userRepository);
+            inOrder.verify(passwordEncoder).encode(anyString());
+            inOrder.verify(userRepository).save(any(User.class));
+        }
+
+        /**
+         * The transactional persist method must receive an ALREADY-encoded password: it does no
+         * encoding itself, confirming the (slow) hash happened in the non-transactional caller. We also
+         * assert the saved entity carries the encoded value, not the raw password.
+         */
+        @Test
+        @DisplayName("registerNewUserAccount - the persisted user carries the already-encoded password; persist does not re-encode")
+        void registerNewUserAccount_persistReceivesEncodedPassword() {
+            // Given
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(passwordEncoder.encode(testUserDto.getPassword())).thenReturn("encodedPassword");
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.registerNewUserAccount(testUserDto);
+
+            // Then: the entity handed to save already holds the encoded password (not the raw value),
+            // and encode was invoked exactly once (only in the non-transactional entry method).
+            ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+            verify(userRepository).save(captor.capture());
+            assertThat(captor.getValue().getPassword()).isEqualTo("encodedPassword");
+            verify(passwordEncoder).encode(testUserDto.getPassword());
+        }
+
+        @Test
+        @DisplayName("changeUserPassword - encodes password BEFORE the persisting save (hash outside the DB write)")
+        void changeUserPassword_encodesBeforeSave() {
+            // Given
+            String newPassword = "newTestPassword";
+            when(passwordEncoder.encode(newPassword)).thenReturn("encodedNewPassword");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            userService.changeUserPassword(testUser, newPassword);
+
+            // Then: encode runs before save, and session invalidation still happens (in the persist).
+            InOrder inOrder = inOrder(passwordEncoder, userRepository, sessionInvalidationService);
+            inOrder.verify(passwordEncoder).encode(newPassword);
+            inOrder.verify(userRepository).save(testUser);
+            inOrder.verify(sessionInvalidationService).invalidateUserSessions(testUser);
+        }
+
+        @Test
+        @DisplayName("setInitialPassword - encodes password BEFORE the persisting save (hash outside the DB write)")
+        void setInitialPassword_encodesBeforeSave() {
+            // Given
+            testUser.setPassword(null);
+            String rawPassword = "NewSecurePassword123!";
+            when(passwordEncoder.encode(rawPassword)).thenReturn("encodedNewPassword");
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.setInitialPassword(testUser, rawPassword);
+
+            // Then
+            InOrder inOrder = inOrder(passwordEncoder, userRepository);
+            inOrder.verify(passwordEncoder).encode(rawPassword);
+            inOrder.verify(userRepository).save(testUser);
         }
     }
 
