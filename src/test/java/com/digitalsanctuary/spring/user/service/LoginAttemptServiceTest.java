@@ -1,10 +1,6 @@
 package com.digitalsanctuary.spring.user.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -52,9 +48,9 @@ class LoginAttemptServiceTest {
 
         loginAttemptService.loginSucceeded(testUser.getEmail());
 
-        assertEquals(0, testUser.getFailedLoginAttempts());
-        assertFalse(testUser.isLocked());
-        assertNull(testUser.getLockedDate());
+        assertThat(testUser.getFailedLoginAttempts()).isZero();
+        assertThat(testUser.isLocked()).isFalse();
+        assertThat(testUser.getLockedDate()).isNull();
         verify(userRepository).save(testUser);
     }
 
@@ -70,8 +66,8 @@ class LoginAttemptServiceTest {
 
         verify(userRepository).incrementFailedAttempts(testUser.getEmail());
         verify(userRepository).findByEmail(testUser.getEmail());
-        assertTrue(testUser.isLocked());
-        assertNotNull(testUser.getLockedDate());
+        assertThat(testUser.isLocked()).isTrue();
+        assertThat(testUser.getLockedDate()).isNotNull();
         verify(userRepository).save(testUser);
     }
 
@@ -85,8 +81,8 @@ class LoginAttemptServiceTest {
         loginAttemptService.loginFailed(testUser.getEmail());
 
         verify(userRepository).incrementFailedAttempts(testUser.getEmail());
-        assertFalse(testUser.isLocked());
-        assertNull(testUser.getLockedDate());
+        assertThat(testUser.isLocked()).isFalse();
+        assertThat(testUser.getLockedDate()).isNull();
         verify(userRepository, never()).save(testUser);
     }
 
@@ -121,14 +117,14 @@ class LoginAttemptServiceTest {
 
         when(userRepository.findByEmail(anyString())).thenReturn(testUser);
 
-        assertTrue(loginAttemptService.isLocked(testUser.getEmail()));
+        assertThat(loginAttemptService.isLocked(testUser.getEmail())).isTrue();
     }
 
     @Test
     void isLocked_returnsFalseWhenUserIsNotLocked() {
         when(userRepository.findByEmail(anyString())).thenReturn(testUser);
 
-        assertFalse(loginAttemptService.isLocked(testUser.getEmail()));
+        assertThat(loginAttemptService.isLocked(testUser.getEmail())).isFalse();
     }
 
     @Test
@@ -139,10 +135,10 @@ class LoginAttemptServiceTest {
 
         when(userRepository.findByEmail(anyString())).thenReturn(testUser);
 
-        assertFalse(loginAttemptService.isLocked(testUser.getEmail()));
-        assertFalse(testUser.isLocked());
-        assertNull(testUser.getLockedDate());
-        assertEquals(0, testUser.getFailedLoginAttempts());
+        assertThat(loginAttemptService.isLocked(testUser.getEmail())).isFalse();
+        assertThat(testUser.isLocked()).isFalse();
+        assertThat(testUser.getLockedDate()).isNull();
+        assertThat(testUser.getFailedLoginAttempts()).isZero();
         verify(userRepository).save(testUser);
     }
 
@@ -156,8 +152,8 @@ class LoginAttemptServiceTest {
 
         User result = loginAttemptService.checkIfUserShouldBeUnlocked(testUser);
 
-        assertTrue(result.isLocked());
-        assertNotNull(result.getLockedDate());
+        assertThat(result.isLocked()).isTrue();
+        assertThat(result.getLockedDate()).isNotNull();
         // No auto-unlock occurred, so nothing should have been persisted.
         verify(userRepository, never()).save(testUser);
     }
@@ -170,8 +166,8 @@ class LoginAttemptServiceTest {
         testUser.setLockedDate(new Date(System.currentTimeMillis() - 60L * 60 * 1000));
         when(userRepository.findByEmail(anyString())).thenReturn(testUser);
 
-        assertTrue(loginAttemptService.isLocked(testUser.getEmail()));
-        assertTrue(testUser.isLocked());
+        assertThat(loginAttemptService.isLocked(testUser.getEmail())).isTrue();
+        assertThat(testUser.isLocked()).isTrue();
         verify(userRepository, never()).save(testUser);
     }
 
