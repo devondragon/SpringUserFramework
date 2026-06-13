@@ -217,6 +217,23 @@
       "description": "BCrypt hash strength (4-31, default 10)"
     },
     {
+      "name": "user.security.tokenHashSecret",
+      "type": "java.lang.String",
+      "description": "Optional secret used to key the at-rest hashing (HMAC-SHA-256) of verification and password-reset tokens. If unset, plain SHA-256 is used. Setting a secret adds defense-in-depth against a database-only compromise."
+    },
+    {
+      "name": "user.security.passwordResetTokenValidityMinutes",
+      "type": "java.lang.Integer",
+      "description": "Lifetime in minutes of a password reset token before it expires. Default 1440 (24 hours).",
+      "defaultValue": 1440
+    },
+    {
+      "name": "user.registration.verificationTokenValidityMinutes",
+      "type": "java.lang.Integer",
+      "description": "Lifetime in minutes of a registration verification token before it expires. Default 1440 (24 hours).",
+      "defaultValue": 1440
+    },
+    {
       "name": "user.security.testHashTime",
       "type": "java.lang.Boolean",
       "description": "Test BCrypt hash time on startup"

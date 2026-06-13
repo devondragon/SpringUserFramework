@@ -90,6 +90,8 @@ public class UserServiceTest {
     private PasswordHistoryRepository passwordHistoryRepository;
     @Mock
     private SessionInvalidationService sessionInvalidationService;
+    @Mock
+    private TokenHasher tokenHasher;
     @InjectMocks
     private UserService userService;
     private User testUser;
@@ -300,6 +302,15 @@ public class UserServiceTest {
     @Nested
     @DisplayName("Password Reset Token Tests")
     class PasswordResetTokenTests {
+
+        @BeforeEach
+        void stubHasher() {
+            // These tests stub findByToken with the raw token string. The service hashes the token
+            // before lookup (dual-read), so make the hasher identity here to keep the existing
+            // stubs valid. The hashing behavior itself is covered by TokenHashingSecurityTest.
+            org.mockito.Mockito.lenient().when(tokenHasher.hash(anyString()))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+        }
 
         @Test
         @DisplayName("getPasswordResetToken - returns token when exists")

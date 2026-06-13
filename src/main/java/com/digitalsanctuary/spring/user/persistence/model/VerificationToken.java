@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.Transient;
 import lombok.Data;
 
 /**
@@ -19,7 +20,7 @@ import lombok.Data;
 @Entity
 public class VerificationToken {
 
-	/** The Constant EXPIRATION. */
+	/** The Constant EXPIRATION. Default token lifetime in minutes (24h) used by the legacy constructors. */
 	private static final int EXPIRATION = 60 * 24;
 
 	/** The id. */
@@ -37,6 +38,15 @@ public class VerificationToken {
 
 	/** The expiry date. */
 	private Date expiryDate;
+
+	/**
+	 * The raw (unhashed) token value. This is transient and never persisted: the {@link #token}
+	 * column holds only the hash. It carries the raw token back to a caller (e.g. so a verification
+	 * email link can be built) when a service regenerates a token. It is {@code null} on entities
+	 * loaded from the database.
+	 */
+	@Transient
+	private transient String plainToken;
 
 	/**
 	 * Instantiates a new verification token.
@@ -70,6 +80,20 @@ public class VerificationToken {
 	}
 
 	/**
+	 * Instantiates a new verification token with a configurable lifetime.
+	 *
+	 * @param token the token (already hashed for storage by the calling service)
+	 * @param user the user
+	 * @param expiryTimeInMinutes the token lifetime in minutes
+	 */
+	public VerificationToken(final String token, final User user, final int expiryTimeInMinutes) {
+		super();
+		this.token = token;
+		this.user = user;
+		this.expiryDate = calculateExpiryDate(expiryTimeInMinutes);
+	}
+
+	/**
 	 * Calculate expiry date.
 	 *
 	 * @param expiryTimeInMinutes the expiry time in minutes
@@ -83,13 +107,24 @@ public class VerificationToken {
 	}
 
 	/**
-	 * Update token.
+	 * Update token, resetting the expiry to the default (24h) lifetime.
 	 *
 	 * @param token the token
 	 */
 	public void updateToken(final String token) {
 		this.token = token;
 		this.expiryDate = calculateExpiryDate(EXPIRATION);
+	}
+
+	/**
+	 * Update token with a configurable lifetime.
+	 *
+	 * @param token the token (already hashed for storage by the calling service)
+	 * @param expiryTimeInMinutes the token lifetime in minutes
+	 */
+	public void updateToken(final String token, final int expiryTimeInMinutes) {
+		this.token = token;
+		this.expiryDate = calculateExpiryDate(expiryTimeInMinutes);
 	}
 
 }

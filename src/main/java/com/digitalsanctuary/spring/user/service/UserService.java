@@ -226,6 +226,9 @@ public class UserService {
 
 	private final SessionInvalidationService sessionInvalidationService;
 
+	/** Hashes tokens before they are stored / looked up at rest. */
+	private final TokenHasher tokenHasher;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -401,26 +404,49 @@ public class UserService {
 	}
 
 	/**
+	 * Resolves a password reset token by its raw value using a dual-read strategy.
+	 *
+	 * <p>
+	 * Tokens are stored hashed, so we first look up by {@code hash(rawToken)}. For backward
+	 * compatibility we fall back to looking up by the raw value, which resolves any pre-upgrade
+	 * tokens that were stored in plaintext before token hashing was introduced. This fallback is
+	 * permanently safe and needs no operator action to retire: every token carries an
+	 * {@code expiryDate} bounded by the configured lifetime, and the validate path rejects expired
+	 * tokens, so any lingering plaintext token becomes unusable within its lifetime window.
+	 * </p>
+	 *
+	 * @param rawToken the raw token value
+	 * @return the resolved token entity, or {@code null} if not found
+	 */
+	private PasswordResetToken resolvePasswordResetToken(final String rawToken) {
+		if (rawToken == null) {
+			return null;
+		}
+		PasswordResetToken token = passwordTokenRepository.findByToken(tokenHasher.hash(rawToken));
+		if (token == null) {
+			token = passwordTokenRepository.findByToken(rawToken);
+		}
+		return token;
+	}
+
+	/**
 	 * Gets the password reset token.
 	 *
-	 * @param token the token
+	 * @param token the raw token
 	 * @return the password reset token
 	 */
 	public PasswordResetToken getPasswordResetToken(final String token) {
-		return passwordTokenRepository.findByToken(token);
+		return resolvePasswordResetToken(token);
 	}
 
 	/**
 	 * Gets the user by password reset token.
 	 *
-	 * @param token the token
+	 * @param token the raw token
 	 * @return the user by password reset token
 	 */
 	public Optional<User> getUserByPasswordResetToken(final String token) {
-		if (token == null) {
-			return Optional.empty();
-		}
-		PasswordResetToken passwordResetToken = passwordTokenRepository.findByToken(token);
+		PasswordResetToken passwordResetToken = resolvePasswordResetToken(token);
 		if (passwordResetToken == null) {
 			return Optional.empty();
 		}
@@ -429,18 +455,56 @@ public class UserService {
 
 	/**
 	 * Deletes a password reset token after it has been used.
-	 * Uses a direct DELETE query for efficiency (no SELECT required).
 	 *
-	 * @param token the token string to delete
+	 * <p>
+	 * Uses dual-delete to match the dual-read lookup: deletes the hashed value first, then falls back
+	 * to the raw value to clean up any pre-upgrade plaintext token.
+	 * </p>
+	 *
+	 * @param token the raw token string to delete
 	 */
 	public void deletePasswordResetToken(final String token) {
 		if (token == null) {
 			return;
 		}
-		int deletedCount = passwordTokenRepository.deleteByToken(token);
-		if (deletedCount > 0) {
-			log.debug("Deleted password reset token: {}", token);
+		int deletedCount = passwordTokenRepository.deleteByToken(tokenHasher.hash(token));
+		if (deletedCount == 0) {
+			deletedCount = passwordTokenRepository.deleteByToken(token);
 		}
+		if (deletedCount > 0) {
+			log.debug("Deleted used password reset token.");
+		}
+	}
+
+	/**
+	 * Atomically validates and consumes a password reset token in a single transaction.
+	 *
+	 * <p>
+	 * This prevents a token from being double-consumed: validation and deletion happen together, so
+	 * two concurrent reset attempts cannot both succeed with the same token. Returns the associated
+	 * user when the token is valid (and deletes it), or {@code null} when the token is missing or
+	 * expired (expired tokens are also deleted as a cleanup). Uses dual-read so both hashed
+	 * (post-upgrade) and plaintext (pre-upgrade) tokens resolve.
+	 * </p>
+	 *
+	 * @param token the raw token to validate and consume
+	 * @return the user associated with the token if it was valid, otherwise {@code null}
+	 */
+	@Transactional
+	public User validateAndConsumePasswordResetToken(final String token) {
+		final PasswordResetToken passToken = resolvePasswordResetToken(token);
+		if (passToken == null) {
+			return null;
+		}
+		final Calendar cal = Calendar.getInstance();
+		if (passToken.getExpiryDate().before(cal.getTime())) {
+			passwordTokenRepository.delete(passToken);
+			return null;
+		}
+		final User user = passToken.getUser();
+		// Consume the token immediately so it cannot be reused.
+		passwordTokenRepository.delete(passToken);
+		return user;
 	}
 
 	/**
@@ -580,7 +644,7 @@ public class UserService {
 	 * @return the password reset token validation result enum
 	 */
 	public TokenValidationResult validatePasswordResetToken(String token) {
-		final PasswordResetToken passToken = passwordTokenRepository.findByToken(token);
+		final PasswordResetToken passToken = resolvePasswordResetToken(token);
 		if (passToken == null) {
 			return TokenValidationResult.INVALID_TOKEN;
 		}

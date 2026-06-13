@@ -40,7 +40,7 @@ public class UserVerificationServiceTest {
         testToken = new VerificationToken();
         testToken.setUser(testUser);
 
-        userVerificationService = new UserVerificationService(userRepository, verificationTokenRepository);
+        userVerificationService = new UserVerificationService(userRepository, verificationTokenRepository, new TokenHasher(null));
     }
 
     @Test

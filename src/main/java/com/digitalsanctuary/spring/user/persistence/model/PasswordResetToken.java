@@ -18,7 +18,7 @@ import lombok.Data;
 @Entity
 public class PasswordResetToken {
 
-	/** The Constant EXPIRATION. */
+	/** The Constant EXPIRATION. Default token lifetime in minutes (24h) used by the legacy constructors. */
 	private static final int EXPIRATION = 60 * 24;
 
 	/** The id. */
@@ -66,6 +66,20 @@ public class PasswordResetToken {
 		this.token = token;
 		this.user = user;
 		this.expiryDate = calculateExpiryDate(EXPIRATION);
+	}
+
+	/**
+	 * Instantiates a new password reset token with a configurable lifetime.
+	 *
+	 * @param token the token (already hashed for storage by the calling service)
+	 * @param user the user
+	 * @param expiryTimeInMinutes the token lifetime in minutes
+	 */
+	public PasswordResetToken(final String token, final User user, final int expiryTimeInMinutes) {
+		super();
+		this.token = token;
+		this.user = user;
+		this.expiryDate = calculateExpiryDate(expiryTimeInMinutes);
 	}
 
 	/**

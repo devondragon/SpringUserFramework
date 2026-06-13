@@ -265,13 +265,20 @@ public class UserAPI {
 				return buildErrorResponse(String.join(" ", errors), 4, HttpStatus.BAD_REQUEST);
 			}
 
+			// Atomically consume the reset token: this validates the token is still present and
+			// deletes it in a single transaction so it cannot be double-consumed by a concurrent
+			// request. If it returns null, the token was already used or expired between validation
+			// above and now.
+			User consumedUser = userService.validateAndConsumePasswordResetToken(savePasswordDto.getToken());
+			if (consumedUser == null) {
+				return buildErrorResponse(messages.getMessage("auth.message.invalid", null, "Invalid token", locale), 3,
+						HttpStatus.BAD_REQUEST);
+			}
+
 			// Save the new password (this also saves to history)
-			userService.changeUserPassword(user, savePasswordDto.getNewPassword());
+			userService.changeUserPassword(consumedUser, savePasswordDto.getNewPassword());
 
-			// Delete the reset token (it's been used)
-			userService.deletePasswordResetToken(savePasswordDto.getToken());
-
-			logAuditEvent("PasswordReset", "Success", "Password reset completed", user, request);
+			logAuditEvent("PasswordReset", "Success", "Password reset completed", consumedUser, request);
 
 			return buildSuccessResponse(messages.getMessage("message.reset-password.success", null, "Password has been reset successfully", locale),
 					"/user/login.html");

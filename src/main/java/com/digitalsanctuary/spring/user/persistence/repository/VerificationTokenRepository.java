@@ -30,6 +30,13 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	VerificationToken findByUser(User user);
 
 	/**
+	 * Delete all tokens for the given user. Used to enforce a single active token per user.
+	 *
+	 * @param user the user whose tokens should be deleted
+	 */
+	void deleteByUser(User user);
+
+	/**
 	 * Find all by expiry date less than.
 	 *
 	 * @param now the now

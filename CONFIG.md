@@ -69,6 +69,16 @@ user:
 - **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
 - **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
 
+### Token Security
+
+Verification and password-reset tokens are **hashed at rest**. The raw token is only ever sent to the user in the emailed link; the database stores its hash. Lookups hash the incoming token and match by hash, with a transparent fallback to plaintext lookup so that any links issued before upgrading keep working until they expire. This requires no schema migration and no action from consuming applications.
+
+- **Token Hash Secret (`user.security.tokenHashSecret`)**: Optional secret used to key the at-rest hashing (HMAC-SHA-256) of verification and password-reset tokens. If left unset, plain SHA-256 is used, which is adequate because tokens are high-entropy random values. Setting a secret (kept outside the database) adds defense-in-depth against a database-only compromise. Default: unset.
+- **Password Reset Token Lifetime (`user.security.passwordResetTokenValidityMinutes`)**: Lifetime in minutes of a password reset token before it expires. Default is `1440` (24 hours).
+- **Verification Token Lifetime (`user.registration.verificationTokenValidityMinutes`)**: Lifetime in minutes of a registration verification token before it expires. Default is `1440` (24 hours).
+
+Only one active token per user is kept for each token type: requesting a new password reset or verification email invalidates the previous one.
+
 ## WebAuthn / Passkey Settings
 
 Provides passwordless login using biometrics, security keys, or device authentication. **HTTPS is required** for WebAuthn to function.

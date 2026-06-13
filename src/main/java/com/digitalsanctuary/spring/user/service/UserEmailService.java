@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
@@ -57,9 +58,16 @@ public class UserEmailService {
     /** The session invalidation service. */
     private final SessionInvalidationService sessionInvalidationService;
 
+    /** Hashes tokens before they are stored at rest. */
+    private final TokenHasher tokenHasher;
+
     /** The configured app URL for admin-initiated password resets. */
     @Value("${user.admin.appUrl:#{null}}")
     private String configuredAppUrl;
+
+    /** Password reset token lifetime in minutes. Defaults to 24h. */
+    @Value("${user.security.passwordResetTokenValidityMinutes:1440}")
+    private int passwordResetTokenValidityMinutes;
 
     /** ObjectMapper for JSON serialization in audit events. */
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -200,11 +208,21 @@ public class UserEmailService {
     /**
      * Creates the password reset token for user.
      *
+     * <p>
+     * The token is hashed before storage (the raw value goes into the emailed link). Any existing
+     * token for the user is deleted first so that only one active reset token exists per user.
+     * </p>
+     *
      * @param user the user
-     * @param token the token
+     * @param token the raw token (emailed to the user)
      */
+    @Transactional
     public void createPasswordResetTokenForUser(final User user, final String token) {
-        final PasswordResetToken myToken = new PasswordResetToken(token, user);
+        // Single active token per user: remove any previously issued token before creating a new one.
+        passwordTokenRepository.deleteByUser(user);
+        // Store only the hash of the token; the raw token is what was emailed to the user.
+        final PasswordResetToken myToken =
+                new PasswordResetToken(tokenHasher.hash(token), user, passwordResetTokenValidityMinutes);
         passwordTokenRepository.save(myToken);
     }
 
