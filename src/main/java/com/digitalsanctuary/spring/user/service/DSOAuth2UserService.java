@@ -231,6 +231,15 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             return null;
         }
         log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
+        // Reject the login if Facebook explicitly reports the email as NOT verified. Facebook exposes this
+        // under "email_verified" on newer Graph API versions and "verified" on older ones; either explicit
+        // false rejects. Providers that do not expose the claim at all are trusted (only an explicit false
+        // is rejected), matching the Google path's policy in getUserFromGoogleOAuth2User.
+        if (isExplicitlyUnverified(principal.getAttribute("email_verified")) || isExplicitlyUnverified(principal.getAttribute("verified"))) {
+            log.warn("getUserFromFacebookOAuth2User: rejecting login because Facebook reports the email as not verified");
+            throw new OAuth2AuthenticationException(new OAuth2Error("email_not_verified"),
+                    "Your email address is not verified with your login provider.");
+        }
         User user = new User();
         String email = principal.getAttribute("email");
         user.setEmail(email != null ? email.toLowerCase() : null);
