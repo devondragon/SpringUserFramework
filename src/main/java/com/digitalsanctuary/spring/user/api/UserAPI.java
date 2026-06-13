@@ -31,10 +31,8 @@ import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
-import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
@@ -74,7 +72,6 @@ public class UserAPI {
 	private final ApplicationEventPublisher eventPublisher;
 	private final PasswordPolicyService passwordPolicyService;
 	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
-	private final RegistrationGuard registrationGuard;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -112,13 +109,10 @@ public class UserAPI {
 				return buildErrorResponse(String.join(" ", errors), 1, HttpStatus.BAD_REQUEST);
 			}
 
-			RegistrationDecision decision = registrationGuard.evaluate(
-					new RegistrationContext(userDto.getEmail(), RegistrationSource.FORM, null));
-			if (!decision.allowed()) {
-				log.info("Registration denied for email: {} source: FORM reason: {}", userDto.getEmail(), decision.reason());
-				return buildErrorResponse(decision.reason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
-			}
-
+			// The RegistrationGuard is now enforced inside UserService.registerNewUserAccount so that every
+			// registration path is guarded exactly once and direct service callers cannot bypass it. A
+			// denial surfaces as RegistrationDeniedException, translated below into the same
+			// REGISTRATION_DENIED response this endpoint returned previously.
 			User registeredUser = userService.registerNewUserAccount(userDto);
 			publishRegistrationEvent(registeredUser, request);
 			logAuditEvent("Registration", "Success", "Registration Successful", registeredUser, request);
@@ -126,6 +120,9 @@ public class UserAPI {
 			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
 
 			return buildSuccessResponse("Registration Successful!", nextURL);
+		} catch (RegistrationDeniedException ex) {
+			log.info("Registration denied for email: {} source: FORM reason: {}", userDto.getEmail(), ex.getReason());
+			return buildErrorResponse(ex.getReason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 		} catch (UserAlreadyExistException ex) {
 			log.warn("User already exists with email: {}", userDto.getEmail());
 			logAuditEvent("Registration", "Failure", "User Already Exists", null, request);
@@ -417,13 +414,10 @@ public class UserAPI {
 			return buildErrorResponse("Passwordless registration is not available", 1, HttpStatus.BAD_REQUEST);
 		}
 		try {
-			RegistrationDecision decision = registrationGuard.evaluate(
-					new RegistrationContext(dto.getEmail(), RegistrationSource.PASSWORDLESS, null));
-			if (!decision.allowed()) {
-				log.info("Registration denied for email: {} source: PASSWORDLESS reason: {}", dto.getEmail(), decision.reason());
-				return buildErrorResponse(decision.reason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
-			}
-
+			// The RegistrationGuard is now enforced inside UserService.registerPasswordlessAccount so that
+			// every registration path is guarded exactly once and direct service callers cannot bypass it.
+			// A denial surfaces as RegistrationDeniedException, translated below into the same
+			// REGISTRATION_DENIED response this endpoint returned previously.
 			User registeredUser = userService.registerPasswordlessAccount(dto);
 			publishRegistrationEvent(registeredUser, request);
 			logAuditEvent("PasswordlessRegistration", "Success", "Passwordless registration successful", registeredUser, request);
@@ -431,6 +425,9 @@ public class UserAPI {
 			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
 
 			return buildSuccessResponse("Registration Successful!", nextURL);
+		} catch (RegistrationDeniedException ex) {
+			log.info("Registration denied for email: {} source: PASSWORDLESS reason: {}", dto.getEmail(), ex.getReason());
+			return buildErrorResponse(ex.getReason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 		} catch (UserAlreadyExistException ex) {
 			log.warn("User already exists with email: {}", dto.getEmail());
 			logAuditEvent("PasswordlessRegistration", "Failure", "User Already Exists", null, request);

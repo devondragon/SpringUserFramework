@@ -46,6 +46,11 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationContext;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import com.digitalsanctuary.spring.user.util.TimeLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -239,6 +244,14 @@ public class UserService {
 	private final TokenHasher tokenHasher;
 
 	/**
+	 * The registration guard, enforced on every registration path (form, passwordless) in this service
+	 * so that direct callers cannot bypass it. Resolves to the primary
+	 * {@link com.digitalsanctuary.spring.user.registration.CompositeRegistrationGuard composite guard},
+	 * which applies first-deny-wins across all configured guards.
+	 */
+	private final RegistrationGuard registrationGuard;
+
+	/**
 	 * Self-reference, resolved through the Spring proxy, used to invoke the transactional persistence
 	 * methods from the non-transactional public entry points.
 	 *
@@ -310,6 +323,11 @@ public class UserService {
 				&& !newUserDto.getPassword().equals(newUserDto.getMatchingPassword())) {
 			throw new IllegalArgumentException("Passwords do not match");
 		}
+
+		// Enforce the RegistrationGuard for every form registration — including direct callers of this
+		// service method — before doing any (slow) work. A denial throws RegistrationDeniedException,
+		// which the UserAPI translates into the REGISTRATION_DENIED response.
+		evaluateRegistrationGuard(newUserDto.getEmail(), RegistrationSource.FORM, null);
 
 		// Create a new User entity. The (deliberately slow) bcrypt encode runs HERE, with NO
 		// transaction active (this method is Propagation.NOT_SUPPORTED), so it never holds a pooled
@@ -825,6 +843,11 @@ public class UserService {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerPasswordlessAccount");
 		log.debug("UserService.registerPasswordlessAccount: called for email: {}", dto != null ? dto.getEmail() : null);
 
+		// Enforce the RegistrationGuard for every passwordless registration — including direct callers of
+		// this service method. A denial throws RegistrationDeniedException, which the UserAPI translates
+		// into the REGISTRATION_DENIED response.
+		evaluateRegistrationGuard(dto.getEmail(), RegistrationSource.PASSWORDLESS, null);
+
 		if (emailExists(dto.getEmail())) {
 			log.debug("UserService.registerPasswordlessAccount: email already exists: {}", dto.getEmail());
 			throw new UserAlreadyExistException(
@@ -855,6 +878,50 @@ public class UserService {
 	 */
 	private boolean emailExists(final String email) {
 		return userRepository.findByEmail(email.toLowerCase()) != null;
+	}
+
+	/**
+	 * Evaluates the configured {@link RegistrationGuard} for a registration attempt and throws a
+	 * {@link RegistrationDeniedException} if it is denied.
+	 *
+	 * <p>This centralizes guard enforcement in the service so that <em>every</em> registration path —
+	 * including direct callers of the public registration methods — is guarded exactly once with the
+	 * correct {@link RegistrationSource}. The injected guard is the primary
+	 * {@link com.digitalsanctuary.spring.user.registration.CompositeRegistrationGuard composite}, so all
+	 * configured guards are applied with first-deny-wins semantics.</p>
+	 *
+	 * @param email        the email address of the registration attempt (may be {@code null})
+	 * @param source       the registration source; never {@code null}
+	 * @param providerName the OAuth2/OIDC provider registration id, or {@code null} for form/passwordless
+	 * @throws RegistrationDeniedException if the guard denies the registration
+	 */
+	private void evaluateRegistrationGuard(final String email, final RegistrationSource source, final String providerName) {
+		RegistrationDecision decision = registrationGuard.evaluate(new RegistrationContext(email, source, providerName));
+		if (!decision.allowed()) {
+			log.info("Registration denied for source: {} provider: {} reason: {}", source, providerName, decision.reason());
+			throw new RegistrationDeniedException(decision.reason());
+		}
+	}
+
+	/**
+	 * Enforces the configured {@link RegistrationGuard} for a first-time OAuth2/OIDC social registration.
+	 *
+	 * <p>The OAuth2 and OIDC user services build and persist new social users themselves (with
+	 * provider-specific role assignment and audit events). To keep guard enforcement centralized in this
+	 * service — so the guard SPI lives in exactly one place and direct callers of the registration paths
+	 * cannot bypass it — those services delegate the guard check here at the point a NEW social user is
+	 * about to be created (never on login of an existing OAuth/OIDC user). On denial this throws
+	 * {@link RegistrationDeniedException}, which the OAuth/OIDC services translate into the appropriate
+	 * {@code OAuth2AuthenticationException}.</p>
+	 *
+	 * @param email        the email address from the OAuth2/OIDC provider
+	 * @param source       the registration source ({@link RegistrationSource#OAUTH2} or
+	 *                     {@link RegistrationSource#OIDC})
+	 * @param providerName the OAuth2/OIDC provider registration id (e.g. {@code "google"}, {@code "keycloak"})
+	 * @throws RegistrationDeniedException if the guard denies the registration
+	 */
+	public void enforceRegistrationGuard(final String email, final RegistrationSource source, final String providerName) {
+		evaluateRegistrationGuard(email, source, providerName);
 	}
 
 	/**

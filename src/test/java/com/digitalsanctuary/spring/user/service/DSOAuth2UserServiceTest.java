@@ -35,8 +35,6 @@ import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 
 /**
  * Comprehensive unit tests for DSOAuth2UserService that verify actual business logic,
@@ -57,7 +55,7 @@ class DSOAuth2UserServiceTest {
     private LoginHelperService loginHelperService;
 
     @Mock
-    private RegistrationGuard registrationGuard;
+    private UserService userService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -73,7 +71,8 @@ class DSOAuth2UserServiceTest {
         userRole.setName("ROLE_USER");
         userRole.setId(1L);
         lenient().when(roleRepository.findByName("ROLE_USER")).thenReturn(userRole);
-        lenient().when(registrationGuard.evaluate(any())).thenReturn(RegistrationDecision.allow());
+        // userService.enforceRegistrationGuard is a void method: by default the mock does nothing,
+        // which represents an allow decision (no RegistrationDeniedException thrown).
     }
 
     @Nested

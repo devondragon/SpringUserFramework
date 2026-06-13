@@ -17,8 +17,6 @@ import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
@@ -93,9 +91,6 @@ public class UserAPIUnitTest {
     @Mock
     private PasswordPolicyService passwordPolicyService;
 
-    @Mock
-    private RegistrationGuard registrationGuard;
-
     @InjectMocks
     private UserAPI userAPI;
 
@@ -123,9 +118,6 @@ public class UserAPIUnitTest {
         testUserDto.setRole(1);
 
         testUserDetails = new DSUserDetails(testUser);
-        
-        // Default guard allows all registrations
-        lenient().when(registrationGuard.evaluate(any())).thenReturn(RegistrationDecision.allow());
 
         // Set field values using reflection
         ReflectionTestUtils.setField(userAPI, "registrationPendingURI", "/user/registration-pending.html");

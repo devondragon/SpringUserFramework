@@ -14,9 +14,7 @@ import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +45,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
 
     private final LoginHelperService loginHelperService;
 
-    private final RegistrationGuard registrationGuard;
+    /** The user service, used to enforce the centralized RegistrationGuard on first-time registration. */
+    private final UserService userService;
 
     /** The Event Publisher. */
     private final ApplicationEventPublisher eventPublisher;
@@ -104,13 +103,15 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             return userRepository.save(existingUser);
         } else {
             log.debug("handleOAuthLoginSuccess: registering new user with email: {}", user.getEmail());
-            RegistrationDecision decision = registrationGuard.evaluate(
-                    new RegistrationContext(user.getEmail(), RegistrationSource.OAUTH2, registrationId));
-            if (!decision.allowed()) {
-                log.info("Registration denied for email: {} source: OAUTH2 provider: {} reason: {}",
-                        user.getEmail(), registrationId, decision.reason());
+            // Enforce the centralized RegistrationGuard (in UserService) on first-time registration only.
+            // A denial surfaces as RegistrationDeniedException, which we translate into the same
+            // registration_denied OAuth2AuthenticationException this path returned previously.
+            try {
+                userService.enforceRegistrationGuard(user.getEmail(), RegistrationSource.OAUTH2, registrationId);
+            } catch (RegistrationDeniedException ex) {
+                log.info("Registration denied for source: OAUTH2 provider: {} reason: {}", registrationId, ex.getReason());
                 throw new OAuth2AuthenticationException(
-                        new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
+                        new OAuth2Error("registration_denied", ex.getReason(), null), ex.getReason());
             }
             user = registerNewOAuthUser(registrationId, user);
             return user;

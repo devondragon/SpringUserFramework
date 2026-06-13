@@ -60,6 +60,8 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.RoleTestDataBuilder;
 import com.digitalsanctuary.spring.user.test.builders.TokenTestDataBuilder;
@@ -100,6 +102,8 @@ public class UserServiceTest {
     private SessionInvalidationService sessionInvalidationService;
     @Mock
     private TokenHasher tokenHasher;
+    @Mock
+    private RegistrationGuard registrationGuard;
     @InjectMocks
     private UserService userService;
     private User testUser;
@@ -117,6 +121,12 @@ public class UserServiceTest {
         // @InjectMocks there is no proxy and "self" is null, so wire it back to the unit-under-test so
         // the real persist logic executes during these unit tests.
         ReflectionTestUtils.setField(userService, "self", userService);
+
+        // The RegistrationGuard is now enforced inside the registration entry points. Default it to
+        // allow so existing registration tests are unaffected; guard-denial behavior is exercised by
+        // the dedicated UserServiceRegistrationGuardTest.
+        org.mockito.Mockito.lenient().when(registrationGuard.evaluate(any()))
+                .thenReturn(RegistrationDecision.allow());
     }
 
     @Test
