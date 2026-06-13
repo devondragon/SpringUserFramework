@@ -15,14 +15,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -47,34 +42,29 @@ import org.springframework.test.web.servlet.MockMvc;
  * the heart of this test: it proves lockout genuinely blocks authentication.
  * </p>
  *
- * <h2>Why this test does NOT use {@code @SecurityTest} and replaces the security beans deterministically</h2>
+ * <h2>Why this test does NOT use {@code @SecurityTest}</h2>
  *
  * <p>
  * The real lockout path requires authenticating against the library's DB-backed
  * {@link DSUserDetailsService}, so that a lockout committed to the database actually blocks the next login.
- * Two obstacles make that non-trivial in the test slice:
- * </p>
- * <ol>
- * <li>{@code SecurityTestConfiguration} (imported by {@code @SecurityTest}) registers a
+ * {@code @SecurityTest} imports {@code SecurityTestConfiguration}, which registers a
  * {@code @Primary InMemoryUserDetailsManager} and a {@code @Primary TestingAuthenticationProvider} (which
- * cannot authenticate username/password tokens). Even without {@code @SecurityTest}, those beans still leak
- * in because {@code UserConfiguration}'s component scan ({@code basePackages = "com.digitalsanctuary.spring.user"})
- * does not install the Spring Boot {@code TypeExcludeFilter} and therefore sweeps up that
- * {@code @TestConfiguration} from the {@code test.config} sub-package.</li>
- * <li>That leaked {@code @Primary} provider also causes Spring Security to expose its own
- * {@code @Primary AuthenticationManager}, so naively adding another {@code @Primary AuthenticationManager}
- * collides ("found 2 primary beans").</li>
- * </ol>
- * <p>
- * To remove both problems deterministically (independent of bean import/scan ordering), a
- * {@link BeanDefinitionRegistryPostProcessor} removes the leaked {@code testUserDetailsService} and
- * {@code testAuthenticationProvider} definitions and re-registers them as the real, DB-backed
- * {@link DSUserDetailsService} and a {@code DaoAuthenticationProvider} bound to it. Spring Security then
- * auto-builds a single authentication manager from that real provider, and form login authenticates against
- * the database — so the persisted lock state gates login exactly as in production.
+ * cannot authenticate username/password tokens) — both intended for mock-security tests, not the real
+ * DB-backed form login this test needs. This class therefore uses a plain {@code @SpringBootTest} that imports
+ * only {@link BaseTestConfiguration}, leaving the library's auto-configured DB-backed
+ * {@link DSUserDetailsService} + {@code DaoAuthenticationProvider} as the sole authentication path. Spring
+ * Security builds a single authentication manager from that real provider, and form login authenticates
+ * against the database — so the persisted lock state gates login exactly as in production.
  * {@code @AutoConfigureMockMvc(addFilters = true)} keeps the security filter chain active;
  * {@link BaseTestConfiguration} supplies the fast BCrypt(4) {@link PasswordEncoder} and an in-memory
  * {@code SessionRegistry}.
+ * </p>
+ *
+ * <p>
+ * Note: {@code SecurityTestConfiguration} no longer leaks into this non-{@code @SecurityTest} context via the
+ * library's component scan, because {@code UserConfiguration} now installs the Spring Boot
+ * {@code TypeExcludeFilter} / {@code AutoConfigurationExcludeFilter} in its {@code @ComponentScan}, which
+ * excludes {@code @TestConfiguration} classes from the scan.
  * </p>
  *
  * <h2>Why this class uses an isolated in-memory database</h2>
@@ -96,7 +86,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest(classes = TestApplication.class)
 @AutoConfigureMockMvc(addFilters = true)
 @ActiveProfiles("test")
-@Import({BaseTestConfiguration.class, AccountLockoutIntegrationTest.DbBackedSecurityBeanConfig.class})
+@Import(BaseTestConfiguration.class)
 @TestPropertySource(properties = {
         // Isolated in-memory DB so this class's COMMITTED lock-state rows are invisible to the shared-DB
         // integration tests' deleteAll(). Options copied verbatim from the shared testdb URL
@@ -202,55 +192,5 @@ class AccountLockoutIntegrationTest {
 
         mockMvc.perform(formLogin(LOGIN_URL).user("username", TEST_EMAIL).password(CORRECT_PASSWORD))
                 .andExpect(authenticated());
-    }
-
-    /**
-     * Replaces the leaked {@code SecurityTestConfiguration} security beans with DB-backed equivalents via a
-     * {@link BeanDefinitionRegistryPostProcessor}, which runs deterministically before bean instantiation and
-     * is therefore immune to bean import/scan ordering (plain {@code @Bean} overrides proved order-dependent
-     * here). After this runs, the only {@code UserDetailsService} is the real {@link DSUserDetailsService} and
-     * the only {@code AuthenticationProvider} is a {@code DaoAuthenticationProvider} bound to it, so Spring
-     * Security builds a single, DB-backed authentication manager — no primary-bean collision, and form login
-     * sees the live, committed lock state.
-     */
-    @TestConfiguration
-    static class DbBackedSecurityBeanConfig {
-
-        @Bean
-        static BeanDefinitionRegistryPostProcessor replaceLeakedSecurityBeans() {
-            return new BeanDefinitionRegistryPostProcessor() {
-                @Override
-                public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) {
-                    // Remove the in-memory user store and the TestingAuthenticationProvider that leak in from
-                    // SecurityTestConfiguration. Once gone, the only UserDetailsService is the real
-                    // DSUserDetailsService bean (which we mark primary) and the only AuthenticationProvider is
-                    // the library's auto-configured DaoAuthenticationProvider (`authProvider`), already wired to
-                    // the @Primary UserDetailsService and the @Primary BCrypt(4) PasswordEncoder. Spring Security
-                    // then builds a single, DB-backed authentication manager — no encoder mismatch, no primary
-                    // collision — and form login sees the live, committed lock state.
-                    removeIfPresent(registry, "testUserDetailsService");
-                    removeIfPresent(registry, "testAuthenticationProvider");
-                    markPrimary(registry, "DSUserDetailsService");
-                    markPrimary(registry, "dsUserDetailsService");
-                }
-
-                @Override
-                public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
-                    // No-op: all work is done at registry time.
-                }
-
-                private void removeIfPresent(BeanDefinitionRegistry registry, String name) {
-                    if (registry.containsBeanDefinition(name)) {
-                        registry.removeBeanDefinition(name);
-                    }
-                }
-
-                private void markPrimary(BeanDefinitionRegistry registry, String name) {
-                    if (registry.containsBeanDefinition(name)) {
-                        registry.getBeanDefinition(name).setPrimary(true);
-                    }
-                }
-            };
-        }
     }
 }

@@ -1,7 +1,10 @@
 package com.digitalsanctuary.spring.user;
 
+import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
+import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -23,7 +26,9 @@ import lombok.extern.slf4j.Slf4j;
 @EnableRetry
 @EnableScheduling
 @EnableMethodSecurity
-@ComponentScan(basePackages = "com.digitalsanctuary.spring.user")
+@ComponentScan(basePackages = "com.digitalsanctuary.spring.user",
+        excludeFilters = {@ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+                @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class)})
 @Import(UserAutoConfigurationRegistrar.class)
 public class UserConfiguration {
 
