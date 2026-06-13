@@ -102,7 +102,7 @@ public class UserVerificationService {
      * <p>
      * A fresh high-entropy raw token is generated. Only its <em>hash</em> is persisted in the
      * {@code token} column (consistent with {@link #createVerificationTokenForUser}); the raw value
-     * is returned to the caller via {@link VerificationToken#getPlainToken()} so a verification email
+     * is returned to the caller via {@code VerificationToken.getPlainToken()} so a verification email
      * link can be built. The expiry is set from the configurable
      * {@code user.registration.verificationTokenValidityMinutes} (not a hardcoded 24h). The existing
      * row is updated in place, preserving the single-active-token invariant.
@@ -110,7 +110,7 @@ public class UserVerificationService {
      *
      * @param existingVerificationToken the existing verification token string to replace
      * @return the updated verification token entity. Its persisted {@code token} is the hash; the raw
-     *         value is available via {@link VerificationToken#getPlainToken()}.
+     *         value is available via {@code VerificationToken.getPlainToken()}.
      */
     @Transactional
     public VerificationToken generateNewVerificationToken(final String existingVerificationToken) {

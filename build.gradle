@@ -139,6 +139,13 @@ tasks.named('jar') {
 // This is necessary because Lombok generates constructors that cannot be documented
 tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    // Register the standard JDK documentation tags so @apiNote/@implSpec/@implNote are recognized
+    // by the doclet (otherwise they are reported as "unknown tag" errors and fail the Javadoc jar).
+    options.tags = [
+        'apiNote:a:API Note:',
+        'implSpec:a:Implementation Requirements:',
+        'implNote:a:Implementation Note:'
+    ]
 }
 
 def registerJdkTestTask(name, jdkVersion) {
