@@ -114,13 +114,15 @@ public class UserActionController {
 		log.debug("UserAPI.confirmRegistration: called with token: {}", tokenFingerprint(token));
 		Locale locale = request.getLocale();
 		model.addAttribute("lang", locale.getLanguage());
+		// Resolve the user BEFORE validating: validateVerificationToken atomically consumes (deletes) the token,
+		// so a lookup by the same raw token afterward would no longer resolve.
+		final User user = userVerificationService.getUserByVerificationToken(token);
 		final TokenValidationResult result = userVerificationService.validateVerificationToken(token);
 
 		if (result == TokenValidationResult.VALID) {
-			final User user = userVerificationService.getUserByVerificationToken(token);
 			if (user != null) {
+				// The token was already consumed (deleted) atomically inside validateVerificationToken.
 				userService.authWithoutPassword(user);
-				userVerificationService.deleteVerificationToken(token);
 
 				AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user)
 						.sessionId(request.getSession().getId())

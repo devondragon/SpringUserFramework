@@ -163,10 +163,11 @@ class UserActionControllerTest {
                     .andExpect(redirectedUrl("/user/registration-complete.html?lang=en&message=Account+verified+successfully"))
                     .andExpect(model().attribute("message", "Account verified successfully"));
             
-            // Verify interactions
+            // Verify interactions. The token is consumed atomically inside validateVerificationToken, so the
+            // controller no longer issues a separate deleteVerificationToken call.
             verify(userService).authWithoutPassword(testUser);
-            verify(userVerificationService).deleteVerificationToken(token);
-            
+            verify(userVerificationService, never()).deleteVerificationToken(anyString());
+
             // Verify audit event
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());

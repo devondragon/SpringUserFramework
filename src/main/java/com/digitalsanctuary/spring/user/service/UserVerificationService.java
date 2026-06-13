@@ -145,12 +145,21 @@ public class UserVerificationService {
     }
 
     /**
-     * Validates a user verification token and, when valid, atomically consumes it by enabling the
-     * user. Uses dual-read so both hashed (post-upgrade) and plaintext (pre-upgrade) tokens resolve.
+     * Validates a user verification token and, when valid, atomically consumes it: the user is enabled and the
+     * token is deleted within a single transaction so the token is strictly single-use and cannot be replayed.
+     * Expired tokens are likewise deleted (as cleanup) and rejected. Uses dual-read so both hashed (post-upgrade)
+     * and plaintext (pre-upgrade) tokens resolve.
      *
-     * @param token the raw token to validate
+     * <p>
+     * Because this method consumes the token, callers must obtain any needed {@link User} reference (e.g. via
+     * {@link #getUserByVerificationToken(String)}) <em>before</em> invoking it; a subsequent lookup by the same
+     * raw token will no longer resolve.
+     * </p>
+     *
+     * @param token the raw token to validate and consume
      * @return the token validation result (VALID, INVALID_TOKEN, or EXPIRED)
      */
+    @Transactional
     public UserService.TokenValidationResult validateVerificationToken(String token) {
         final VerificationToken verificationToken = resolveByRawToken(token);
         if (verificationToken == null) {
@@ -166,6 +175,8 @@ public class UserVerificationService {
 
         user.setEnabled(true);
         userRepository.save(user);
+        // Consume the token in the same transaction so it is single-use and cannot be replayed.
+        tokenRepository.delete(verificationToken);
         return UserService.TokenValidationResult.VALID;
     }
 

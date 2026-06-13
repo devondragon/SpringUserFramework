@@ -57,6 +57,10 @@ public class UserVerificationServiceTest {
         when(verificationTokenRepository.findByToken(anyString())).thenReturn(testToken);
         UserService.TokenValidationResult result = userVerificationService.validateVerificationToken(anyString());
         Assertions.assertEquals(result, UserService.TokenValidationResult.VALID);
+        // The user is enabled and the token is consumed (deleted) atomically so it is strictly single-use.
+        Assertions.assertTrue(testUser.isEnabled());
+        Mockito.verify(userRepository).save(testUser);
+        Mockito.verify(verificationTokenRepository).delete(testToken);
     }
 
     @Test
