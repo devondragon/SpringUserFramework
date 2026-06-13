@@ -8,6 +8,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 
 /**
@@ -87,7 +88,15 @@ class RegistrationGuardConfigurationTest {
         });
     }
 
+    // These nested guard configurations are registered explicitly via ApplicationContextRunner
+    // (withUserConfiguration). They are annotated @Profile("!test") so the library's broad
+    // @ComponentScan("com.digitalsanctuary.spring.user") in UserConfiguration does NOT pick them up
+    // as real beans inside the full @IntegrationTest context (which activates the "test" profile).
+    // Without this, their denying RegistrationGuard beans would leak into every integration context's
+    // CompositeRegistrationGuard and block all registration. The ApplicationContextRunner below
+    // activates no profile, so "!test" is satisfied and these configs still load for these tests.
     @Configuration
+    @Profile("!test")
     static class OneDenyingGuardConfig {
         @Bean
         RegistrationGuard consumerGuard() {
@@ -96,6 +105,7 @@ class RegistrationGuardConfigurationTest {
     }
 
     @Configuration
+    @Profile("!test")
     static class TwoOrderedGuardsConfig {
         @Bean
         @Order(1)
@@ -111,6 +121,7 @@ class RegistrationGuardConfigurationTest {
     }
 
     @Configuration
+    @Profile("!test")
     static class TwoAllowingGuardsConfig {
         @Bean
         @Order(1)

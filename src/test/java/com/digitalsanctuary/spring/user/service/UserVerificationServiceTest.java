@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Calendar;
@@ -58,13 +59,21 @@ public class UserVerificationServiceTest {
         Assertions.assertEquals(result, UserService.TokenValidationResult.VALID);
     }
 
-    // @Test
-    // void validateVerificationToken_returnsExpiredIfTokenExpired() {
-    // testToken.setExpiryDate(getExpirationDate(0));
-    // when(verificationTokenRepository.findByToken(anyString())).thenReturn(testToken);
-    // UserService.TokenValidationResult result = userVerificationService.validateVerificationToken(anyString());
-    // Assertions.assertEquals(result, UserService.TokenValidationResult.EXPIRED);
-    // }
+    @Test
+    void validateVerificationToken_returnsExpiredIfTokenExpired() {
+        // Clearly-past expiry so the token is unambiguously expired.
+        testToken.setExpiryDate(getExpirationDate(-1));
+        // Dual-read: validateVerificationToken first looks up by hash(raw), then by raw. With a null
+        // secret the hash is a deterministic SHA-256 of the raw value, so stub findByToken for any
+        // argument to resolve the token regardless of which lookup the service performs.
+        when(verificationTokenRepository.findByToken(anyString())).thenReturn(testToken);
+
+        UserService.TokenValidationResult result = userVerificationService.validateVerificationToken("raw-token");
+
+        Assertions.assertEquals(UserService.TokenValidationResult.EXPIRED, result);
+        // Expired tokens are cleaned up (deleted) as part of validation.
+        Mockito.verify(verificationTokenRepository).delete(testToken);
+    }
 
     @Test
     void validateVerificationToken_returnInvalidTokenIfTokenNotFound() {
