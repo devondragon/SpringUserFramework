@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.data.domain.AuditorAware;
 
@@ -48,7 +48,9 @@ class JpaAuditingConfigTest {
      * Mirrors {@link JpaAuditingConfig}'s class-level gate exactly, exposing a marker bean that reflects whether the
      * gated configuration is active. Deliberately omits {@code @EnableJpaAuditing} so no JPA metamodel is initialized.
      */
-    @Configuration
+    // @TestConfiguration (not @Configuration) so the library's @ComponentScan TypeExcludeFilter keeps this
+    // stand-in out of integration contexts; it is still applied where used via withUserConfiguration(...).
+    @TestConfiguration
     @ConditionalOnProperty(name = "user.jpa.auditing.enabled", havingValue = "true", matchIfMissing = true)
     static class GatedConfiguration {
         @Bean
