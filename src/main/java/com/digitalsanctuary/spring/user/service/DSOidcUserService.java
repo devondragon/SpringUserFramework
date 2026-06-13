@@ -139,11 +139,11 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
      * @return A User object representing the authenticated user.
      */
     public User getUserFromKeycloakOidc2User(OidcUser principal) {
-        log.debug("Getting user info from Keycloak Oidc provider with principal: {}", principal);
+        log.debug("Getting user info from Keycloak Oidc provider with principal: {}", principal != null ? principal.getName() : null);
         if (principal == null) {
             return null;
         }
-        log.debug("Principal attributes: {}", principal.getAttributes());
+        log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
         User user = new User();
 /*        user.setEmail(principal.getAttribute("email"));
         user.setFirstName(principal.getAttribute("given_name"));

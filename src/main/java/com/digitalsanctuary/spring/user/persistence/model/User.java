@@ -73,6 +73,7 @@ public class User {
 	private Provider provider = Provider.LOCAL;
 
 	/** The password. */
+	@ToString.Exclude
 	@Column(length = 60)
 	private String password;
 

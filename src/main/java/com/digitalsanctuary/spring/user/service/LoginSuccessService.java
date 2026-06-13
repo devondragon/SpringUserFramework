@@ -49,7 +49,8 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 																																	ServletException {
 		log.debug("LoginSuccessService.onAuthenticationSuccess()");
 		log.debug("LoginSuccessService.onAuthenticationSuccess: called with request: {}", request);
-		log.debug("LoginSuccessService.onAuthenticationSuccess: called with authentication: {}", authentication);
+		log.debug("LoginSuccessService.onAuthenticationSuccess: called for user: {}",
+				authentication != null ? authentication.getName() : null);
 
 		// Enhanced logging to check request attributes
 		log.debug("Request URI: {}", request.getRequestURI());
@@ -64,12 +65,12 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 
 		User user = null;
 		if (authentication != null && authentication.getPrincipal() != null) {
-			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal(): " + authentication.getPrincipal());
+			log.debug("LoginSuccessService.onAuthenticationSuccess() user: {}", authentication.getName());
 			log.debug("LoginSuccessService.onAuthenticatonSuccess() authentication.getClass(): " + authentication.getClass());
 			log.debug("LoginSuccessService.onAuthenticationSuccess() authentication.getPrincipal().getClass(): "
 					+ authentication.getPrincipal().getClass());
 			if (authentication.getPrincipal() instanceof DSUserDetails) {
-				log.debug("LoginSuccessService.onAuthenticationSuccess: DSUserDetails: {}", authentication.getPrincipal());
+				log.debug("LoginSuccessService.onAuthenticationSuccess: DSUserDetails for user: {}", authentication.getName());
 				user = ((DSUserDetails) authentication.getPrincipal()).getUser();
 			}
 		}
