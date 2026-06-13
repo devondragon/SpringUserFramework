@@ -94,8 +94,6 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-postgresql:2.0.5'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.2'
     testImplementation 'org.assertj:assertj-core:3.27.7'
-    // Awaitility is used by the Testcontainers concurrent-registration test
-    testImplementation 'org.awaitility:awaitility:4.3.0'
     // Legacy Jackson 2 (com.fasterxml.jackson) for test JSON utilities. Spring Boot 4 ships Jackson 3
     // (tools.jackson), so the com.fasterxml.jackson APIs these tests use must be declared explicitly
     // rather than relied upon transitively. Version is managed by the Spring Boot BOM.
