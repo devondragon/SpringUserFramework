@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,17 +59,59 @@ class LoginAttemptServiceTest {
     }
 
     @Test
-    void loginFailed_incrementsFailedAttempts() {
-        when(userRepository.findByEmail(anyString())).thenReturn(testUser);
+    void loginFailed_callsAtomicIncrementAndLocksAtThreshold() {
+        // The atomic UPDATE reports one row affected (the user exists).
+        when(userRepository.incrementFailedAttempts(testUser.getEmail())).thenReturn(1);
+        // Re-read returns the user whose counter has reached the threshold (simulating the fresh DB value after the bulk update + clear).
+        testUser.setFailedLoginAttempts(failedLoginAttempts);
+        when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
 
-        for (int i = 1; i <= failedLoginAttempts; i++) {
-            loginAttemptService.loginFailed(testUser.getEmail());
-        }
+        loginAttemptService.loginFailed(testUser.getEmail());
 
-        assertEquals(failedLoginAttempts, testUser.getFailedLoginAttempts());
+        verify(userRepository).incrementFailedAttempts(testUser.getEmail());
+        verify(userRepository).findByEmail(testUser.getEmail());
         assertTrue(testUser.isLocked());
         assertNotNull(testUser.getLockedDate());
-        verify(userRepository, times(failedLoginAttempts)).save(testUser);
+        verify(userRepository).save(testUser);
+    }
+
+    @Test
+    void loginFailed_doesNotLockBelowThreshold() {
+        when(userRepository.incrementFailedAttempts(testUser.getEmail())).thenReturn(1);
+        // Re-read returns the user with a count below the lockout threshold.
+        testUser.setFailedLoginAttempts(failedLoginAttempts - 1);
+        when(userRepository.findByEmail(testUser.getEmail())).thenReturn(testUser);
+
+        loginAttemptService.loginFailed(testUser.getEmail());
+
+        verify(userRepository).incrementFailedAttempts(testUser.getEmail());
+        assertFalse(testUser.isLocked());
+        assertNull(testUser.getLockedDate());
+        verify(userRepository, never()).save(testUser);
+    }
+
+    @Test
+    void loginFailed_warnsAndStopsWhenUserNotFound() {
+        // The atomic UPDATE affected no rows, meaning the user does not exist.
+        when(userRepository.incrementFailedAttempts(anyString())).thenReturn(0);
+
+        loginAttemptService.loginFailed("missing@example.com");
+
+        verify(userRepository).incrementFailedAttempts("missing@example.com");
+        verify(userRepository, never()).findByEmail(anyString());
+        verify(userRepository, never()).save(testUser);
+    }
+
+    @Test
+    void loginFailed_doesNothingWhenLockoutDisabled() {
+        loginAttemptService.setMaxFailedLoginAttempts(0);
+
+        loginAttemptService.loginFailed(testUser.getEmail());
+
+        // When the feature is disabled, the atomic increment must not be invoked at all.
+        verify(userRepository, never()).incrementFailedAttempts(anyString());
+        verify(userRepository, never()).findByEmail(anyString());
+        verify(userRepository, never()).save(testUser);
     }
 
     @Test
