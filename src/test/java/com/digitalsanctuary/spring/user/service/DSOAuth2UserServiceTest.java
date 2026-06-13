@@ -196,6 +196,105 @@ class DSOAuth2UserServiceTest {
     }
 
     @Nested
+    @DisplayName("Google email_verified Tests")
+    class GoogleEmailVerifiedTests {
+
+        @Test
+        @DisplayName("Should accept Google login when email_verified is Boolean true")
+        void shouldAcceptWhenEmailVerifiedBooleanTrue() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("verified@gmail.com")
+                .withAttribute("email_verified", Boolean.TRUE)
+                .build();
+
+            when(userRepository.findByEmail("verified@gmail.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOAuthLoginSuccess("google", googleUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("verified@gmail.com");
+        }
+
+        @Test
+        @DisplayName("Should accept Google login when email_verified is String \"true\"")
+        void shouldAcceptWhenEmailVerifiedStringTrue() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("verified-str@gmail.com")
+                .withAttribute("email_verified", "true")
+                .build();
+
+            when(userRepository.findByEmail("verified-str@gmail.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOAuthLoginSuccess("google", googleUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("verified-str@gmail.com");
+        }
+
+        @Test
+        @DisplayName("Should accept Google login when email_verified is absent (trusted)")
+        void shouldAcceptWhenEmailVerifiedAbsent() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("noclaim@gmail.com")
+                .withoutAttribute("email_verified")
+                .build();
+
+            when(userRepository.findByEmail("noclaim@gmail.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOAuthLoginSuccess("google", googleUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("noclaim@gmail.com");
+        }
+
+        @Test
+        @DisplayName("Should reject Google login when email_verified is Boolean false")
+        void shouldRejectWhenEmailVerifiedBooleanFalse() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("unverified@gmail.com")
+                .withAttribute("email_verified", Boolean.FALSE)
+                .build();
+
+            // When/Then
+            assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(ex -> assertThat(((OAuth2AuthenticationException) ex).getError().getErrorCode())
+                        .isEqualTo("email_not_verified"));
+            verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should reject Google login when email_verified is String \"false\"")
+        void shouldRejectWhenEmailVerifiedStringFalse() {
+            // Given - String "false" with mixed case to verify case-insensitive handling
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("unverified-str@gmail.com")
+                .withAttribute("email_verified", "False")
+                .build();
+
+            // When/Then
+            assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(ex -> assertThat(((OAuth2AuthenticationException) ex).getError().getErrorCode())
+                        .isEqualTo("email_not_verified"));
+            verify(userRepository, never()).save(any(User.class));
+        }
+    }
+
+    @Nested
     @DisplayName("Facebook OAuth2 Tests")
     class FacebookOAuth2Tests {
 

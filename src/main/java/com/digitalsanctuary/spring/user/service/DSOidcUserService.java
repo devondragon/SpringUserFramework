@@ -173,6 +173,14 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             return null;
         }
         log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
+        // Reject the login if the OIDC provider explicitly reports the email as NOT verified.
+        // The standard OIDC email_verified claim is a Boolean. Providers that do not expose it are trusted;
+        // only an explicit false is rejected (an absent/null claim is trusted).
+        if (Boolean.FALSE.equals(principal.getEmailVerified())) {
+            log.warn("getUserFromKeycloakOidc2User: rejecting login because OIDC provider reports email_verified=false");
+            throw new OAuth2AuthenticationException(new OAuth2Error("email_not_verified"),
+                    "Your email address is not verified with your login provider.");
+        }
         User user = new User();
         String email = principal.getEmail();
         user.setEmail(email != null ? email.trim().toLowerCase(Locale.ROOT) : null);
