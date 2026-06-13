@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
+import java.io.Serializable;
 import java.util.Collection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -19,7 +20,10 @@ import lombok.ToString;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
 @Entity
-public class Privilege {
+public class Privilege implements Serializable {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = 1L;
 
 	/** The id. */
 	@Id

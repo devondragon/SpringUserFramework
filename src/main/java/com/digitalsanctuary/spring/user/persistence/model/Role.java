@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 import jakarta.persistence.CascadeType;
@@ -24,7 +25,11 @@ import lombok.ToString;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
 @Entity
-public class Role {
+public class Role implements Serializable {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = 1L;
+
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)

@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.persistence.model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -16,12 +17,21 @@ import lombok.ToString;
 /**
  * The User Entity. Part of the basic User ->> Role ->> Privilege structure. This is the primary user data object. You can add to this, or add
  * referenced types as needed. Leverages the Spring JPA Auditing framework to automatically manage the registrationDate and lastActivityDate fields.
+ *
+ * <p>
+ * This entity implements {@link Serializable} so it can be stored in the HTTP session as part of the authenticated principal
+ * ({@code DSUserDetails}) and serialized by distributed/persistent session stores such as Spring Session JDBC or Redis. Consumers using
+ * distributed sessions must ensure any custom profile or data reachable from the session-stored principal is also {@link Serializable}.
+ * </p>
  */
 @Data
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "user_account")
-public class User {
+public class User implements Serializable {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = 1L;
 
 	/**
 	 * Enum representing the available login providers.
