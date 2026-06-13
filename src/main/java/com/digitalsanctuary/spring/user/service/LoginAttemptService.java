@@ -69,28 +69,22 @@ public class LoginAttemptService {
 	public void loginFailed(final String email) {
 		log.debug("Login attempt failed for user: {}", email);
 		if (maxFailedLoginAttempts > 0) {
-			User user = userRepository.findByEmail(email);
-			if (user != null) {
-				incrementFailedAttempts(user);
-			} else {
+			// Atomically increment the counter via a single DB UPDATE to avoid the lost-update race that a read-modify-write would suffer under
+			// concurrent failed logins (which could let an attacker evade lockout).
+			int updated = userRepository.incrementFailedAttempts(email);
+			if (updated == 0) {
 				log.warn("User not found for email: {}", email);
+				return;
+			}
+			// Re-read the fresh user; thanks to clearAutomatically on the bulk update, this reflects the true incremented count from the database.
+			User user = userRepository.findByEmail(email);
+			if (user != null && user.getFailedLoginAttempts() >= maxFailedLoginAttempts && !user.isLocked()) {
+				// Setting locked is idempotent if two threads both observe the threshold; the COUNTER is what must not lose updates.
+				user.setLocked(true);
+				user.setLockedDate(new Date());
+				userRepository.save(user);
 			}
 		}
-	}
-
-	/**
-	 * Increment failed attempts.
-	 *
-	 * @param user the user
-	 */
-	private void incrementFailedAttempts(User user) {
-		int currentAttempts = user.getFailedLoginAttempts();
-		user.setFailedLoginAttempts(++currentAttempts);
-		if (currentAttempts >= maxFailedLoginAttempts) {
-			user.setLocked(true);
-			user.setLockedDate(new Date());
-		}
-		userRepository.save(user);
 	}
 
 	/**
