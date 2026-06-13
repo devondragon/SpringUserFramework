@@ -207,6 +207,24 @@ class TokenHashingSecurityTest {
             User second = userService.validateAndConsumePasswordResetToken(rawToken);
             assertThat(second).isNull();
         }
+
+        @Test
+        @DisplayName("(h) consuming an EXPIRED token returns null AND deletes it (cleanup)")
+        void shouldRejectAndCleanUpExpiredTokenOnConsume() {
+            String rawToken = "expired-consume-me";
+            String hashed = tokenHasher.hash(rawToken);
+            PasswordResetToken expired = new PasswordResetToken();
+            expired.setToken(hashed);
+            expired.setUser(testUser);
+            expired.setExpiryDate(past(60));
+            when(passwordTokenRepository.findByToken(hashed)).thenReturn(expired);
+
+            User result = userService.validateAndConsumePasswordResetToken(rawToken);
+
+            assertThat(result).isNull();
+            // The expired token is cleaned up (deleted) even though consumption is rejected.
+            verify(passwordTokenRepository).delete(expired);
+        }
     }
 
     // ---------------------------------------------------------------------------------------------
