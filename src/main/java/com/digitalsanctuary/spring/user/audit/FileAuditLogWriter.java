@@ -8,11 +8,9 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.MessageFormat;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -29,17 +27,29 @@ import lombok.extern.slf4j.Slf4j;
  * <p>If the configured log path is not writable, the writer falls back to a temporary
  * directory location.
  *
+ * <p>This class is not component-scanned; it is contributed as a consumer-overridable {@code @Bean} by
+ * {@link AuditMailAutoConfiguration} so a consumer-supplied {@link AuditLogWriter} can replace it via
+ * {@code @ConditionalOnMissingBean}.
+ *
  * @see AuditLogWriter
  * @see AuditConfig
  * @see FileAuditLogFlushScheduler
+ * @see AuditMailAutoConfiguration
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class FileAuditLogWriter implements AuditLogWriter {
 
     private final AuditConfig auditConfig;
     private BufferedWriter bufferedWriter;
+
+    /**
+     * Constructs the writer with the audit configuration it depends on.
+     *
+     * @param auditConfig the audit configuration properties
+     */
+    public FileAuditLogWriter(AuditConfig auditConfig) {
+        this.auditConfig = auditConfig;
+    }
 
     /**
      * Initializes the log file writer. This method is called after the bean is constructed. It validates the configuration and opens the log file for

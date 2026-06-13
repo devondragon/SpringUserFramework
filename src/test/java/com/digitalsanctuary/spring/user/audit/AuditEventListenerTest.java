@@ -11,9 +11,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuditEventListener Tests")
@@ -25,7 +25,9 @@ class AuditEventListenerTest {
     @Mock
     private AuditLogWriter auditLogWriter;
 
-    @InjectMocks
+    @Mock
+    private ObjectProvider<AuditLogWriter> auditLogWriterProvider;
+
     private AuditEventListener auditEventListener;
 
     private User testUser;
@@ -33,6 +35,11 @@ class AuditEventListenerTest {
 
     @BeforeEach
     void setUp() {
+        // The provider resolves to the mock writer by default; tests that exercise the
+        // disabled path never reach getIfAvailable() because isLogEvents() short-circuits.
+        lenient().when(auditLogWriterProvider.getIfAvailable()).thenReturn(auditLogWriter);
+        auditEventListener = new AuditEventListener(auditConfig, auditLogWriterProvider);
+
         testUser = UserTestDataBuilder.aUser()
                 .withId(1L)
                 .withEmail("test@example.com")
