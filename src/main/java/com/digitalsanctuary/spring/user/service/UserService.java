@@ -371,8 +371,11 @@ public class UserService {
 	 *
 	 * <p>
 	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
-	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies, and is not
-	 * intended to be called directly by consumers.
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
+	 * deliberately <b>package-private</b> so consumers cannot call it directly and bypass the
+	 * centralized RegistrationGuard enforced by {@link #registerNewUserAccount(UserDto)}; CGLIB
+	 * self-invocation still applies the transaction because Spring's proxy subclass is generated in
+	 * this same package.
 	 * </p>
 	 *
 	 * @param user the fully built user entity (password already encoded)
@@ -380,7 +383,7 @@ public class UserService {
 	 * @throws UserAlreadyExistException if an account with the same email already exists
 	 */
 	@Transactional(isolation = Isolation.SERIALIZABLE)
-	public User persistNewUserAccount(final User user) {
+	User persistNewUserAccount(final User user) {
 		if (emailExists(user.getEmail())) {
 			log.debug("UserService.persistNewUserAccount: email already exists: {}", user.getEmail());
 			throw new UserAlreadyExistException(
@@ -733,15 +736,16 @@ public class UserService {
 	 *
 	 * <p>
 	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
-	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies, and is not
-	 * intended to be called directly by consumers.
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
+	 * deliberately <b>package-private</b> so it is not part of the public API; CGLIB self-invocation
+	 * still applies the transaction because Spring's proxy subclass is generated in this same package.
 	 * </p>
 	 *
 	 * @param user            the user whose password changed (password field already set/encoded)
 	 * @param encodedPassword the already-encoded password to record in history
 	 */
 	@Transactional
-	public void persistChangedPassword(final User user, final String encodedPassword) {
+	void persistChangedPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
 		// Terminate all existing sessions so a reset/change forces re-auth everywhere (OWASP).
@@ -828,15 +832,16 @@ public class UserService {
 	 *
 	 * <p>
 	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
-	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies, and is not
-	 * intended to be called directly by consumers.
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
+	 * deliberately <b>package-private</b> so it is not part of the public API; CGLIB self-invocation
+	 * still applies the transaction because Spring's proxy subclass is generated in this same package.
 	 * </p>
 	 *
 	 * @param user            the user whose initial password is being set (password field already set)
 	 * @param encodedPassword the already-encoded password to record in history
 	 */
 	@Transactional
-	public void persistInitialPassword(final User user, final String encodedPassword) {
+	void persistInitialPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
 	}
