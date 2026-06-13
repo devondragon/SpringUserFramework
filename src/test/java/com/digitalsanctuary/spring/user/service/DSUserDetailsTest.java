@@ -252,6 +252,31 @@ class DSUserDetailsTest {
     }
 
     @Nested
+    @DisplayName("Account Locked Status")
+    class AccountLockedStatusTests {
+
+        @Test
+        @DisplayName("isAccountNonLocked should return false when the wrapped User is locked")
+        void shouldReturnNotAccountNonLockedWhenUserLocked() {
+            testUser.setLocked(true);
+
+            DSUserDetails details = new DSUserDetails(testUser);
+
+            assertThat(details.isAccountNonLocked()).isFalse();
+        }
+
+        @Test
+        @DisplayName("isAccountNonLocked should return true when the wrapped User is not locked")
+        void shouldReturnAccountNonLockedWhenUserNotLocked() {
+            testUser.setLocked(false);
+
+            DSUserDetails details = new DSUserDetails(testUser);
+
+            assertThat(details.isAccountNonLocked()).isTrue();
+        }
+    }
+
+    @Nested
     @DisplayName("Builder")
     class BuilderTests {
 

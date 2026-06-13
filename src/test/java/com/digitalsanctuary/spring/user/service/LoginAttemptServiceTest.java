@@ -146,5 +146,34 @@ class LoginAttemptServiceTest {
         verify(userRepository).save(testUser);
     }
 
+    @Test
+    void checkIfUserShouldBeUnlocked_adminOnlyUnlockKeepsLockedDespitePastLockedDate() {
+        // A negative accountLockoutDuration means the account can ONLY be unlocked by an administrator,
+        // never automatically by elapsed time — even with a lockedDate far in the past.
+        loginAttemptService.setAccountLockoutDuration(-1);
+        testUser.setLocked(true);
+        testUser.setLockedDate(new Date(System.currentTimeMillis() - 60L * 60 * 1000)); // locked an hour ago
+
+        User result = loginAttemptService.checkIfUserShouldBeUnlocked(testUser);
+
+        assertTrue(result.isLocked());
+        assertNotNull(result.getLockedDate());
+        // No auto-unlock occurred, so nothing should have been persisted.
+        verify(userRepository, never()).save(testUser);
+    }
+
+    @Test
+    void isLocked_adminOnlyUnlockKeepsUserLockedDespitePastLockedDate() {
+        // End-to-end through isLocked(): with admin-only unlock, a long-locked user stays locked.
+        loginAttemptService.setAccountLockoutDuration(-1);
+        testUser.setLocked(true);
+        testUser.setLockedDate(new Date(System.currentTimeMillis() - 60L * 60 * 1000));
+        when(userRepository.findByEmail(anyString())).thenReturn(testUser);
+
+        assertTrue(loginAttemptService.isLocked(testUser.getEmail()));
+        assertTrue(testUser.isLocked());
+        verify(userRepository, never()).save(testUser);
+    }
+
     // Additional tests can be written for edge cases and exception handling
 }
