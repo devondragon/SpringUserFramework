@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -57,12 +56,15 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  * <p>
  * Therefore we keep our single property-driven enforcement factory and activate ONLY the merging side using public
- * SS7 API: {@link #mfaFilterMergingPostProcessor()} replicates {@code EnableMfaFiltersPostProcessor} by invoking the
- * public {@link AbstractAuthenticationProcessingFilter#setMfaEnabled(boolean)} on the form-login and WebAuthn
- * processing filters. This is gated on {@code user.mfa.enabled=true}, leaving the default (no-MFA) path untouched.
+ * SS7 API. The merging post-processor lives in {@link MfaFilterMergingConfiguration} (a separate, dependency-free
+ * configuration) so that declaring a {@code BeanPostProcessor} does not force this dependency-rich, event-listening
+ * configuration to be instantiated early. It replicates {@code EnableMfaFiltersPostProcessor} by invoking the public
+ * {@link AbstractAuthenticationProcessingFilter#setMfaEnabled(boolean)} on the authentication processing filters, gated
+ * on {@code user.mfa.enabled=true}, leaving the default (no-MFA) path untouched.
  * </p>
  *
  * @see MfaConfigProperties
+ * @see MfaFilterMergingConfiguration
  * @see WebSecurityConfig
  */
 @Slf4j
@@ -113,42 +115,6 @@ public class MfaConfiguration {
 
 		log.info("MFA enabled with required factors: {}", mfaConfigProperties.getFactors());
 		return factory;
-	}
-
-	/**
-	 * Activates Spring Security 7 factor merging by enabling MFA mode on every authentication processing filter.
-	 * <p>
-	 * This replicates the behaviour of {@code @EnableMultiFactorAuthentication}'s internal
-	 * {@code EnableMfaFiltersPostProcessor} using only public API. When MFA mode is enabled,
-	 * {@link AbstractAuthenticationProcessingFilter} merges the factor authorities of the existing authentication onto
-	 * the authentication produced by a subsequent login step (for the same principal) instead of replacing it. Without
-	 * this, completing a second factor would drop the first factor's authority and the user could never satisfy all
-	 * required factors (H4 lockout).
-	 * </p>
-	 * <p>
-	 * The bean is only created when MFA is enabled, so the default (no-MFA) login path is completely unaffected.
-	 * </p>
-	 *
-	 * @return a {@link BeanPostProcessor} that calls {@code setMfaEnabled(true)} on authentication processing filters
-	 */
-	@Bean
-	@ConditionalOnProperty(name = "user.mfa.enabled", havingValue = "true", matchIfMissing = false)
-	public static BeanPostProcessor mfaFilterMergingPostProcessor() {
-		return new BeanPostProcessor() {
-			@Override
-			public Object postProcessAfterInitialization(Object bean, String beanName) {
-				// Intentionally scoped to AbstractAuthenticationProcessingFilter, which covers every
-				// authentication mechanism this framework configures: formLogin, webAuthn, and oauth2Login
-				// all extend it. SS's internal EnableMfaFiltersPostProcessor additionally flips the flag on
-				// AuthenticationFilter, BasicAuthenticationFilter, and pre-authentication filters; this
-				// framework does not configure those mechanisms, so they are deliberately not targeted here.
-				if (bean instanceof AbstractAuthenticationProcessingFilter filter) {
-					filter.setMfaEnabled(true);
-					log.debug("MFA factor merging enabled on filter: {}", bean.getClass().getName());
-				}
-				return bean;
-			}
-		};
 	}
 
 	/**
