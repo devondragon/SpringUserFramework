@@ -9,6 +9,10 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
 import org.springframework.security.core.Authentication;
@@ -20,6 +24,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -246,10 +252,21 @@ public class UserService {
 	 *
 	 * @param newUserDto the data transfer object containing the user registration
 	 *                   information
+	 * <p>
+	 * Runs with {@link Isolation#SERIALIZABLE} isolation to close the duplicate-registration
+	 * race when two requests register the same email concurrently. The {@link #emailExists}
+	 * pre-check handles the common case, but a concurrent insert can still fail at commit; in
+	 * that case the resulting {@link DataIntegrityViolationException} (unique-constraint
+	 * violation) or serialization failure ({@link CannotAcquireLockException} /
+	 * {@link ConcurrencyFailureException}) is translated into a {@link UserAlreadyExistException}
+	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
+	 * </p>
+	 *
 	 * @return the newly created user entity
 	 * @throws UserAlreadyExistException if an account with the same email already
 	 *                                   exists
 	 */
+	@Transactional(isolation = Isolation.SERIALIZABLE)
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
@@ -285,8 +302,20 @@ public class UserService {
 			user.setEnabled(true);
 		}
 
-		user = userRepository.save(user);
-		savePasswordHistory(user, user.getPassword());
+		try {
+			user = userRepository.save(user);
+			savePasswordHistory(user, user.getPassword());
+		} catch (DataIntegrityViolationException | ConcurrencyFailureException e) {
+			// A concurrent registration won the race: the unique-email constraint was violated
+			// (DataIntegrityViolationException) or the SERIALIZABLE transaction could not be
+			// serialized (ConcurrencyFailureException, e.g. CannotAcquireLockException). Translate
+			// to a 409 instead of letting it surface as a 500. Only these duplicate/serialization
+			// cases are translated; unrelated exceptions propagate unchanged.
+			log.debug("UserService.registerNewUserAccount: concurrent registration detected for email {}: {}",
+					newUserDto.getEmail(), e.getClass().getSimpleName());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + newUserDto.getEmail());
+		}
 		// authWithoutPassword(user);
 		timeLogger.end();
 		return user;
@@ -318,25 +347,50 @@ public class UserService {
 
 	/**
 	 * Cleans up old password history entries for a user, keeping only the most recent entries.
-	 * Uses SERIALIZABLE isolation to prevent race conditions when the same user changes
-	 * their password concurrently from multiple sessions.
+	 *
+	 * <p>
+	 * This method runs within the caller's class-level transaction (it is invoked via
+	 * self-invocation, so any method-level {@code @Transactional} would be bypassed by the proxy
+	 * and never apply). Rather than load every history row and {@code deleteAll} the overflow
+	 * (a read-then-delete window that races with concurrent inserts), it issues a single
+	 * set-based, bounded delete:
+	 * </p>
+	 * <ol>
+	 * <li>Locate the id of the oldest entry to keep (the {@code maxEntries}-th most recent entry,
+	 * ordered by primary key descending).</li>
+	 * <li>Delete all of the user's entries with an id strictly less than that cutoff.</li>
+	 * </ol>
+	 *
+	 * <p>
+	 * Ordering by id is reliable because the id is generated with {@code GenerationType.IDENTITY}
+	 * and is therefore monotonically increasing. The approach is portable across H2, MariaDB, and
+	 * PostgreSQL (no subquery {@code LIMIT}) and is tolerant of being called repeatedly.
+	 * </p>
 	 *
 	 * @param user the user whose password history should be cleaned up
 	 */
-	@Transactional(isolation = Isolation.SERIALIZABLE)
 	private void cleanUpPasswordHistory(User user) {
 		if (user == null || historyCount <= 0) {
 			return;
 		}
 
-		List<PasswordHistoryEntry> entries = passwordHistoryRepository.findByUserOrderByEntryDateDesc(user);
-		// Keep historyCount + 1 entries: the current password plus historyCount previous passwords
-		// This ensures we actually prevent reuse of the last historyCount passwords
+		// Keep historyCount + 1 entries: the current password plus historyCount previous passwords.
+		// This ensures we actually prevent reuse of the last historyCount passwords.
 		int maxEntries = historyCount + 1;
-		if (entries.size() > maxEntries) {
-			List<PasswordHistoryEntry> toDelete = entries.subList(maxEntries, entries.size());
-			passwordHistoryRepository.deleteAll(toDelete);
-			log.debug("Cleaned up {} old password history entries for user: {}", toDelete.size(), user.getEmail());
+
+		// Fetch only the cutoff row: the oldest entry we want to keep (0-based index maxEntries - 1,
+		// newest first). Everything older than this is pruned.
+		List<Long> cutoffIds =
+				passwordHistoryRepository.findIdsByUserOrderByIdDesc(user, PageRequest.of(maxEntries - 1, 1));
+		if (cutoffIds.isEmpty()) {
+			// Fewer than maxEntries rows exist; nothing to prune.
+			return;
+		}
+
+		Long cutoffId = cutoffIds.get(0);
+		int deleted = passwordHistoryRepository.deleteByUserAndIdLessThan(user, cutoffId);
+		if (deleted > 0) {
+			log.debug("Cleaned up {} old password history entries for user: {}", deleted, user.getEmail());
 		}
 	}
 
@@ -379,14 +433,47 @@ public class UserService {
 			// Delete the user
 			userRepository.delete(user);
 
-			// Publish UserDeletedEvent after successful deletion
-			log.debug("Publishing UserDeletedEvent");
-			eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail));
+			// Publish UserDeletedEvent AFTER the surrounding transaction commits. The event is
+			// primarily consumed by external applications (often via @Async listeners) that must
+			// not observe a not-yet-committed deletion. There is no framework-internal listener
+			// for this event, so rather than annotate a listener we defer publication itself via a
+			// transaction synchronization. If no transaction is active (e.g. called outside a
+			// transactional context), fall back to publishing immediately.
+			publishUserDeletedEventAfterCommit(userId, userEmail);
 		} else {
 			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user.getEmail());
 			user.setEnabled(false);
 			userRepository.save(user);
 			log.debug("UserService.deleteOrDisableUser: user {} has been disabled", user.getEmail());
+		}
+	}
+
+	/**
+	 * Publishes a {@link UserDeletedEvent} after the current transaction commits.
+	 *
+	 * <p>
+	 * If a transaction is active, the event is published from
+	 * {@link TransactionSynchronization#afterCommit()} so listeners (especially {@code @Async}
+	 * ones) never act on a deletion that has not yet been committed. If no transaction is active,
+	 * the event is published immediately so the behavior is still correct in non-transactional
+	 * callers.
+	 * </p>
+	 *
+	 * @param userId    the id of the deleted user
+	 * @param userEmail the email of the deleted user
+	 */
+	private void publishUserDeletedEventAfterCommit(final Long userId, final String userEmail) {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					log.debug("Publishing UserDeletedEvent after commit");
+					eventPublisher.publishEvent(new UserDeletedEvent(UserService.this, userId, userEmail));
+				}
+			});
+		} else {
+			log.debug("Publishing UserDeletedEvent (no active transaction)");
+			eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail));
 		}
 	}
 

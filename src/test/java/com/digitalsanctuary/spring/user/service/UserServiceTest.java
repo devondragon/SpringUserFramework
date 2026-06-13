@@ -25,6 +25,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
@@ -37,10 +39,13 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
@@ -137,6 +142,57 @@ public class UserServiceTest {
         assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
                 .isInstanceOf(UserAlreadyExistException.class)
                 .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - translates DataIntegrityViolationException from save into UserAlreadyExistException")
+    void registerNewUserAccount_translatesDataIntegrityViolationToUserAlreadyExist() {
+        // Given: pre-check passes (email not found) but the concurrent insert loses the race at commit
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
+
+        // When & Then
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(UserAlreadyExistException.class)
+                .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - translates serialization failure (ConcurrencyFailureException) into UserAlreadyExistException")
+    void registerNewUserAccount_translatesConcurrencyFailureToUserAlreadyExist() {
+        // Given: pre-check passes but the SERIALIZABLE transaction cannot acquire the lock at commit
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new CannotAcquireLockException("could not serialize access"));
+
+        // When & Then
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(UserAlreadyExistException.class)
+                .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - does not swallow unrelated runtime exceptions from save")
+    void registerNewUserAccount_doesNotSwallowUnrelatedExceptions() {
+        // Given
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new IllegalStateException("unrelated failure"));
+
+        // When & Then: the unrelated exception must propagate, not be translated to 409
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unrelated failure");
     }
 
     @Test
@@ -262,6 +318,50 @@ public class UserServiceTest {
             verify(userRepository).save(testUser);
             verify(userRepository, never()).delete(any());
             verify(eventPublisher, never()).publishEvent(any());
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - UserDeletedEvent is deferred until after transaction commit")
+        void deleteOrDisableUser_publishesUserDeletedEventAfterCommit() {
+            // Given: an active transaction synchronization (simulating the surrounding @Transactional)
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", true);
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                // When
+                userService.deleteOrDisableUser(testUser);
+
+                // Then: the pre-delete event fires immediately, but the deleted event must NOT yet
+                verify(eventPublisher).publishEvent(any(UserPreDeleteEvent.class));
+                verify(eventPublisher, never()).publishEvent(any(UserDeletedEvent.class));
+
+                // A synchronization was registered for after-commit delivery
+                List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+                assertThat(syncs).hasSize(1);
+
+                // When the transaction commits, the deleted event is delivered
+                syncs.forEach(TransactionSynchronization::afterCommit);
+
+                // Then
+                ArgumentCaptor<UserDeletedEvent> captor = ArgumentCaptor.forClass(UserDeletedEvent.class);
+                verify(eventPublisher).publishEvent(captor.capture());
+                assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
+                assertThat(captor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - UserDeletedEvent still fires when no transaction is active")
+        void deleteOrDisableUser_publishesUserDeletedEventWhenNoTransaction() {
+            // Given: no active transaction synchronization
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", true);
+
+            // When
+            userService.deleteOrDisableUser(testUser);
+
+            // Then: the deleted event is published immediately (fallback path)
+            verify(eventPublisher).publishEvent(any(UserDeletedEvent.class));
         }
 
         @Test
