@@ -744,9 +744,20 @@ public class UserService {
 		}
 
 		HttpServletRequest request = servletRequestAttributes.getRequest();
-		HttpSession session = request.getSession(true);
+		// Ensure a session exists before attempting to rotate its id.
+		request.getSession(true);
 
-		// Store the security context in the session
+		// Defend against session fixation on this programmatic-login path: issue a new session id
+		// (existing attributes are preserved) so a pre-auth fixed id cannot be reused post-authentication (OWASP).
+		try {
+			request.changeSessionId();
+		} catch (IllegalStateException e) {
+			// No active session to rotate (shouldn't happen after getSession(true)); fall back to a fresh session below.
+			log.warn("UserService.storeSecurityContextInSession: could not rotate session id: {}", e.getMessage());
+		}
+
+		// Store the security context on the (now rotated) session.
+		HttpSession session = request.getSession(true);
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
 

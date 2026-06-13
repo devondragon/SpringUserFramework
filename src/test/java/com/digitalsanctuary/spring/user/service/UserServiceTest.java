@@ -35,6 +35,7 @@ import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -641,6 +642,45 @@ public class UserServiceTest {
                 // Then
                 verify(securityContext).setAuthentication(any());
                 // Should not throw exception even when request context is null
+            }
+        }
+
+        @Test
+        @DisplayName("authWithoutPassword - rotates the session id to defend against session fixation")
+        void shouldRotateSessionIdWhenAuthSucceeds() {
+            // Given a real request/session bound to the RequestContextHolder so that the servlet
+            // changeSessionId() contract is exercised faithfully (MockHttpServletRequest rotates the
+            // underlying MockHttpSession id while preserving attributes).
+            DSUserDetails userDetails = new DSUserDetails(testUser);
+            Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+
+            when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
+            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
+
+            MockHttpServletRequest mockRequest = new MockHttpServletRequest();
+            // Ensure a pre-auth session exists with a fixed id and a pre-existing attribute
+            HttpSession preAuthSession = mockRequest.getSession(true);
+            preAuthSession.setAttribute("preAuthAttr", "value");
+            String preAuthSessionId = preAuthSession.getId();
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(mockRequest));
+
+            try {
+                // When
+                userService.authWithoutPassword(testUser);
+
+                // Then - the session id must have rotated (fixation defense)...
+                HttpSession postAuthSession = mockRequest.getSession(false);
+                assertThat(postAuthSession).isNotNull();
+                assertThat(postAuthSession.getId())
+                        .as("session id should change after programmatic login")
+                        .isNotEqualTo(preAuthSessionId);
+                // ...while preserving existing session attributes...
+                assertThat(postAuthSession.getAttribute("preAuthAttr")).isEqualTo("value");
+                // ...and the security context must be stored on the (rotated) session.
+                assertThat(postAuthSession.getAttribute("SPRING_SECURITY_CONTEXT")).isNotNull();
+            } finally {
+                RequestContextHolder.resetRequestAttributes();
+                SecurityContextHolder.clearContext();
             }
         }
     }

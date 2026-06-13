@@ -155,7 +155,9 @@ public class WebSecurityConfig {
 			http.rememberMe(rememberMe -> rememberMe.key(rememberMeKey).userDetailsService(userDetailsService));
 		}
 
-		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
+		// Use the LogoutSuccessService handler (instead of logoutSuccessUrl) so logout publishes an audit event.
+		// The handler still redirects to logoutSuccessURI (see LogoutSuccessService.onLogoutSuccess).
+		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessHandler(logoutSuccessService).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));
 
 		// Register sessions in the SessionRegistry so SessionInvalidationService and concurrent-session
