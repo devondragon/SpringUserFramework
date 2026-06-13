@@ -17,27 +17,24 @@ import lombok.extern.slf4j.Slf4j;
  * Auto-configuration that contributes the library's {@link SecurityFilterChain}.
  *
  * <p>
- * The chain is contributed at a low precedence ({@link #SECURITY_FILTER_CHAIN_ORDER}) and backs off entirely via {@link ConditionalOnMissingBean}
- * when the consuming application defines its own {@link SecurityFilterChain}. This lets consumers either:
+ * The chain is contributed at a low precedence ({@link #SECURITY_FILTER_CHAIN_ORDER}) so it acts as the catch-all chain. The back-off is keyed on the
+ * bean <em>name</em> {@code securityFilterChain} (via {@link ConditionalOnMissingBean}), which supports two distinct consumer scenarios:
  * </p>
  * <ul>
- * <li><b>Rely on the library's chain</b> (the default), or</li>
- * <li><b>Fully replace it</b> by defining their own {@link SecurityFilterChain} bean &mdash; in which case the library's chain is suppressed entirely
- * and the consumer owns all security rules, including the library's protected URIs.</li>
+ * <li><b>Add additional, narrower chains alongside the library's</b> (the common case). A consumer can define one or more extra
+ * {@link SecurityFilterChain} beans with their own {@code @Order} and {@code securityMatcher} (e.g. an actuator-only or API-only chain). Because the
+ * conditional is name-based, those differently-named chains do <em>not</em> suppress the library chain &mdash; both coexist, and Spring Security's
+ * {@code FilterChainProxy} consults them in {@code @Order}. The narrower chain (higher precedence / lower order) handles its matched requests; the
+ * library chain remains the catch-all for everything else (form login, logout, CSRF, session management, WebAuthn, OAuth2).</li>
+ * <li><b>Fully replace the library's chain</b> by defining a {@link SecurityFilterChain} bean named exactly {@code securityFilterChain}. That single
+ * named bean suppresses the library's chain, and the consumer then owns all security rules, including the library's protected URIs.</li>
  * </ul>
  *
  * <p>
- * <b>WARNING &mdash; this back-off is all-or-nothing.</b> The {@link ConditionalOnMissingBean} is keyed on the {@link SecurityFilterChain}
- * <em>type</em>, so defining <em>any</em> {@link SecurityFilterChain} bean &mdash; even a narrow, single-purpose one (e.g. an actuator-only or
- * API-only chain) &mdash; suppresses the library's entire chain (form login, logout, CSRF, session management, WebAuthn, OAuth2). There is no partial
- * coexistence: a consumer who defines their own chain owns <em>all</em> security configuration, including every URI the library would otherwise
- * protect. If you intend only to add rules for a subset of requests, you must reproduce the library's protections in your own chain rather than rely
- * on both being active.
- * </p>
- * <p>
- * The intended pattern for layering is to <em>not</em> define a {@link SecurityFilterChain} at all, and instead customize via the library's
- * {@code user.security.*} properties and the documented extension beans. (Spring Security's multi-chain {@code @Order} layering does not apply here,
- * because the library backs off entirely as soon as a second chain bean exists.)
+ * <b>Why name-based rather than type-based:</b> a type-based {@code @ConditionalOnMissingBean(SecurityFilterChain.class)} would back off as soon as the
+ * consumer defined <em>any</em> chain &mdash; even a narrow one &mdash; silently suppressing the entire library chain and leaving the library's URIs
+ * unprotected. Keying on the {@code securityFilterChain} bean name preserves the standard Spring Security multi-chain {@code @Order} layering pattern,
+ * while still giving consumers a clear, explicit way to opt into a full replacement (name your replacement bean {@code securityFilterChain}).
  * </p>
  *
  * <p>
@@ -75,7 +72,7 @@ public class WebSecurityFilterChainAutoConfiguration {
      */
     @Bean
     @Order(SECURITY_FILTER_CHAIN_ORDER)
-    @ConditionalOnMissingBean(SecurityFilterChain.class)
+    @ConditionalOnMissingBean(name = "securityFilterChain")
     public SecurityFilterChain securityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry) throws Exception {
         log.debug("WebSecurityFilterChainAutoConfiguration: contributing library SecurityFilterChain at order {}", SECURITY_FILTER_CHAIN_ORDER);
         return webSecurityConfig.buildSecurityFilterChain(http, sessionRegistry);
