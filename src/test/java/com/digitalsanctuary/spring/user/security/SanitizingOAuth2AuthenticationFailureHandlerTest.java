@@ -33,6 +33,9 @@ class SanitizingOAuth2AuthenticationFailureHandlerTest {
     void shouldNotLeakRawMessageForLockedException() throws Exception {
         // Given - a LockedException whose message contains the account email (per Task 1.4)
         MockHttpServletRequest request = new MockHttpServletRequest();
+        // A real OAuth2 callback already has a session (the authorization request is stored there during the
+        // redirect phase), so the handler stores the user-facing message on the existing session.
+        request.getSession(true);
         MockHttpServletResponse response = new MockHttpServletResponse();
         LockedException raw = new LockedException("Account is locked for user secret.email@example.com");
 
@@ -55,6 +58,7 @@ class SanitizingOAuth2AuthenticationFailureHandlerTest {
     void shouldNotLeakRawMessageForOAuth2Exception() throws Exception {
         // Given
         MockHttpServletRequest request = new MockHttpServletRequest();
+        request.getSession(true);
         MockHttpServletResponse response = new MockHttpServletResponse();
         OAuth2AuthenticationException raw = new OAuth2AuthenticationException(
                 new OAuth2Error("User Registered With Alternate Provider"),
@@ -75,6 +79,7 @@ class SanitizingOAuth2AuthenticationFailureHandlerTest {
     void shouldMapEmailNotVerifiedToSpecificGenericMessage() throws Exception {
         // Given
         MockHttpServletRequest request = new MockHttpServletRequest();
+        request.getSession(true);
         MockHttpServletResponse response = new MockHttpServletResponse();
         OAuth2AuthenticationException raw = new OAuth2AuthenticationException(
                 new OAuth2Error("email_not_verified"), "Email verified=false for victim@example.com");
@@ -86,6 +91,22 @@ class SanitizingOAuth2AuthenticationFailureHandlerTest {
         String stored = (String) request.getSession(false).getAttribute(SESSION_ATTRIBUTE);
         assertThat(stored).doesNotContain("victim@example.com");
         assertThat(stored).isEqualTo(SanitizingOAuth2AuthenticationFailureHandler.EMAIL_NOT_VERIFIED_MESSAGE);
+        assertThat(response.getRedirectedUrl()).isEqualTo(LOGIN_PAGE_URI);
+    }
+
+    @Test
+    @DisplayName("Should NOT allocate a session for a sessionless request (no session forced by scanners)")
+    void shouldNotCreateSessionWhenNonePresent() throws Exception {
+        // Given - a cold request with no existing session (e.g. an unauthenticated scanner hitting the callback)
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        LockedException raw = new LockedException("Account is locked for user secret.email@example.com");
+
+        // When
+        handler.onAuthenticationFailure(request, response, raw);
+
+        // Then - no session is created (the handler uses getSession(false)) and the redirect still happens.
+        assertThat(request.getSession(false)).isNull();
         assertThat(response.getRedirectedUrl()).isEqualTo(LOGIN_PAGE_URI);
     }
 }

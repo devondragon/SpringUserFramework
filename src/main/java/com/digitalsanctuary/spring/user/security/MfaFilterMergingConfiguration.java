@@ -39,36 +39,36 @@ import lombok.extern.slf4j.Slf4j;
 @ConditionalOnProperty(name = "user.mfa.enabled", havingValue = "true", matchIfMissing = false)
 public class MfaFilterMergingConfiguration {
 
-	/**
-	 * Replicates the behaviour of {@code @EnableMultiFactorAuthentication}'s internal {@code EnableMfaFiltersPostProcessor}
-	 * using only public API, by invoking the public {@link AbstractAuthenticationProcessingFilter#setMfaEnabled(boolean)} on
-	 * every authentication processing filter. Without this, completing a second factor would REPLACE the first factor's
-	 * authentication (dropping its authority) and the user could never satisfy all required factors (the H4 lockout).
-	 *
-	 * <p>
-	 * Declared {@code static} so the post-processor can be registered without eagerly instantiating this configuration
-	 * class. The bean exists only when {@code user.mfa.enabled=true}, so the default (no-MFA) login path is unaffected.
-	 * </p>
-	 *
-	 * @return a {@link BeanPostProcessor} that calls {@code setMfaEnabled(true)} on authentication processing filters
-	 */
-	@Bean
-	public static BeanPostProcessor mfaFilterMergingPostProcessor() {
-		return new BeanPostProcessor() {
-			@Override
-			public Object postProcessAfterInitialization(Object bean, String beanName) {
-				// Intentionally scoped to AbstractAuthenticationProcessingFilter, which covers every authentication
-				// mechanism this framework configures: formLogin, webAuthn, and oauth2Login all extend it. SS's internal
-				// EnableMfaFiltersPostProcessor additionally flips the flag on AuthenticationFilter,
-				// BasicAuthenticationFilter, and pre-authentication filters; this framework does not configure those
-				// mechanisms, so they are deliberately not targeted here. See the class-level WARNING regarding
-				// consumer-defined filters that extend this base class.
-				if (bean instanceof AbstractAuthenticationProcessingFilter filter) {
-					filter.setMfaEnabled(true);
-					log.debug("MFA factor merging enabled on filter: {}", bean.getClass().getName());
-				}
-				return bean;
-			}
-		};
-	}
+    /**
+     * Replicates the behaviour of {@code @EnableMultiFactorAuthentication}'s internal {@code EnableMfaFiltersPostProcessor}
+     * using only public API, by invoking the public {@link AbstractAuthenticationProcessingFilter#setMfaEnabled(boolean)} on
+     * every authentication processing filter. Without this, completing a second factor would REPLACE the first factor's
+     * authentication (dropping its authority) and the user could never satisfy all required factors (the H4 lockout).
+     *
+     * <p>
+     * Declared {@code static} so the post-processor can be registered without eagerly instantiating this configuration
+     * class. The bean exists only when {@code user.mfa.enabled=true}, so the default (no-MFA) login path is unaffected.
+     * </p>
+     *
+     * @return a {@link BeanPostProcessor} that calls {@code setMfaEnabled(true)} on authentication processing filters
+     */
+    @Bean
+    public static BeanPostProcessor mfaFilterMergingPostProcessor() {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                // Intentionally scoped to AbstractAuthenticationProcessingFilter, which covers every authentication
+                // mechanism this framework configures: formLogin, webAuthn, and oauth2Login all extend it. SS's internal
+                // EnableMfaFiltersPostProcessor additionally flips the flag on AuthenticationFilter,
+                // BasicAuthenticationFilter, and pre-authentication filters; this framework does not configure those
+                // mechanisms, so they are deliberately not targeted here. See the class-level WARNING regarding
+                // consumer-defined filters that extend this base class.
+                if (bean instanceof AbstractAuthenticationProcessingFilter filter) {
+                    filter.setMfaEnabled(true);
+                    log.debug("MFA factor merging enabled on filter: {}", bean.getClass().getName());
+                }
+                return bean;
+            }
+        };
+    }
 }

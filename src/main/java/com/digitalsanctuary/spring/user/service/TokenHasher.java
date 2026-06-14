@@ -99,9 +99,14 @@ public class TokenHasher {
      * (followed by an ellipsis) for longer tokens. Intended purely for correlating log lines, not for
      * any security decision.
      *
+     * <p>
+     * The returned prefix is stripped of CR/LF and other control characters so that an attacker-supplied
+     * token (these values arrive as request parameters) cannot forge or split log lines (log injection).
+     * </p>
+     *
      * @param token the raw token (may be {@code null})
      * @return {@code "null"} if the token is {@code null}, {@code "****"} if it is 8 characters or fewer,
-     *         otherwise the first 6 characters followed by an ellipsis
+     *         otherwise the first 6 (control-character-stripped) characters followed by an ellipsis
      */
     public static String fingerprint(final String token) {
         if (token == null) {
@@ -110,7 +115,9 @@ public class TokenHasher {
         if (token.length() <= 8) {
             return "****";
         }
-        return token.substring(0, 6) + "…";
+        // Strip control characters (incl. CR/LF) from the logged prefix to prevent log injection/forging.
+        final String prefix = token.substring(0, 6).replaceAll("\\p{Cntrl}", "");
+        return prefix + "…";
     }
 
     /**

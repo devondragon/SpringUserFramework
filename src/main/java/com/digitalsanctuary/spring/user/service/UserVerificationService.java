@@ -115,6 +115,13 @@ public class UserVerificationService {
     @Transactional
     public VerificationToken generateNewVerificationToken(final String existingVerificationToken) {
         VerificationToken vToken = resolveByRawToken(existingVerificationToken);
+        if (vToken == null) {
+            // The supplied token does not resolve to a stored row (unknown, already consumed, or malformed).
+            // Fail explicitly rather than NPE on the update below.
+            log.warn("UserVerificationService.generateNewVerificationToken: no token found for {}",
+                    TokenHasher.fingerprint(existingVerificationToken));
+            throw new IllegalArgumentException("No verification token found for the supplied value");
+        }
         final String rawToken = UUID.randomUUID().toString();
         // Store the hash of the new raw token; the raw value is what gets emailed to the user.
         vToken.updateToken(tokenHasher.hash(rawToken), verificationTokenValidityMinutes);

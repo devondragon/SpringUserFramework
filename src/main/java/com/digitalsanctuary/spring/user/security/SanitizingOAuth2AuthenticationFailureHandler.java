@@ -8,6 +8,7 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -71,7 +72,14 @@ public class SanitizingOAuth2AuthenticationFailureHandler implements Authenticat
         log.debug("OAuth2 login failure detail", exception);
 
         // Store ONLY a generic, non-sensitive message for the UI. Never the raw exception message.
-        request.getSession().setAttribute(ERROR_MESSAGE_SESSION_ATTRIBUTE, resolveUserFacingMessage(exception));
+        // Use getSession(false) so we do not allocate a session for callers that do not already have one:
+        // a legitimate OAuth2 attempt establishes a session during the authorization-request phase, while an
+        // unauthenticated scanner hitting the callback cold has none and should not be able to force session
+        // creation. When there is no session the login page simply shows its default message.
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.setAttribute(ERROR_MESSAGE_SESSION_ATTRIBUTE, resolveUserFacingMessage(exception));
+        }
         response.sendRedirect(loginPageURI);
     }
 
