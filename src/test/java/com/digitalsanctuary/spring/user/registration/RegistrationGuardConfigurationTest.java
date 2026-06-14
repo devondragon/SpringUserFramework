@@ -32,7 +32,14 @@ class RegistrationGuardConfigurationTest {
     // Register RegistrationGuardConfiguration as an auto-configuration so its @ConditionalOnMissingBean
     // evaluates AFTER any consumer-supplied guard beans — mirroring production, where this configuration
     // is component-scanned by the UserConfiguration auto-configuration (loaded after consumer beans).
+    //
+    // The inlined "spring.profiles.active" pins this context to a non-"test" profile so the @Profile("!test")
+    // guard configs below always load. Without it, the test depends on no "test" profile being active — a
+    // fragile assumption, because anything that sets the global "spring.profiles.active=test" system property
+    // (e.g. another test running concurrently) would suppress the guard configs and flake these assertions.
+    // The inlined property source outranks any leaked system property, making this deterministic.
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
+            .withPropertyValues("spring.profiles.active=registrationguardtest")
             .withConfiguration(AutoConfigurations.of(RegistrationGuardConfiguration.class));
 
     @Test

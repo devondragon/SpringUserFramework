@@ -83,24 +83,4 @@ public class BaseTestConfiguration {
         return Locale.US;
     }
 
-    /**
-     * Test-specific property overrides.
-     */
-    @Bean
-    public TestPropertySourcesConfigurer testPropertySourcesConfigurer() {
-        return new TestPropertySourcesConfigurer();
-    }
-
-    /**
-     * Helper class to configure test properties programmatically.
-     */
-    public static class TestPropertySourcesConfigurer {
-        
-        public TestPropertySourcesConfigurer() {
-            // Set system properties for tests
-            System.setProperty("spring.profiles.active", "test");
-            System.setProperty("spring.jpa.hibernate.ddl-auto", "create-drop");
-            System.setProperty("spring.datasource.initialization-mode", "always");
-        }
-    }
 }
