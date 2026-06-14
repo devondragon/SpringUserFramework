@@ -318,9 +318,28 @@ public class WebSecurityConfig {
 		}
 		if (mfaConfigProperties.isEnabled()) {
 			unprotectedURIs.add("/user/mfa/status");
+			// A partially-authenticated user (one factor satisfied) is redirected to the configured factor
+			// entry-point page(s) to complete the remaining factor(s). Those pages MUST be reachable without
+			// full authentication; otherwise the redirect target is itself denied and the user loops between
+			// entry points (ERR_TOO_MANY_REDIRECTS). Auto-unprotect the configured entry-point URIs so a
+			// consuming app does not have to remember to list them manually.
+			addIfHasText(unprotectedURIs, mfaConfigProperties.getPasswordEntryPointUri());
+			addIfHasText(unprotectedURIs, mfaConfigProperties.getWebauthnEntryPointUri());
 		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
+	}
+
+	/**
+	 * Adds the given URI to the list only when it is non-null and not blank.
+	 *
+	 * @param uris the list to add to
+	 * @param uri the candidate URI (may be {@code null} or blank)
+	 */
+	private void addIfHasText(List<String> uris, String uri) {
+		if (uri != null && !uri.isBlank()) {
+			uris.add(uri);
+		}
 	}
 
 	/**
