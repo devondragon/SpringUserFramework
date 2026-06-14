@@ -12,25 +12,30 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        jdk: [ '17', '21' ]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK ${{ matrix.jdk }}
+      # Spring Boot 4.x requires Java 21+. The library compiles to Java 21 bytecode via the Gradle
+      # toolchain; we additionally verify runtime compatibility on Java 25 (current LTS). Both JDKs are
+      # installed; listing 21 last makes it the default JAVA_HOME, so Gradle runs on (and compiles with)
+      # Java 21 and discovers Java 25 for the runtime-only testJdk25 task.
+      - name: Set up JDK 21 (toolchain) and 25 (runtime)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ matrix.jdk }}
+          java-version: |
+            25
+            21
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Build and test
+      - name: Build and test (compile + test on Java 21)
         run: ./gradlew check --no-daemon
+      - name: Test on Java 25 (runtime compatibility)
+        run: ./gradlew testJdk25 --no-daemon
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-reports-jdk${{ matrix.jdk }}
+          name: test-reports
           path: build/reports/tests/
 
   codeql:

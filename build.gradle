@@ -182,15 +182,17 @@ def registerJdkTestTask(name, jdkVersion) {
     }
 }
 
-registerJdkTestTask('testJdk17', 17)
+// Spring Boot 4.x requires Java 21+, so the library compiles to Java 21 bytecode (see the toolchain
+// above) and is tested for runtime compatibility on Java 21 (the minimum) and Java 25 (the current LTS).
 registerJdkTestTask('testJdk21', 21)
+registerJdkTestTask('testJdk25', 25)
 
 
 // Optional task that runs tests with multiple JDKs
 tasks.register('testAll') {
-    dependsOn(tasks.named('testJdk17'), tasks.named('testJdk21'))
+    dependsOn(tasks.named('testJdk21'), tasks.named('testJdk25'))
     doFirst {
-        println("Running tests with both JDK 17 and JDK 21")
+        println("Running tests with JDK 21 and JDK 25")
     }
 }
 
