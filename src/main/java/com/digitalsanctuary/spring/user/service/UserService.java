@@ -748,8 +748,11 @@ public class UserService {
 	void persistChangedPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
-		// Terminate all existing sessions so a reset/change forces re-auth everywhere (OWASP).
-		sessionInvalidationService.invalidateUserSessions(user);
+		// Force re-auth on a password change (OWASP). By default the current session is preserved and
+		// regenerated and only the user's OTHER sessions are invalidated, so the user is not logged out
+		// of the device they just used; set user.session.invalidation.keep-current-session-on-password-change=false
+		// to terminate every session including the current one.
+		sessionInvalidationService.invalidateSessionsAfterPasswordChange(user);
 	}
 
 	/**
@@ -788,7 +791,9 @@ public class UserService {
 		user.setPassword(null);
 		userRepository.save(user);
 		passwordHistoryRepository.deleteByUser(user);
-		sessionInvalidationService.invalidateUserSessions(user);
+		// Same policy as a password change: by default preserve+regenerate the current session and invalidate
+		// only the user's other sessions (see user.session.invalidation.keep-current-session-on-password-change).
+		sessionInvalidationService.invalidateSessionsAfterPasswordChange(user);
 		log.info("Password removed for user: {}", user.getEmail());
 	}
 

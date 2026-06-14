@@ -279,7 +279,7 @@ public class UserServiceTest {
         userService.changeUserPassword(testUser, newPassword);
 
         // Then
-        verify(sessionInvalidationService).invalidateUserSessions(testUser);
+        verify(sessionInvalidationService).invalidateSessionsAfterPasswordChange(testUser);
     }
 
     // Additional tests for comprehensive coverage
@@ -918,7 +918,7 @@ public class UserServiceTest {
             assertThat(testUser.getPassword()).isNull();
             verify(userRepository).save(testUser);
             verify(passwordHistoryRepository).deleteByUser(testUser);
-            verify(sessionInvalidationService).invalidateUserSessions(testUser);
+            verify(sessionInvalidationService).invalidateSessionsAfterPasswordChange(testUser);
         }
     }
 
@@ -1081,7 +1081,7 @@ public class UserServiceTest {
             InOrder inOrder = inOrder(passwordEncoder, userRepository, sessionInvalidationService);
             inOrder.verify(passwordEncoder).encode(newPassword);
             inOrder.verify(userRepository).save(testUser);
-            inOrder.verify(sessionInvalidationService).invalidateUserSessions(testUser);
+            inOrder.verify(sessionInvalidationService).invalidateSessionsAfterPasswordChange(testUser);
         }
 
         @Test
