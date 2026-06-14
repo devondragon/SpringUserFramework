@@ -16,6 +16,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,12 +56,14 @@ public class UserVerificationServiceTest {
     void validateVerificationToken_returnsValidIfTokenValid() {
         testToken.setExpiryDate(getExpirationDate(1));
         when(verificationTokenRepository.findByToken(anyString())).thenReturn(testToken);
-        UserService.TokenValidationResult result = userVerificationService.validateVerificationToken(anyString());
-        Assertions.assertEquals(result, UserService.TokenValidationResult.VALID);
-        // The user is enabled and the token is consumed (deleted) atomically so it is strictly single-use.
+        // The conditional delete is the single-use guard: a count of 1 means THIS call consumed the token.
+        when(verificationTokenRepository.deleteByToken(anyString())).thenReturn(1);
+        UserService.TokenValidationResult result = userVerificationService.validateVerificationToken("raw-token");
+        Assertions.assertEquals(UserService.TokenValidationResult.VALID, result);
+        // The user is enabled only after winning the delete; the token is consumed so it is strictly single-use.
         Assertions.assertTrue(testUser.isEnabled());
         Mockito.verify(userRepository).save(testUser);
-        Mockito.verify(verificationTokenRepository).delete(testToken);
+        Mockito.verify(verificationTokenRepository).deleteByToken(anyString());
     }
 
     @Test
@@ -71,12 +74,15 @@ public class UserVerificationServiceTest {
         // secret the hash is a deterministic SHA-256 of the raw value, so stub findByToken for any
         // argument to resolve the token regardless of which lookup the service performs.
         when(verificationTokenRepository.findByToken(anyString())).thenReturn(testToken);
+        when(verificationTokenRepository.deleteByToken(anyString())).thenReturn(1);
 
         UserService.TokenValidationResult result = userVerificationService.validateVerificationToken("raw-token");
 
         Assertions.assertEquals(UserService.TokenValidationResult.EXPIRED, result);
-        // Expired tokens are cleaned up (deleted) as part of validation.
-        Mockito.verify(verificationTokenRepository).delete(testToken);
+        // Expired tokens are still consumed (deleted) as part of validation, but the user is NOT enabled.
+        Mockito.verify(verificationTokenRepository).deleteByToken(anyString());
+        Mockito.verify(userRepository, never()).save(testToken.getUser());
+        Assertions.assertFalse(testUser.isEnabled());
     }
 
     @Test
@@ -84,6 +90,21 @@ public class UserVerificationServiceTest {
         when(verificationTokenRepository.findByToken(anyString())).thenReturn(null);
         UserService.TokenValidationResult result = userVerificationService.validateVerificationToken(anyString());
         Assertions.assertEquals(result, UserService.TokenValidationResult.INVALID_TOKEN);
+    }
+
+    @Test
+    void validateVerificationToken_returnsInvalidWhenConcurrentlyConsumed() {
+        // The token resolves (a concurrent caller has not yet committed its delete) but our conditional delete
+        // removes 0 rows because the other caller won the race. We must NOT enable the user in that case.
+        testToken.setExpiryDate(getExpirationDate(1));
+        when(verificationTokenRepository.findByToken(anyString())).thenReturn(testToken);
+        when(verificationTokenRepository.deleteByToken(anyString())).thenReturn(0);
+
+        UserService.TokenValidationResult result = userVerificationService.validateVerificationToken("raw-token");
+
+        Assertions.assertEquals(UserService.TokenValidationResult.INVALID_TOKEN, result);
+        Assertions.assertFalse(testUser.isEnabled());
+        Mockito.verify(userRepository, never()).save(testToken.getUser());
     }
 
     private Date getExpirationDate(int amount) {

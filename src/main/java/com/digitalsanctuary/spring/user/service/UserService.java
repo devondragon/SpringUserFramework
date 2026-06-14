@@ -673,6 +673,14 @@ public class UserService {
 	 * (post-upgrade) and plaintext (pre-upgrade) tokens resolve.
 	 * </p>
 	 *
+	 * <p>
+	 * <strong>Concurrency:</strong> the conditional {@code DELETE} is the atomicity guard, not the
+	 * surrounding transaction. A plain read-check-delete would let two concurrent requests both read the
+	 * row (under READ_COMMITTED) and both return the user before either delete commits. Instead we delete
+	 * by token value and only return the user when the delete actually removed the row ({@code count == 1});
+	 * the row lock serializes concurrent deletes so exactly one caller wins.
+	 * </p>
+	 *
 	 * @param token the raw token to validate and consume
 	 * @return the user associated with the token if it was valid, otherwise {@code null}
 	 */
@@ -682,14 +690,22 @@ public class UserService {
 		if (passToken == null) {
 			return null;
 		}
-		final Calendar cal = Calendar.getInstance();
-		if (passToken.getExpiryDate().before(cal.getTime())) {
-			passwordTokenRepository.delete(passToken);
+		final User user = passToken.getUser();
+		final boolean expired = passToken.getExpiryDate().before(Calendar.getInstance().getTime());
+
+		// Atomic single-use guard: consume by deleting the row and act only if THIS call removed it.
+		// Dual-delete mirrors the dual-read (hashed first, then pre-upgrade plaintext fallback).
+		int consumed = passwordTokenRepository.deleteByToken(tokenHasher.hash(token));
+		if (consumed == 0) {
+			consumed = passwordTokenRepository.deleteByToken(token);
+		}
+		if (consumed == 0) {
+			// Another concurrent reset attempt consumed the token first.
 			return null;
 		}
-		final User user = passToken.getUser();
-		// Consume the token immediately so it cannot be reused.
-		passwordTokenRepository.delete(passToken);
+		if (expired) {
+			return null;
+		}
 		return user;
 	}
 

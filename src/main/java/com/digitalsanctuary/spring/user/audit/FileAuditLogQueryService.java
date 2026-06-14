@@ -183,10 +183,11 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
     /**
      * Parses a single line from the audit log file.
      *
-     * <p><b>Note:</b> This parser assumes the audit log writer properly escapes
-     * pipe characters in message content. If audit messages contain unescaped pipes,
-     * parsing may be corrupted. Consider migrating to a structured format (JSON lines)
-     * for production deployments with untrusted input.
+     * <p><b>Note:</b> {@code FileAuditLogWriter} sanitizes each field (stripping CR/LF and the {@code |}
+     * delimiter) before writing, so records produced by this library always have exactly ten fields on a
+     * single line. The defensive rejoin below remains only to tolerate pre-existing log files written before
+     * that sanitization, or files produced by other tooling. A structured format (JSON lines) is still the
+     * better long-term choice for deployments that ingest fully untrusted audit input.
      *
      * @param line the line to parse
      * @return the parsed AuditEventDTO, or null if parsing fails

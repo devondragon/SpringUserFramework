@@ -142,9 +142,15 @@ public class FileAuditLogWriter implements AuditLogWriter {
                 }
             }
             
-            String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", event.getDate(), event.getAction(),
-                    event.getActionStatus(), userId, userEmail, event.getIpAddress(), event.getSessionId(), event.getMessage(), event.getUserAgent(),
-                    event.getExtraData());
+            // Sanitize every text field before writing it into the pipe-delimited, line-oriented record.
+            // Fields such as user-agent, message, email and extra data can be attacker-influenced; an embedded
+            // newline would forge a fake record and an embedded pipe would shift columns. Stripping CR/LF and the
+            // delimiter guarantees each record stays on one line with exactly ten fields. The date is rendered by
+            // MessageFormat (no user content) so the query-service timestamp parser remains compatible.
+            String output = MessageFormat.format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}|{8}|{9}", event.getDate(),
+                    sanitizeField(event.getAction()), sanitizeField(event.getActionStatus()), sanitizeField(userId),
+                    sanitizeField(userEmail), sanitizeField(event.getIpAddress()), sanitizeField(event.getSessionId()),
+                    sanitizeField(event.getMessage()), sanitizeField(event.getUserAgent()), sanitizeField(event.getExtraData()));
             bufferedWriter.write(output);
             bufferedWriter.newLine();
             currentFileBytes += output.length() + 1L; // +1 approximates the newline
@@ -160,6 +166,22 @@ public class FileAuditLogWriter implements AuditLogWriter {
         }
     }
 
+
+    /**
+     * Sanitizes a single field for the pipe-delimited, line-oriented audit format by removing CR, LF and the
+     * {@code |} delimiter (each replaced with a single space). This prevents log forging (an injected newline
+     * starting a fake record) and field corruption (an injected delimiter shifting columns) from
+     * attacker-influenced values such as the user agent, message, email, or extra data.
+     *
+     * @param value the raw field value (may be {@code null})
+     * @return the value with CR/LF/{@code |} replaced by spaces, or an empty string when {@code value} is null
+     */
+    private static String sanitizeField(final Object value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toString().replaceAll("[\\r\\n|]", " ");
+    }
 
     /**
      * Flushes the buffered writer to ensure all data is written to the log file. This method is called by the {@link FileAuditLogFlushScheduler} to

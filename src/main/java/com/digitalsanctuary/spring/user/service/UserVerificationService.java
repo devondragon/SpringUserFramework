@@ -158,6 +158,14 @@ public class UserVerificationService {
      * and plaintext (pre-upgrade) tokens resolve.
      *
      * <p>
+     * <strong>Concurrency:</strong> the conditional {@code DELETE} is the atomicity guard, not the surrounding
+     * transaction. A plain read-check-delete would let two concurrent requests both read the row (under
+     * READ_COMMITTED) and both proceed before either delete commits. Instead we delete by token value and only
+     * apply the effect when the delete actually removed the row ({@code count == 1}); the row lock serializes
+     * concurrent deletes so exactly one caller wins and the rest are rejected.
+     * </p>
+     *
+     * <p>
      * Because this method consumes the token, callers must obtain any needed {@link User} reference (e.g. via
      * {@link #getUserByVerificationToken(String)}) <em>before</em> invoking it; a subsequent lookup by the same
      * raw token will no longer resolve.
@@ -174,16 +182,24 @@ public class UserVerificationService {
         }
 
         final User user = verificationToken.getUser();
-        final Calendar cal = Calendar.getInstance();
-        if (verificationToken.getExpiryDate().before(cal.getTime())) {
-            tokenRepository.delete(verificationToken);
+        final boolean expired = verificationToken.getExpiryDate().before(Calendar.getInstance().getTime());
+
+        // Atomic single-use guard: consume by deleting the row and acting only if THIS call removed it.
+        // Dual-delete mirrors the dual-read (hashed first, then pre-upgrade plaintext fallback).
+        int consumed = tokenRepository.deleteByToken(tokenHasher.hash(token));
+        if (consumed == 0) {
+            consumed = tokenRepository.deleteByToken(token);
+        }
+        if (consumed == 0) {
+            // Another concurrent request consumed the token first; treat as already-used.
+            return UserService.TokenValidationResult.INVALID_TOKEN;
+        }
+        if (expired) {
             return UserService.TokenValidationResult.EXPIRED;
         }
 
         user.setEnabled(true);
         userRepository.save(user);
-        // Consume the token in the same transaction so it is single-use and cannot be replayed.
-        tokenRepository.delete(verificationToken);
         return UserService.TokenValidationResult.VALID;
     }
 

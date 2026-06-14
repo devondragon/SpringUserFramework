@@ -226,8 +226,8 @@
     {
       "name": "user.audit.maxFileSizeMb",
       "type": "java.lang.Integer",
-      "description": "Maximum size in megabytes of the active audit log file before it is rotated. When exceeded, the active file is renamed to <name>.1 (shifting archives up to maxFiles) and a fresh file is opened. Set to 0 or negative to disable rotation (unbounded growth).",
-      "defaultValue": 10
+      "description": "Maximum size in megabytes of the active audit log file before it is rotated. When exceeded, the active file is renamed to <name>.1 (shifting archives up to maxFiles) and a fresh file is opened. Default is 0 (rotation disabled, unbounded growth): rotation is opt-in because the audit query/export reader currently reads only the active file, so rotated archives are not visible to GDPR exports/investigations. Set a positive value only with external log retention.",
+      "defaultValue": 0
     },
     {
       "name": "user.audit.maxFiles",

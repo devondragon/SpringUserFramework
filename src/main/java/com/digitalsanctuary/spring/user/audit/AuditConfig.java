@@ -62,10 +62,16 @@ public class AuditConfig {
      * Maximum size of the active audit log file, in megabytes, before it is rotated.
      * When the active log file exceeds this size, it is rotated: the current file is renamed to
      * {@code <name>.1} (shifting any existing {@code <name>.1} to {@code <name>.2}, and so on, up to
-     * {@link #maxFiles}) and a fresh active file is opened. Set to {@code 0} or a negative value to
-     * disable rotation (logs grow unbounded). Default is {@code 10} (MB).
+     * {@link #maxFiles}) and a fresh active file is opened. Set to a positive value to enable rotation.
+     * <p>
+     * <strong>Default is {@code 0} (rotation disabled).</strong> Rotation is opt-in because the audit
+     * query/export reader currently reads only the active log file; once rotation moves older events into
+     * {@code <name>.1}, {@code <name>.2}, ... they are no longer visible to GDPR exports or investigations.
+     * Enable rotation only when you have external log shipping/retention, or wait for the query reader to
+     * read rotated archives (planned follow-up). With the default, logs grow unbounded.
+     * </p>
      */
-    private int maxFileSizeMb = 10;
+    private int maxFileSizeMb = 0;
 
     /**
      * Maximum number of rotated audit log files to keep (e.g. {@code user-audit.log.1} ..

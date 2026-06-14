@@ -195,13 +195,14 @@ class TokenHashingSecurityTest {
             entity.setUser(testUser);
             entity.setExpiryDate(future(60));
 
-            // First consume: token found, then deleted
+            // First consume: token found, then the conditional delete removes it (count 1 = we won the race)
             when(passwordTokenRepository.findByToken(hashed)).thenReturn(entity, (PasswordResetToken) null);
             lenient().when(passwordTokenRepository.findByToken(rawToken)).thenReturn(null);
+            when(passwordTokenRepository.deleteByToken(hashed)).thenReturn(1);
 
             User consumed = userService.validateAndConsumePasswordResetToken(rawToken);
             assertThat(consumed).isEqualTo(testUser);
-            verify(passwordTokenRepository).delete(entity);
+            verify(passwordTokenRepository).deleteByToken(hashed);
 
             // Second consume: token no longer present -> null user
             User second = userService.validateAndConsumePasswordResetToken(rawToken);
@@ -218,12 +219,13 @@ class TokenHashingSecurityTest {
             expired.setUser(testUser);
             expired.setExpiryDate(past(60));
             when(passwordTokenRepository.findByToken(hashed)).thenReturn(expired);
+            when(passwordTokenRepository.deleteByToken(hashed)).thenReturn(1);
 
             User result = userService.validateAndConsumePasswordResetToken(rawToken);
 
             assertThat(result).isNull();
             // The expired token is cleaned up (deleted) even though consumption is rejected.
-            verify(passwordTokenRepository).delete(expired);
+            verify(passwordTokenRepository).deleteByToken(hashed);
         }
     }
 
@@ -292,6 +294,9 @@ class TokenHashingSecurityTest {
             legacy.setExpiryDate(future(60));
             when(tokenRepository.findByToken(hashed)).thenReturn(null);
             when(tokenRepository.findByToken(rawToken)).thenReturn(legacy);
+            // Stored as plaintext under the raw value: the hashed delete removes 0, the raw fallback removes 1.
+            when(tokenRepository.deleteByToken(hashed)).thenReturn(0);
+            when(tokenRepository.deleteByToken(rawToken)).thenReturn(1);
 
             assertThat(verificationService.validateVerificationToken(rawToken))
                     .isEqualTo(UserService.TokenValidationResult.VALID);
@@ -308,6 +313,9 @@ class TokenHashingSecurityTest {
             legacy.setExpiryDate(past(60));
             when(tokenRepository.findByToken(hashed)).thenReturn(null);
             when(tokenRepository.findByToken(rawToken)).thenReturn(legacy);
+            // Stored as plaintext under the raw value: the hashed delete removes 0, the raw fallback removes 1.
+            when(tokenRepository.deleteByToken(hashed)).thenReturn(0);
+            when(tokenRepository.deleteByToken(rawToken)).thenReturn(1);
 
             assertThat(verificationService.validateVerificationToken(rawToken))
                     .isEqualTo(UserService.TokenValidationResult.EXPIRED);

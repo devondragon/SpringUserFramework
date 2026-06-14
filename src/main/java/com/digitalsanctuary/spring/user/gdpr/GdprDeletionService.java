@@ -1,6 +1,8 @@
 package com.digitalsanctuary.spring.user.gdpr;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -45,6 +47,17 @@ public class GdprDeletionService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final List<GdprDataContributor> dataContributors;
     private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * Self-reference resolved through the Spring proxy, used to invoke {@link #executeUserDeletion} so its
+     * {@code @Transactional} boundary actually applies. Calling {@code executeUserDeletion(...)} directly
+     * ({@code this.}) would be a self-invocation that bypasses the proxy, leaving the deletion non-transactional
+     * (partial deletes possible) and causing the after-commit event to fire immediately. Injected {@link Lazy}
+     * to break the construction-time circular dependency on itself.
+     */
+    @Lazy
+    @Autowired
+    private GdprDeletionService self;
 
     /**
      * Result of a GDPR deletion operation.
@@ -131,8 +144,9 @@ public class GdprDeletionService {
                 exportedData = gdprExportService.exportUserData(user);
             }
 
-            // Step 2: Perform deletion in transaction
-            return executeUserDeletion(user, exportedData, exportBeforeDeletion);
+            // Step 2: Perform deletion in transaction. Invoke through the proxy (self) so the @Transactional
+            // boundary on executeUserDeletion applies — a direct this-call would bypass it.
+            return self.executeUserDeletion(user, exportedData, exportBeforeDeletion);
 
         } catch (Exception e) {
             log.error("GdprDeletionService.deleteUser: Failed to delete user {}: {}",
