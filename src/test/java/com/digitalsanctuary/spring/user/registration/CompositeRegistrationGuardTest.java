@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.registration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -116,6 +117,36 @@ class CompositeRegistrationGuardTest {
             assertThat(decision.reason()).isEqualTo("second denied");
             verify(first).evaluate(CONTEXT);
             verify(second).evaluate(CONTEXT);
+        }
+    }
+
+    @Nested
+    @DisplayName("Null decisions (fail-fast)")
+    class NullDecisions {
+
+        @Test
+        @DisplayName("A delegate returning null throws IllegalStateException instead of failing open")
+        void nullDecisionThrows() {
+            RegistrationGuard nullReturning = ctx -> null;
+            CompositeRegistrationGuard composite = new CompositeRegistrationGuard(List.of(nullReturning));
+
+            assertThatThrownBy(() -> composite.evaluate(CONTEXT))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("null decision");
+        }
+
+        @Test
+        @DisplayName("A later guard returning null still throws even after earlier guards allow")
+        void nullDecisionAfterAllowThrows() {
+            RegistrationGuard first = mock(RegistrationGuard.class);
+            RegistrationGuard second = mock(RegistrationGuard.class);
+            when(first.evaluate(CONTEXT)).thenReturn(RegistrationDecision.allow());
+            when(second.evaluate(CONTEXT)).thenReturn(null);
+
+            CompositeRegistrationGuard composite = new CompositeRegistrationGuard(List.of(first, second));
+
+            assertThatThrownBy(() -> composite.evaluate(CONTEXT))
+                    .isInstanceOf(IllegalStateException.class);
         }
     }
 

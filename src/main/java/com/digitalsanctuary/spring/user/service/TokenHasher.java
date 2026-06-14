@@ -94,6 +94,26 @@ public class TokenHasher {
     }
 
     /**
+     * Produces a short, non-reversible fingerprint of a raw token for safe logging. Never logs the full
+     * token: returns a fixed placeholder for {@code null}/short values and only the first 6 characters
+     * (followed by an ellipsis) for longer tokens. Intended purely for correlating log lines, not for
+     * any security decision.
+     *
+     * @param token the raw token (may be {@code null})
+     * @return {@code "null"} if the token is {@code null}, {@code "****"} if it is 8 characters or fewer,
+     *         otherwise the first 6 characters followed by an ellipsis
+     */
+    public static String fingerprint(final String token) {
+        if (token == null) {
+            return "null";
+        }
+        if (token.length() <= 8) {
+            return "****";
+        }
+        return token.substring(0, 6) + "…";
+    }
+
+    /**
      * Converts a byte array to a lowercase hex string.
      *
      * @param bytes the bytes

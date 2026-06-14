@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.TokenHasher;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.service.UserVerificationService;
@@ -78,7 +79,7 @@ public class UserActionController {
 	@GetMapping("${user.security.changePasswordURI:/user/changePassword}")
 	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model,
 			@RequestParam("token") final String token) {
-		log.debug("UserAPI.showChangePasswordPage: called with token: {}", tokenFingerprint(token));
+		log.debug("UserAPI.showChangePasswordPage: called with token: {}", TokenHasher.fingerprint(token));
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
 		log.debug("UserAPI.showChangePasswordPage: result: {}", result);
 		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
@@ -111,7 +112,7 @@ public class UserActionController {
 	@GetMapping("${user.security.registrationConfirmURI:/user/registrationConfirm}")
 	public ModelAndView confirmRegistration(final HttpServletRequest request, final ModelMap model,
 			@RequestParam("token") final String token) throws UnsupportedEncodingException {
-		log.debug("UserAPI.confirmRegistration: called with token: {}", tokenFingerprint(token));
+		log.debug("UserAPI.confirmRegistration: called with token: {}", TokenHasher.fingerprint(token));
 		Locale locale = request.getLocale();
 		model.addAttribute("lang", locale.getLanguage());
 		// Resolve the user BEFORE validating: validateVerificationToken atomically consumes (deletes) the token,
@@ -145,23 +146,5 @@ public class UserActionController {
 		log.debug("UserAPI.confirmRegistration: failed.  Token not found or expired.");
 		String redirectString = "redirect:" + registrationNewVerificationURI;
 		return new ModelAndView(redirectString, model);
-	}
-
-	/**
-	 * Produces a non-reversible fingerprint of a token for safe logging. Never logs the full token
-	 * value (which is sensitive authentication material).
-	 *
-	 * @param token the raw token value
-	 * @return "null" if the token is null, "****" for short tokens, otherwise the first 6 characters
-	 *         followed by an ellipsis
-	 */
-	private String tokenFingerprint(final String token) {
-		if (token == null) {
-			return "null";
-		}
-		if (token.length() <= 8) {
-			return "****";
-		}
-		return token.substring(0, 6) + "…";
 	}
 }

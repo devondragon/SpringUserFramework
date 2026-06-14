@@ -74,7 +74,7 @@ public class AuditMailAutoConfiguration {
      */
     @Bean
     @ConditionalOnBean(FileAuditLogWriter.class)
-    @ConditionalOnExpression("${user.audit.logEvents:true} && !${user.audit.flushOnWrite:true}")
+    @ConditionalOnExpression("${user.audit.logEvents:true} && !${user.audit.flushOnWrite:false}")
     public FileAuditLogFlushScheduler fileAuditLogFlushScheduler(FileAuditLogWriter fileAuditLogWriter) {
         return new FileAuditLogFlushScheduler(fileAuditLogWriter);
     }

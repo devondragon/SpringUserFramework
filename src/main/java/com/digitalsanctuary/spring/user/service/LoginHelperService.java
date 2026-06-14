@@ -119,13 +119,15 @@ public class LoginHelperService {
      * @throws DisabledException if the account is disabled
      */
     private void assertAccountUsable(User user) {
+        // Exception messages are intentionally generic (no PII): they can surface to WARN/ERROR logs and
+        // user-facing error flows via handlers we do not control. The email is captured only in DEBUG logs.
         if (user.isLocked()) {
             log.debug("Rejecting authentication for locked account: {}", user.getEmail());
-            throw new LockedException("Account is locked: " + user.getEmail());
+            throw new LockedException("Account is locked");
         }
         if (!user.isEnabled()) {
             log.debug("Rejecting authentication for disabled account: {}", user.getEmail());
-            throw new DisabledException("Account is disabled: " + user.getEmail());
+            throw new DisabledException("Account is disabled");
         }
     }
 }

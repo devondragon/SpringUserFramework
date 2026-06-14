@@ -74,7 +74,7 @@ public class UserVerificationService {
      * @return the user by verification token
      */
     public User getUserByVerificationToken(final String verificationToken) {
-        log.debug("UserVerificationService.getUserByVerificationToken: called with token: {}", tokenFingerprint(verificationToken));
+        log.debug("UserVerificationService.getUserByVerificationToken: called with token: {}", TokenHasher.fingerprint(verificationToken));
         final VerificationToken token = resolveByRawToken(verificationToken);
         if (token != null) {
             log.debug("UserVerificationService.getUserByVerificationToken: user found: {}",
@@ -186,7 +186,7 @@ public class UserVerificationService {
      * @param token the raw token
      */
     public void deleteVerificationToken(final String token) {
-        log.debug("UserVerificationService.deleteVerificationToken: called with token: {}", tokenFingerprint(token));
+        log.debug("UserVerificationService.deleteVerificationToken: called with token: {}", TokenHasher.fingerprint(token));
         final VerificationToken verificationToken = resolveByRawToken(token);
         if (verificationToken != null) {
             tokenRepository.delete(verificationToken);
@@ -194,24 +194,6 @@ public class UserVerificationService {
         } else {
             log.debug("UserVerificationService.deleteVerificationToken: token not found.");
         }
-    }
-
-    /**
-     * Produces a non-reversible fingerprint of a token for safe logging. Never logs the full token
-     * value (which is sensitive authentication material).
-     *
-     * @param token the raw token value
-     * @return "null" if the token is null, "****" for short tokens, otherwise the first 6 characters
-     *         followed by an ellipsis
-     */
-    private String tokenFingerprint(final String token) {
-        if (token == null) {
-            return "null";
-        }
-        if (token.length() <= 8) {
-            return "****";
-        }
-        return token.substring(0, 6) + "…";
     }
 
 }

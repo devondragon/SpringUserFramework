@@ -437,11 +437,13 @@ public class UserService {
 	 * Cleans up old password history entries for a user, keeping only the most recent entries.
 	 *
 	 * <p>
-	 * This method runs within the caller's class-level transaction (it is invoked via
-	 * self-invocation, so any method-level {@code @Transactional} would be bypassed by the proxy
-	 * and never apply). Rather than load every history row and {@code deleteAll} the overflow
-	 * (a read-then-delete window that races with concurrent inserts), it issues a single
-	 * set-based, bounded delete:
+	 * This is a private helper reached via {@code savePasswordHistory} on the call chain
+	 * {@code changeUserPassword} → {@code self.persistChangedPassword} (proxied, {@code @Transactional})
+	 * → {@code savePasswordHistory} → {@code cleanUpPasswordHistory}. It therefore runs inside the
+	 * transaction opened at {@code persistChangedPassword}; it carries no {@code @Transactional} of its
+	 * own (one on a private/self-invoked method would be ignored by the proxy anyway). Rather than load
+	 * every history row and {@code deleteAll} the overflow (a read-then-delete window that races with
+	 * concurrent inserts), it issues a single set-based, bounded delete:
 	 * </p>
 	 * <ol>
 	 * <li>Locate the id of the oldest entry to keep (the {@code maxEntries}-th most recent entry,

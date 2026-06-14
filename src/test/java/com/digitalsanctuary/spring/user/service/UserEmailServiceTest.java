@@ -26,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -62,6 +63,9 @@ class UserEmailServiceTest {
     void setUp() {
         userEmailService = new UserEmailService(mailService, userVerificationService, passwordTokenRepository,
                 eventPublisher, sessionInvalidationService, tokenHasher);
+        // In production 'self' is the Spring proxy used to apply @Transactional on createPasswordResetTokenForUser.
+        // There is no proxy in a unit test, so point it at the instance itself to exercise the real call path.
+        ReflectionTestUtils.setField(userEmailService, "self", userEmailService);
         testUser = UserTestDataBuilder.aUser()
                 .withId(1L)
                 .withEmail("test@example.com")

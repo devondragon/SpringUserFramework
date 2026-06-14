@@ -47,12 +47,20 @@ public class CompositeRegistrationGuard implements RegistrationGuard {
      * @param context the registration context describing the attempt
      * @return the first denying {@link RegistrationDecision}, or {@link RegistrationDecision#allow()} if
      *         all delegates allow
+     * @throws IllegalStateException if any delegate returns {@code null}; the SPI contract requires a
+     *         non-null decision, and silently treating {@code null} as "allow" would let a buggy guard
+     *         fail open. Failing fast surfaces the bug at test/runtime instead.
      */
     @Override
     public RegistrationDecision evaluate(final RegistrationContext context) {
         for (RegistrationGuard delegate : delegates) {
             RegistrationDecision decision = delegate.evaluate(context);
-            if (decision != null && !decision.allowed()) {
+            if (decision == null) {
+                throw new IllegalStateException(
+                        "RegistrationGuard " + delegate.getClass().getName() + " returned a null decision; "
+                                + "guards must return a non-null RegistrationDecision (allow or deny).");
+            }
+            if (!decision.allowed()) {
                 return decision;
             }
         }

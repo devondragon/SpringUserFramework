@@ -8,8 +8,10 @@ import java.util.HashMap;
 import java.util.Map;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -61,6 +63,23 @@ public class UserEmailService {
     /** Hashes tokens before they are stored at rest. */
     private final TokenHasher tokenHasher;
 
+    /**
+     * Self-reference, resolved through the Spring proxy, used to invoke {@link #createPasswordResetTokenForUser}
+     * so its {@code @Transactional} boundary actually applies.
+     *
+     * <p>
+     * Calling {@code createPasswordResetTokenForUser(...)} directly from another method in this class
+     * ({@code this.createPasswordResetTokenForUser(...)}) is a self-invocation that bypasses the Spring proxy,
+     * so the {@code @Transactional} would never start and the {@code deleteByUser} + {@code save} could run in
+     * separate transactions — reopening the single-active-token race. Invoking through this proxied reference
+     * ensures the delete and save commit atomically. It is injected {@link Lazy} to break the construction-time
+     * circular dependency on itself.
+     * </p>
+     */
+    @Lazy
+    @Autowired
+    private UserEmailService self;
+
     /** The configured app URL for admin-initiated password resets. */
     @Value("${user.admin.appUrl:#{null}}")
     private String configuredAppUrl;
@@ -85,7 +104,8 @@ public class UserEmailService {
     public void sendForgotPasswordVerificationEmail(final User user, final String appUrl) {
         log.debug("UserEmailService.sendForgotPasswordVerificationEmail: called for user: {}", user != null ? user.getEmail() : null);
         final String token = generateToken();
-        createPasswordResetTokenForUser(user, token);
+        // Invoke through the proxy so the @Transactional boundary on createPasswordResetTokenForUser applies.
+        self.createPasswordResetTokenForUser(user, token);
 
         AuditEvent sendForgotPasswordEmailAuditEvent = AuditEvent.builder().source(this).user(user).action("sendForgotPasswordVerificationEmail")
                 .actionStatus("Success").message("Forgot password email to be sent.").build();
@@ -256,7 +276,8 @@ public class UserEmailService {
 
         // Step 1: Generate token and create password reset token (must succeed before invalidating sessions)
         final String token = generateToken();
-        createPasswordResetTokenForUser(user, token);
+        // Invoke through the proxy so the @Transactional boundary on createPasswordResetTokenForUser applies.
+        self.createPasswordResetTokenForUser(user, token);
 
         // Step 2: Send password reset email (must succeed before invalidating sessions)
         sendPasswordResetEmail(user, appUrl, token);
