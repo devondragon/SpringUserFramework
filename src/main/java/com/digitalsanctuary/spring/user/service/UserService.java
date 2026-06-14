@@ -372,10 +372,13 @@ public class UserService {
 	 * <p>
 	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
 	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
-	 * deliberately <b>package-private</b> so consumers cannot call it directly and bypass the
-	 * centralized RegistrationGuard enforced by {@link #registerNewUserAccount(UserDto)}; CGLIB
-	 * self-invocation still applies the transaction because Spring's proxy subclass is generated in
-	 * this same package.
+	 * deliberately <b>protected</b> so consumers cannot call it directly and bypass the centralized
+	 * RegistrationGuard enforced by {@link #registerNewUserAccount(UserDto)}. It must be
+	 * {@code protected} rather than package-private: the CGLIB proxy subclass is generated in a
+	 * different package, so it can only override (and therefore advise/route) {@code public} or
+	 * {@code protected} methods. A package-private method is not overridden, so the {@code self}
+	 * invocation would execute on the proxy instance — whose {@code @Autowired} fields are never
+	 * populated — and both the transaction and the dependencies would be missing.
 	 * </p>
 	 *
 	 * @param user the fully built user entity (password already encoded)
@@ -383,7 +386,7 @@ public class UserService {
 	 * @throws UserAlreadyExistException if an account with the same email already exists
 	 */
 	@Transactional(isolation = Isolation.SERIALIZABLE)
-	User persistNewUserAccount(final User user) {
+	protected User persistNewUserAccount(final User user) {
 		if (emailExists(user.getEmail())) {
 			log.debug("UserService.persistNewUserAccount: email already exists: {}", user.getEmail());
 			throw new UserAlreadyExistException(
@@ -755,15 +758,18 @@ public class UserService {
 	 * <p>
 	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
 	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
-	 * deliberately <b>package-private</b> so it is not part of the public API; CGLIB self-invocation
-	 * still applies the transaction because Spring's proxy subclass is generated in this same package.
+	 * <b>protected</b> so it stays out of the public API yet remains overridable by the CGLIB proxy
+	 * subclass — which is generated in a different package and therefore cannot override a
+	 * package-private method. A package-private method would not be advised and the {@code self}
+	 * invocation would run on the proxy instance (whose {@code @Autowired} fields are null), so it
+	 * must be {@code protected} (or public).
 	 * </p>
 	 *
 	 * @param user            the user whose password changed (password field already set/encoded)
 	 * @param encodedPassword the already-encoded password to record in history
 	 */
 	@Transactional
-	void persistChangedPassword(final User user, final String encodedPassword) {
+	protected void persistChangedPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
 		// Force re-auth on a password change (OWASP). By default the current session is preserved and
@@ -856,15 +862,18 @@ public class UserService {
 	 * <p>
 	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
 	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
-	 * deliberately <b>package-private</b> so it is not part of the public API; CGLIB self-invocation
-	 * still applies the transaction because Spring's proxy subclass is generated in this same package.
+	 * <b>protected</b> so it stays out of the public API yet remains overridable by the CGLIB proxy
+	 * subclass — which is generated in a different package and therefore cannot override a
+	 * package-private method. A package-private method would not be advised and the {@code self}
+	 * invocation would run on the proxy instance (whose {@code @Autowired} fields are null), so it
+	 * must be {@code protected} (or public).
 	 * </p>
 	 *
 	 * @param user            the user whose initial password is being set (password field already set)
 	 * @param encodedPassword the already-encoded password to record in history
 	 */
 	@Transactional
-	void persistInitialPassword(final User user, final String encodedPassword) {
+	protected void persistInitialPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
 	}
