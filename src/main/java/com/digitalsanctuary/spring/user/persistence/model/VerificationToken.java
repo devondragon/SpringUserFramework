@@ -33,6 +33,8 @@ public class VerificationToken {
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	// Identity-based equality keys on this id only. Two transient (unsaved, id == null) instances compare equal,
+	// so never use unsaved entities as Set/Map keys; add them only after they have been persisted. See EntityEqualityTest.
 	@EqualsAndHashCode.Include
 	private Long id;
 

@@ -26,6 +26,8 @@ public class WebAuthnUserEntity {
 
 	/** Base64url-encoded WebAuthn user handle. */
 	@Id
+	// Identity-based equality keys on this id only. Two instances with a null id compare equal,
+	// so never use unsaved entities as Set/Map keys; add them only after the id is assigned. See EntityEqualityTest.
 	@EqualsAndHashCode.Include
 	private String id;
 
