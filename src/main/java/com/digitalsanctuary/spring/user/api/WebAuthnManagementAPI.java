@@ -64,7 +64,7 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  */
 @Slf4j
-@RestController
+@RestController("dsWebAuthnManagementAPI")
 @RequestMapping("/user/webauthn")
 @ConditionalOnProperty(name = "user.webauthn.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor

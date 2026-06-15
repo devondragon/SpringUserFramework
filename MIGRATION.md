@@ -243,6 +243,39 @@ import com.digitalsanctuary.spring.user.exceptions.GlobalValidationExceptionHand
 
 The empty, unused `com.digitalsanctuary.spring.user.api.data` package has also been removed. This package contained only a placeholder `Response.java` with no content and was not referenced anywhere. No remediation required.
 
+### Message bundle no longer overridden; library beans renamed
+
+Two related changes make the library a better citizen inside a consuming application:
+
+**1. The library no longer overrides your `spring.messages.basename`.**
+
+Previously the library shipped a hardcoded `spring.messages.basename=messages/messages,messages/dsspringusermessages` default property. Because this was a library default, it OVERRODE the consuming application's own `spring.messages.basename`, clobbering any custom message bundle configuration.
+
+The library now registers its own bundle (`messages/dsspringusermessages`) **additively** via a Spring Boot `EnvironmentPostProcessor` (`MessageSourceEnvironmentPostProcessor`). It reads your existing `spring.messages.basename` (or Spring Boot's conventional default of `messages` if you have not set one) and appends the library bundle to the end of the list, de-duplicated. The library bundle is placed last so YOUR message keys win on collisions.
+
+**Impact:** None for most consumers — your message bundle is now preserved automatically.
+
+**Remediation:** If you had previously worked around the old behavior by manually merging the library basename into your own `spring.messages.basename` (e.g. setting `spring.messages.basename=messages,messages/dsspringusermessages` yourself), you can simplify back to just your own value (e.g. `spring.messages.basename=messages`); the library appends its bundle for you. Leaving the explicit merge in place is harmless — it is de-duplicated.
+
+**2. Library bean names are now namespaced with a `ds` prefix.**
+
+High-collision library beans now have explicit, namespaced bean names so they no longer conflict with a consumer bean of the same default name:
+
+| Class | Old default bean name | New bean name |
+|---|---|---|
+| `UserService` | `userService` | `dsUserService` |
+| `MailService` | `mailService` | `dsMailService` |
+| `UserAPI` | `userAPI` | `dsUserAPI` |
+| `GdprAPI` | `gdprAPI` | `dsGdprAPI` |
+| `MfaAPI` | `mfaAPI` | `dsMfaAPI` |
+| `WebAuthnManagementAPI` | `webAuthnManagementAPI` | `dsWebAuthnManagementAPI` |
+| `UserActionController` | `userActionController` | `dsUserActionController` |
+| `UserPageController` | `userPageController` | `dsUserPageController` |
+
+**Impact:** Only affects code that references these beans **by name** rather than by type. By-type injection (the common case) is unaffected.
+
+**Remediation:** Update any by-name reference — `@Qualifier("userService")`, `@Resource(name = "userService")`, `@DependsOn("userService")`, or `applicationContext.getBean("userService", ...)` — to the new `ds`-prefixed name (e.g. `@Qualifier("dsUserService")`). Injection by type (e.g. `@Autowired UserService userService;`) requires no change.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

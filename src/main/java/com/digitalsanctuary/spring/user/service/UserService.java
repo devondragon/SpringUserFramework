@@ -157,7 +157,7 @@ import lombok.extern.slf4j.Slf4j;
  * @author Devon Hillard
  */
 @Slf4j
-@Service
+@Service("dsUserService")
 @RequiredArgsConstructor
 @Transactional
 public class UserService {

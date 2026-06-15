@@ -60,7 +60,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@RestController
+@RestController("dsUserAPI")
 @RequestMapping(path = "/user", produces = "application/json")
 public class UserAPI {
 

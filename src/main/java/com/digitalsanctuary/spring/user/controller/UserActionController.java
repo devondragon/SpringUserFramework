@@ -36,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Controller
+@Controller("dsUserActionController")
 @IncludeUserInModel
 public class UserActionController {
 	private static final String AUTH_MESSAGE_PREFIX = "auth.message.";
