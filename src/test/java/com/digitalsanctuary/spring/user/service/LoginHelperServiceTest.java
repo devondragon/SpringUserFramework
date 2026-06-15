@@ -1,8 +1,11 @@
 package com.digitalsanctuary.spring.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import java.time.Instant;
@@ -21,6 +24,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
@@ -121,6 +126,7 @@ class LoginHelperServiceTest {
             unlockedUser.setEmail(testUser.getEmail());
             unlockedUser.setLocked(false);
             unlockedUser.setLockedDate(null);
+            unlockedUser.setEnabled(true);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(unlockedUser);
             doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(unlockedUser);
@@ -170,8 +176,8 @@ class LoginHelperServiceTest {
         }
 
         @Test
-        @DisplayName("Should handle locked user that remains locked")
-        void shouldHandleLockedUserThatRemainsLocked() {
+        @DisplayName("Should reject locked user that remains locked")
+        void shouldRejectLockedUserThatRemainsLocked() {
             // Given
             testUser.setLocked(true);
             testUser.setFailedLoginAttempts(5);
@@ -179,35 +185,20 @@ class LoginHelperServiceTest {
             testUser.setLockedDate(lockedDate);
 
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser); // User remains locked
-            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
-            // When
-            DSUserDetails result = loginHelperService.userLoginHelper(testUser);
-
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.getUser().isLocked()).isTrue();
-            assertThat(result.isAccountNonLocked()).isFalse();
-            assertThat(result.getUser().getFailedLoginAttempts()).isEqualTo(5);
+            // When / Then - a still-locked account must not be allowed to authenticate
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(testUser)).isInstanceOf(LockedException.class);
         }
 
         @Test
-        @DisplayName("Should handle disabled user correctly")
-        void shouldHandleDisabledUser() {
+        @DisplayName("Should reject disabled user")
+        void shouldRejectDisabledUser() {
             // Given
             testUser.setEnabled(false);
             when(loginAttemptService.checkIfUserShouldBeUnlocked(testUser)).thenReturn(testUser);
-            doReturn(testAuthorities).when(authorityService).getAuthoritiesFromUser(testUser);
 
-            // When
-            DSUserDetails result = loginHelperService.userLoginHelper(testUser);
-
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.isEnabled()).isFalse();
-            assertThat(result.getUser().isEnabled()).isFalse();
-            // Even disabled users should get their authorities
-            assertThat(result.getAuthorities()).isNotEmpty();
+            // When / Then - a disabled account must not be allowed to authenticate
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(testUser)).isInstanceOf(DisabledException.class);
         }
 
         @Test
@@ -538,6 +529,88 @@ class LoginHelperServiceTest {
             assertThat(result.getAttributes()).isNotNull();
             assertThat(result.getAttributes()).containsEntry("sub", "oidc-sub-123");
             assertThat(result.getAttributes()).containsEntry("email", "oidc@example.com");
+        }
+    }
+
+    @Nested
+    @DisplayName("Account Status Enforcement Tests (H3)")
+    class AccountStatusEnforcementTests {
+
+        @Test
+        @DisplayName("Should reject disabled account on OAuth2 login")
+        void rejectsDisabledAccountOnOAuthLogin() {
+            User user = new User();
+            user.setEmail("x@test.com");
+            user.setEnabled(false);
+            user.setLocked(false);
+            lenient().when(loginAttemptService.checkIfUserShouldBeUnlocked(user)).thenReturn(user);
+
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(user, (Map<String, Object>) null)).isInstanceOf(DisabledException.class);
+        }
+
+        @Test
+        @DisplayName("Should reject locked account on OAuth2 login")
+        void rejectsLockedAccountOnOAuthLogin() {
+            User user = new User();
+            user.setEmail("x@test.com");
+            user.setEnabled(true);
+            user.setLocked(true);
+            when(loginAttemptService.checkIfUserShouldBeUnlocked(user)).thenReturn(user);
+
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(user, (Map<String, Object>) null)).isInstanceOf(LockedException.class);
+        }
+
+        @Test
+        @DisplayName("Should reject disabled account on OIDC login")
+        void rejectsDisabledAccountOnOidcLogin() {
+            User user = new User();
+            user.setEmail("x@test.com");
+            user.setEnabled(false);
+            user.setLocked(false);
+            OidcIdToken idToken = new OidcIdToken("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("sub", "s"));
+            OidcUserInfo userInfo = new OidcUserInfo(Map.of("sub", "s"));
+            lenient().when(loginAttemptService.checkIfUserShouldBeUnlocked(user)).thenReturn(user);
+
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(user, userInfo, idToken)).isInstanceOf(DisabledException.class);
+        }
+
+        @Test
+        @DisplayName("Should reject locked account on OIDC login")
+        void rejectsLockedAccountOnOidcLogin() {
+            User user = new User();
+            user.setEmail("x@test.com");
+            user.setEnabled(true);
+            user.setLocked(true);
+            OidcIdToken idToken = new OidcIdToken("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("sub", "s"));
+            OidcUserInfo userInfo = new OidcUserInfo(Map.of("sub", "s"));
+            when(loginAttemptService.checkIfUserShouldBeUnlocked(user)).thenReturn(user);
+
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(user, userInfo, idToken)).isInstanceOf(LockedException.class);
+        }
+
+        @Test
+        @DisplayName("Should prefer LockedException when both locked and disabled")
+        void prefersLockedExceptionWhenLockedAndDisabled() {
+            User user = new User();
+            user.setEmail("x@test.com");
+            user.setEnabled(false);
+            user.setLocked(true);
+            when(loginAttemptService.checkIfUserShouldBeUnlocked(user)).thenReturn(user);
+
+            assertThatThrownBy(() -> loginHelperService.userLoginHelper(user, (Map<String, Object>) null)).isInstanceOf(LockedException.class);
+        }
+
+        @Test
+        @DisplayName("Should allow enabled and unlocked account")
+        void allowsEnabledUnlockedAccount() {
+            User user = new User();
+            user.setEmail("x@test.com");
+            user.setEnabled(true);
+            user.setLocked(false);
+            when(loginAttemptService.checkIfUserShouldBeUnlocked(user)).thenReturn(user);
+            when(authorityService.getAuthoritiesFromUser(any(User.class))).thenReturn(Collections.emptyList());
+
+            assertThatCode(() -> loginHelperService.userLoginHelper(user, (Map<String, Object>) null)).doesNotThrowAnyException();
         }
     }
 }

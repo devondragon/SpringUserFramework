@@ -335,6 +335,92 @@ class FileAuditLogWriterTest {
     }
 
     @Nested
+    @DisplayName("Rotation Tests")
+    class RotationTests {
+
+        private AuditEvent event(String action) {
+            return AuditEvent.builder()
+                    .source(this)
+                    .action(action)
+                    .actionStatus("Success")
+                    .message("rotation test message padding padding padding")
+                    .build();
+        }
+
+        @Test
+        @DisplayName("rotates the active file when the size threshold is exceeded")
+        void rotatesActiveFile_whenThresholdExceeded() throws IOException {
+            // Given - a tiny effective byte threshold so a few writes trigger rotation
+            when(auditConfig.isFlushOnWrite()).thenReturn(true);
+            when(auditConfig.getMaxFileSizeMb()).thenReturn(10); // positive => rotation enabled
+            when(auditConfig.getMaxFiles()).thenReturn(5);
+            fileAuditLogWriter.setup();
+            fileAuditLogWriter.setMaxFileSizeBytesForTesting(120L); // exceeded quickly
+
+            Path active = Path.of(logFilePath);
+            Path rotated1 = Path.of(logFilePath + ".1");
+
+            // When - write enough to exceed the threshold
+            for (int i = 0; i < 10; i++) {
+                fileAuditLogWriter.writeLog(event("Action" + i));
+            }
+
+            // Then - a rotated file exists and the active file is fresh (header + recent writes only)
+            assertTrue(Files.exists(rotated1), "rotated file .1 should exist after rotation");
+            assertTrue(Files.exists(active), "active log file should be reopened after rotation");
+            String activeContent = Files.readString(active);
+            assertTrue(activeContent.contains("Date|Action|Action Status"),
+                    "freshly reopened active file should contain the header");
+            assertTrue(Files.size(active) < Files.size(rotated1) + 4096,
+                    "active file should be smaller than total rotated content");
+        }
+
+        @Test
+        @DisplayName("respects maxFiles by deleting the oldest rotated file")
+        void respectsMaxFiles_deletingOldest() throws IOException {
+            // Given - keep only 2 rotated files
+            when(auditConfig.isFlushOnWrite()).thenReturn(true);
+            when(auditConfig.getMaxFileSizeMb()).thenReturn(10);
+            when(auditConfig.getMaxFiles()).thenReturn(2);
+            fileAuditLogWriter.setup();
+            fileAuditLogWriter.setMaxFileSizeBytesForTesting(80L);
+
+            Path rotated1 = Path.of(logFilePath + ".1");
+            Path rotated2 = Path.of(logFilePath + ".2");
+            Path rotated3 = Path.of(logFilePath + ".3");
+
+            // When - force several rotations
+            for (int i = 0; i < 40; i++) {
+                fileAuditLogWriter.writeLog(event("Action" + i));
+            }
+
+            // Then - at most maxFiles rotated files are kept; .3 must never exist
+            assertTrue(Files.exists(rotated1), ".1 should exist");
+            assertTrue(Files.exists(rotated2), ".2 should exist");
+            assertTrue(!Files.exists(rotated3), ".3 should have been deleted (exceeds maxFiles)");
+        }
+
+        @Test
+        @DisplayName("does not rotate when rotation is disabled (maxFileSizeMb <= 0)")
+        void doesNotRotate_whenDisabled() throws IOException {
+            // Given - rotation disabled
+            when(auditConfig.isFlushOnWrite()).thenReturn(true);
+            when(auditConfig.getMaxFileSizeMb()).thenReturn(0);
+            fileAuditLogWriter.setup();
+
+            Path rotated1 = Path.of(logFilePath + ".1");
+
+            // When - write a lot
+            for (int i = 0; i < 50; i++) {
+                fileAuditLogWriter.writeLog(event("Action" + i));
+            }
+
+            // Then - no rotation occurred
+            assertTrue(!Files.exists(rotated1), "no rotated file should exist when rotation is disabled");
+        }
+    }
+
+    @Nested
     @DisplayName("Complete Event Data Tests")
     class CompleteEventDataTests {
 

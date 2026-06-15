@@ -8,12 +8,15 @@ import java.util.HashMap;
 import java.util.Map;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
@@ -57,9 +60,33 @@ public class UserEmailService {
     /** The session invalidation service. */
     private final SessionInvalidationService sessionInvalidationService;
 
+    /** Hashes tokens before they are stored at rest. */
+    private final TokenHasher tokenHasher;
+
+    /**
+     * Self-reference, resolved through the Spring proxy, used to invoke {@link #createPasswordResetTokenForUser}
+     * so its {@code @Transactional} boundary actually applies.
+     *
+     * <p>
+     * Calling {@code createPasswordResetTokenForUser(...)} directly from another method in this class
+     * ({@code this.createPasswordResetTokenForUser(...)}) is a self-invocation that bypasses the Spring proxy,
+     * so the {@code @Transactional} would never start and the {@code deleteByUser} + {@code save} could run in
+     * separate transactions — reopening the single-active-token race. Invoking through this proxied reference
+     * ensures the delete and save commit atomically. It is injected {@link Lazy} to break the construction-time
+     * circular dependency on itself.
+     * </p>
+     */
+    @Lazy
+    @Autowired
+    private UserEmailService self;
+
     /** The configured app URL for admin-initiated password resets. */
     @Value("${user.admin.appUrl:#{null}}")
     private String configuredAppUrl;
+
+    /** Password reset token lifetime in minutes. Defaults to 24h. */
+    @Value("${user.security.passwordResetTokenValidityMinutes:1440}")
+    private int passwordResetTokenValidityMinutes;
 
     /** ObjectMapper for JSON serialization in audit events. */
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -75,9 +102,10 @@ public class UserEmailService {
      * @throws IllegalArgumentException if appUrl is null, blank, or uses a dangerous scheme
      */
     public void sendForgotPasswordVerificationEmail(final User user, final String appUrl) {
-        log.debug("UserEmailService.sendForgotPasswordVerificationEmail: called with user: {}", user);
+        log.debug("UserEmailService.sendForgotPasswordVerificationEmail: called for user: {}", user != null ? user.getEmail() : null);
         final String token = generateToken();
-        createPasswordResetTokenForUser(user, token);
+        // Invoke through the proxy so the @Transactional boundary on createPasswordResetTokenForUser applies.
+        self.createPasswordResetTokenForUser(user, token);
 
         AuditEvent sendForgotPasswordEmailAuditEvent = AuditEvent.builder().source(this).user(user).action("sendForgotPasswordVerificationEmail")
                 .actionStatus("Success").message("Forgot password email to be sent.").build();
@@ -200,11 +228,21 @@ public class UserEmailService {
     /**
      * Creates the password reset token for user.
      *
+     * <p>
+     * The token is hashed before storage (the raw value goes into the emailed link). Any existing
+     * token for the user is deleted first so that only one active reset token exists per user.
+     * </p>
+     *
      * @param user the user
-     * @param token the token
+     * @param token the raw token (emailed to the user)
      */
+    @Transactional
     public void createPasswordResetTokenForUser(final User user, final String token) {
-        final PasswordResetToken myToken = new PasswordResetToken(token, user);
+        // Single active token per user: remove any previously issued token before creating a new one.
+        passwordTokenRepository.deleteByUser(user);
+        // Store only the hash of the token; the raw token is what was emailed to the user.
+        final PasswordResetToken myToken =
+                new PasswordResetToken(tokenHasher.hash(token), user, passwordResetTokenValidityMinutes);
         passwordTokenRepository.save(myToken);
     }
 
@@ -238,7 +276,8 @@ public class UserEmailService {
 
         // Step 1: Generate token and create password reset token (must succeed before invalidating sessions)
         final String token = generateToken();
-        createPasswordResetTokenForUser(user, token);
+        // Invoke through the proxy so the @Transactional boundary on createPasswordResetTokenForUser applies.
+        self.createPasswordResetTokenForUser(user, token);
 
         // Step 2: Send password reset email (must succeed before invalidating sessions)
         sendPasswordResetEmail(user, appUrl, token);

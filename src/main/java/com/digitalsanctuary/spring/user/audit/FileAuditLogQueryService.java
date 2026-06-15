@@ -10,8 +10,10 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -26,16 +28,18 @@ import lombok.extern.slf4j.Slf4j;
  * File-based implementation of {@link AuditLogQueryService} that parses the
  * pipe-delimited audit log file created by {@link FileAuditLogWriter}.
  *
- * <p>This implementation reads and parses the entire log file for each query,
- * filtering results by user email or ID. While suitable for small to medium
- * audit volumes (&lt;50MB, &lt;100K events), applications with high audit volumes
- * or frequent export requests should consider implementing a database-backed
- * query service for better performance.
+ * <p>This implementation streams the active log file once per query, filtering
+ * results by user email or ID. To bound memory and CPU on large files, it retains
+ * only the most recent {@code user.audit.maxQueryResults} matching events in a
+ * bounded ring buffer rather than loading and sorting the whole file. While
+ * suitable for small to medium audit volumes (&lt;50MB, &lt;100K events),
+ * applications with high audit volumes or frequent export requests should consider
+ * implementing a database-backed query service for better performance.
  *
  * <p><strong>Performance Note:</strong> GDPR export operations call this service
- * multiple times (findByUser, findByUserAndAction) which results in reading
- * and parsing the entire log file for each call. For production deployments
- * with large audit logs, consider:
+ * multiple times (findByUser, findByUserAndAction); each call streams the active
+ * log file once. Memory per call is bounded to {@code maxQueryResults} events. For
+ * production deployments with large audit logs, consider:
  * <ul>
  *   <li>Implementing a database-backed {@link AuditLogQueryService}</li>
  *   <li>Adding log rotation to keep file sizes manageable</li>
@@ -85,12 +89,26 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
 
     /**
      * Internal method to find audit events with optional filtering.
-     * Uses Java Streams for efficient memory handling with large log files.
+     *
+     * <p><strong>Bounded memory/CPU:</strong> The log file is written in append order (oldest first,
+     * newest last). Rather than parsing and sorting the entire file in memory, this method streams the
+     * file once and retains only the last {@code maxQueryResults} <em>matching</em> raw lines in a bounded
+     * {@link ArrayDeque} ring buffer. Only that bounded window is then parsed and sorted by timestamp
+     * descending. Memory is therefore {@code O(maxQueryResults)} regardless of file size, and the sort
+     * cost is bounded to the result window rather than the whole file.
+     *
+     * <p>For result sets {@code <= maxQueryResults} the observable output (filters + newest-first
+     * ordering) is identical to the previous full-file implementation. For larger sets, the most-recent
+     * {@code maxQueryResults} matches (by file/append order) are returned, then ordered newest-first.
+     *
+     * <p><strong>Scope:</strong> Only the active log file is queried; rotated archive files
+     * ({@code <name>.1}, {@code <name>.2}, ...) are not included. This preserves the prior behavior; query
+     * results reflect only the currently-active audit log.
      *
      * @param user the user to filter by
      * @param since optional timestamp filter
      * @param action optional action filter
-     * @return filtered list of audit events
+     * @return filtered list of audit events, newest first, capped at {@code maxQueryResults}
      */
     private List<AuditEventDTO> findByUser(User user, Instant since, String action) {
         if (user == null) {
@@ -108,28 +126,34 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
 
         int maxResults = auditConfig.getMaxQueryResults();
 
+        // Bounded ring buffer of the most recent matching parsed events in file (append) order.
+        // When maxResults <= 0 the limit is disabled and all matching events are retained.
+        Deque<AuditEventDTO> window = new ArrayDeque<>();
+
         try (Stream<String> lines = Files.lines(logPath)) {
-            Stream<AuditEventDTO> stream = lines
-                    .skip(1) // Skip header line
+            lines.skip(1) // Skip header line
                     .map(this::parseLine)
                     .filter(Objects::nonNull)
                     .filter(event -> matchesUser(event, userEmail, userId))
                     .filter(event -> since == null || event.getTimestamp() == null ||
                             !event.getTimestamp().isBefore(since))
                     .filter(event -> action == null || action.equals(event.getAction()))
-                    .sorted(Comparator.comparing(AuditEventDTO::getTimestamp,
-                            Comparator.nullsLast(Comparator.reverseOrder())));
-
-            // Apply limit if configured to prevent unbounded memory usage
-            if (maxResults > 0) {
-                stream = stream.limit(maxResults);
-            }
-
-            return stream.collect(Collectors.toList());
+                    .forEach(event -> {
+                        window.addLast(event);
+                        if (maxResults > 0 && window.size() > maxResults) {
+                            window.removeFirst(); // evict oldest to keep only the most recent N
+                        }
+                    });
         } catch (IOException e) {
             log.error("FileAuditLogQueryService.findByUser: Error reading audit log file", e);
             return Collections.emptyList();
         }
+
+        // Sort only the bounded window by timestamp descending (newest first).
+        return window.stream()
+                .sorted(Comparator.comparing(AuditEventDTO::getTimestamp,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -159,10 +183,11 @@ public class FileAuditLogQueryService implements AuditLogQueryService {
     /**
      * Parses a single line from the audit log file.
      *
-     * <p><b>Note:</b> This parser assumes the audit log writer properly escapes
-     * pipe characters in message content. If audit messages contain unescaped pipes,
-     * parsing may be corrupted. Consider migrating to a structured format (JSON lines)
-     * for production deployments with untrusted input.
+     * <p><b>Note:</b> {@code FileAuditLogWriter} sanitizes each field (stripping CR/LF and the {@code |}
+     * delimiter) before writing, so records produced by this library always have exactly ten fields on a
+     * single line. The defensive rejoin below remains only to tolerate pre-existing log files written before
+     * that sanitization, or files produced by other tooling. A structured format (JSON lines) is still the
+     * better long-term choice for deployments that ingest fully untrusted audit input.
      *
      * @param line the line to parse
      * @return the parsed AuditEventDTO, or null if parsing fails

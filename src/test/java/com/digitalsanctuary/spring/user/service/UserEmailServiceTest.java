@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -27,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -50,7 +50,9 @@ class UserEmailServiceTest {
     @Mock
     private SessionInvalidationService sessionInvalidationService;
 
-    @InjectMocks
+    // Real hasher (not a mock) so stored-vs-raw token assertions reflect production behavior.
+    private final TokenHasher tokenHasher = new TokenHasher(null);
+
     private UserEmailService userEmailService;
 
     private User testUser;
@@ -59,6 +61,11 @@ class UserEmailServiceTest {
 
     @BeforeEach
     void setUp() {
+        userEmailService = new UserEmailService(mailService, userVerificationService, passwordTokenRepository,
+                eventPublisher, sessionInvalidationService, tokenHasher);
+        // In production 'self' is the Spring proxy used to apply @Transactional on createPasswordResetTokenForUser.
+        // There is no proxy in a unit test, so point it at the instance itself to exercise the real call path.
+        ReflectionTestUtils.setField(userEmailService, "self", userEmailService);
         testUser = UserTestDataBuilder.aUser()
                 .withId(1L)
                 .withEmail("test@example.com")
@@ -116,8 +123,8 @@ class UserEmailServiceTest {
             PasswordResetToken savedToken = tokenCaptor.getValue();
             assertThat(savedToken.getUser()).isEqualTo(testUser);
             assertThat(savedToken.getToken()).isNotNull();
-            // Base64 URL-safe encoded 32-byte token = 43 characters
-            assertThat(savedToken.getToken()).matches("[A-Za-z0-9_-]{43}");
+            // Stored token is the HASH (64-char hex SHA-256), NOT the raw 43-char token.
+            assertThat(savedToken.getToken()).matches("[0-9a-f]{64}");
 
             // Verify audit event was published
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
@@ -144,8 +151,13 @@ class UserEmailServiceTest {
             assertThat(variables).containsKey("user");
             assertThat(variables.get("appUrl")).isEqualTo(appUrl);
             assertThat(variables.get("user")).isEqualTo(testUser);
-            assertThat(variables.get("confirmationUrl")).asString()
-                    .startsWith(appUrl + "/user/changePassword?token=");
+            // The emailed link must carry the RAW token (43-char URL-safe), while the DB stores its hash.
+            String confirmationUrl = (String) variables.get("confirmationUrl");
+            assertThat(confirmationUrl).startsWith(appUrl + "/user/changePassword?token=");
+            String rawTokenInUrl = confirmationUrl.substring(confirmationUrl.indexOf("token=") + "token=".length());
+            assertThat(rawTokenInUrl).matches("[A-Za-z0-9_-]{43}");
+            // The stored (hashed) value is the hash of the raw token emailed to the user.
+            assertThat(savedToken.getToken()).isEqualTo(tokenHasher.hash(rawTokenInUrl));
         }
 
         @Test
@@ -191,7 +203,8 @@ class UserEmailServiceTest {
             ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
             verify(passwordTokenRepository).save(tokenCaptor.capture());
             PasswordResetToken savedToken = tokenCaptor.getValue();
-            assertThat(savedToken.getToken()).isEqualTo(token);
+            // The stored token is the HASH of the raw token, not the raw token itself.
+            assertThat(savedToken.getToken()).isEqualTo(tokenHasher.hash(token));
             assertThat(savedToken.getUser()).isEqualTo(testUser);
             assertThat(savedToken.getExpiryDate()).isNotNull();
         }

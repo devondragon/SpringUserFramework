@@ -14,12 +14,11 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +52,8 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
     /** The login helper service. */
     private final LoginHelperService loginHelperService;
 
-    private final RegistrationGuard registrationGuard;
+    /** The user service, used to enforce the centralized RegistrationGuard on first-time registration. */
+    private final UserService userService;
 
     /** The Event Publisher. */
     private final ApplicationEventPublisher eventPublisher;
@@ -111,13 +111,15 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
             return userRepository.save(existingUser);
         } else {
             log.debug("handleOidcLoginSuccess: registering new user with email: {}", normalizedEmail);
-            RegistrationDecision decision = registrationGuard.evaluate(
-                    new RegistrationContext(normalizedEmail, RegistrationSource.OIDC, registrationId));
-            if (!decision.allowed()) {
-                log.info("Registration denied for email: {} source: OIDC provider: {} reason: {}",
-                        normalizedEmail, registrationId, decision.reason());
+            // Enforce the centralized RegistrationGuard (in UserService) on first-time registration only.
+            // A denial surfaces as RegistrationDeniedException, which we translate into the same
+            // registration_denied OAuth2AuthenticationException this path returned previously.
+            try {
+                userService.enforceRegistrationGuard(normalizedEmail, RegistrationSource.OIDC, registrationId);
+            } catch (RegistrationDeniedException ex) {
+                log.info("Registration denied for source: OIDC provider: {} reason: {}", registrationId, ex.getReason());
                 throw new OAuth2AuthenticationException(
-                        new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
+                        new OAuth2Error("registration_denied", ex.getReason(), null), ex.getReason());
             }
             user = registerNewOidcUser(registrationId, user);
             return user;
@@ -143,6 +145,13 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(savedUser).action("OIDC Registration Success").actionStatus("Success")
                 .message("Registration Confirmed. User logged in.").build();
         eventPublisher.publishEvent(registrationAuditEvent);
+        // Publish a registration event for this first-time social registration so consumers can hook it the
+        // same way they hook form registrations. This method is only reached for brand-new users (existing
+        // users take the update branch in handleOidcLoginSuccess). OIDC users are created ENABLED, so the
+        // RegistrationListener intentionally skips sending them a verification email; the event still fires.
+        // No HttpServletRequest is available here, so locale defaults and appUrl is null (only the verification
+        // email, which is skipped for enabled users, would have used appUrl).
+        eventPublisher.publishEvent(new OnRegistrationCompleteEvent(savedUser, Locale.getDefault(), null));
         return savedUser;
     }
 
@@ -168,11 +177,19 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
      * @return A User object representing the authenticated user.
      */
     public User getUserFromKeycloakOidc2User(OidcUser principal) {
-        log.debug("Getting user info from Keycloak Oidc provider with principal: {}", principal);
+        log.debug("Getting user info from Keycloak Oidc provider with principal: {}", principal != null ? principal.getName() : null);
         if (principal == null) {
             return null;
         }
-        log.debug("Principal attributes: {}", principal.getAttributes());
+        log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
+        // Reject the login if the OIDC provider explicitly reports the email as NOT verified.
+        // The standard OIDC email_verified claim is a Boolean. Providers that do not expose it are trusted;
+        // only an explicit false is rejected (an absent/null claim is trusted).
+        if (Boolean.FALSE.equals(principal.getEmailVerified())) {
+            log.warn("getUserFromKeycloakOidc2User: rejecting login because OIDC provider reports email_verified=false");
+            throw new OAuth2AuthenticationException(new OAuth2Error("email_not_verified"),
+                    "Your email address is not verified with your login provider.");
+        }
         User user = new User();
         String email = principal.getEmail();
         user.setEmail(email != null ? email.trim().toLowerCase(Locale.ROOT) : null);

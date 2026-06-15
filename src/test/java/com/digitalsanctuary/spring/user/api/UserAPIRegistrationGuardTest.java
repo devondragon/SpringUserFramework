@@ -28,11 +28,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
-import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -68,9 +65,6 @@ class UserAPIRegistrationGuardTest {
     private ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
 
     @Mock
-    private RegistrationGuard registrationGuard;
-
-    @Mock
     private WebAuthnCredentialManagementService webAuthnService;
 
     @InjectMocks
@@ -102,8 +96,9 @@ class UserAPIRegistrationGuardTest {
 
             when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
                     .thenReturn(Collections.emptyList());
-            when(registrationGuard.evaluate(any(RegistrationContext.class)))
-                    .thenReturn(RegistrationDecision.deny("Registration is by invitation only"));
+            // The guard now fires inside the service: a denial surfaces as RegistrationDeniedException.
+            when(userService.registerNewUserAccount(any(UserDto.class)))
+                    .thenThrow(new RegistrationDeniedException("Registration is by invitation only"));
 
             mockMvc.perform(post("/user/registration")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -133,8 +128,6 @@ class UserAPIRegistrationGuardTest {
 
             when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
                     .thenReturn(Collections.emptyList());
-            when(registrationGuard.evaluate(any(RegistrationContext.class)))
-                    .thenReturn(RegistrationDecision.allow());
             when(userService.registerNewUserAccount(any(UserDto.class))).thenReturn(registeredUser);
 
             mockMvc.perform(post("/user/registration")
@@ -159,8 +152,9 @@ class UserAPIRegistrationGuardTest {
             dto.setLastName("User");
 
             when(webAuthnCredentialManagementServiceProvider.getIfAvailable()).thenReturn(webAuthnService);
-            when(registrationGuard.evaluate(any(RegistrationContext.class)))
-                    .thenReturn(RegistrationDecision.deny("Beta access required"));
+            // The guard now fires inside the service: a denial surfaces as RegistrationDeniedException.
+            when(userService.registerPasswordlessAccount(any(PasswordlessRegistrationDto.class)))
+                    .thenThrow(new RegistrationDeniedException("Beta access required"));
 
             mockMvc.perform(post("/user/registration/passwordless")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -186,8 +180,6 @@ class UserAPIRegistrationGuardTest {
                     .build();
 
             when(webAuthnCredentialManagementServiceProvider.getIfAvailable()).thenReturn(webAuthnService);
-            when(registrationGuard.evaluate(any(RegistrationContext.class)))
-                    .thenReturn(RegistrationDecision.allow());
             when(userService.registerPasswordlessAccount(any(PasswordlessRegistrationDto.class)))
                     .thenReturn(registeredUser);
 

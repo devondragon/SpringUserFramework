@@ -1,8 +1,12 @@
 package com.digitalsanctuary.spring.user.gdpr;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.digitalsanctuary.spring.user.dto.GdprExportDTO;
 import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
@@ -43,6 +47,17 @@ public class GdprDeletionService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final List<GdprDataContributor> dataContributors;
     private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * Self-reference resolved through the Spring proxy, used to invoke {@link #executeUserDeletion} so its
+     * {@code @Transactional} boundary actually applies. Calling {@code executeUserDeletion(...)} directly
+     * ({@code this.}) would be a self-invocation that bypasses the proxy, leaving the deletion non-transactional
+     * (partial deletes possible) and causing the after-commit event to fire immediately. Injected {@link Lazy}
+     * to break the construction-time circular dependency on itself.
+     */
+    @Lazy
+    @Autowired
+    private GdprDeletionService self;
 
     /**
      * Result of a GDPR deletion operation.
@@ -129,8 +144,9 @@ public class GdprDeletionService {
                 exportedData = gdprExportService.exportUserData(user);
             }
 
-            // Step 2: Perform deletion in transaction
-            return executeUserDeletion(user, exportedData, exportBeforeDeletion);
+            // Step 2: Perform deletion in transaction. Invoke through the proxy (self) so the @Transactional
+            // boundary on executeUserDeletion applies — a direct this-call would bypass it.
+            return self.executeUserDeletion(user, exportedData, exportBeforeDeletion);
 
         } catch (Exception e) {
             log.error("GdprDeletionService.deleteUser: Failed to delete user {}: {}",
@@ -168,12 +184,37 @@ public class GdprDeletionService {
 
         log.info("GdprDeletionService.deleteUser: Successfully deleted user {}", userId);
 
-        // Step 6: Publish UserDeletedEvent after successful deletion
-        eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail, wasExported));
+        // Step 6: Publish UserDeletedEvent AFTER the deletion transaction commits, so listeners
+        // (especially @Async ones) never observe a not-yet-committed deletion. If no transaction
+        // is active, publish immediately.
+        publishUserDeletedEventAfterCommit(userId, userEmail, wasExported);
 
         return wasExported
                 ? DeletionResult.successWithExport(exportedData)
                 : DeletionResult.success(null);
+    }
+
+    /**
+     * Publishes a {@link UserDeletedEvent} after the current transaction commits.
+     *
+     * <p>If a transaction is active, the event is published from
+     * {@link TransactionSynchronization#afterCommit()}; otherwise it is published immediately.
+     *
+     * @param userId      the id of the deleted user
+     * @param userEmail   the email of the deleted user
+     * @param wasExported whether data was exported before deletion
+     */
+    private void publishUserDeletedEventAfterCommit(Long userId, String userEmail, boolean wasExported) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    eventPublisher.publishEvent(new UserDeletedEvent(GdprDeletionService.this, userId, userEmail, wasExported));
+                }
+            });
+        } else {
+            eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail, wasExported));
+        }
     }
 
     /**

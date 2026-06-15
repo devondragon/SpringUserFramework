@@ -35,12 +35,14 @@ class RegistrationListenerTest {
 
     @BeforeEach
     void setUp() {
+        // Default the shared fixture to a DISABLED (not-yet-verified) user so the "send verification email"
+        // tests exercise the email-sending path. The skip-for-enabled-users behavior is covered separately.
         testUser = UserTestDataBuilder.aUser()
                 .withId(1L)
                 .withEmail("test@example.com")
                 .withFirstName("Test")
                 .withLastName("User")
-                .enabled()
+                .disabled()
                 .build();
         appUrl = "https://example.com";
         locale = Locale.ENGLISH;
@@ -51,12 +53,17 @@ class RegistrationListenerTest {
     class RegistrationEventHandlingTests {
 
         @Test
-        @DisplayName("onApplicationEvent - sends verification email when enabled")
+        @DisplayName("onApplicationEvent - sends verification email when enabled and user is not yet verified")
         void onApplicationEvent_sendsVerificationEmailWhenEnabled() {
-            // Given
+            // Given - a DISABLED (not yet verified) user, as produced by the form-registration path when
+            // email verification is required.
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
+            User unverifiedUser = UserTestDataBuilder.aUser()
+                    .withEmail("unverified@example.com")
+                    .disabled()
+                    .build();
             OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                    .user(testUser)
+                    .user(unverifiedUser)
                     .locale(locale)
                     .appUrl(appUrl)
                     .build();
@@ -65,7 +72,30 @@ class RegistrationListenerTest {
             registrationListener.onApplicationEvent(event);
 
             // Then
-            verify(userEmailService).sendRegistrationVerificationEmail(testUser, appUrl);
+            verify(userEmailService).sendRegistrationVerificationEmail(unverifiedUser, appUrl);
+        }
+
+        @Test
+        @DisplayName("onApplicationEvent - skips verification email for already-enabled (OAuth/OIDC) user")
+        void onApplicationEvent_skipsVerificationEmailForEnabledUser() {
+            // Given - sending is enabled, but the user is already enabled (e.g. a first-time OAuth2/OIDC
+            // registration where the provider has already verified the email). They must NOT receive an email.
+            ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
+            User enabledUser = UserTestDataBuilder.aUser()
+                    .withEmail("oauth@example.com")
+                    .enabled()
+                    .build();
+            OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
+                    .user(enabledUser)
+                    .locale(locale)
+                    .appUrl(appUrl)
+                    .build();
+
+            // When
+            registrationListener.onApplicationEvent(event);
+
+            // Then
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(), any());
         }
 
         @Test

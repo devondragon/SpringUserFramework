@@ -3,6 +3,8 @@ package com.digitalsanctuary.spring.user.service;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
@@ -60,6 +62,9 @@ public class LoginHelperService {
         // Check if the user account is locked, but should be unlocked now, and unlock it
         dbUser = loginAttemptService.checkIfUserShouldBeUnlocked(dbUser);
 
+        // Enforce account status for all authentication paths (form, OAuth2, OIDC, WebAuthn)
+        assertAccountUsable(dbUser);
+
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(dbUser);
         return new DSUserDetails(dbUser, authorities, attributes);
     }
@@ -96,7 +101,33 @@ public class LoginHelperService {
         // Check if the user account is locked, but should be unlocked now, and unlock it
         dbUser = loginAttemptService.checkIfUserShouldBeUnlocked(dbUser);
 
+        // Enforce account status for all authentication paths (form, OAuth2, OIDC, WebAuthn)
+        assertAccountUsable(dbUser);
+
         Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(dbUser);
         return new DSUserDetails(dbUser, oidcUserInfo, oidcIdToken, authorities, attributes);
+    }
+
+    /**
+     * Verifies that the given user account is in a usable state for authentication. This enforces account status
+     * ({@code locked}/{@code enabled}) for every authentication path that flows through this helper, including
+     * OAuth2, OIDC, and WebAuthn (which load the user via {@link DSUserDetailsService}). Locked status is checked
+     * before disabled status so a locked account surfaces a {@link LockedException} even if it is also disabled.
+     *
+     * @param user the user to validate (after any auto-unlock has been applied)
+     * @throws LockedException   if the account is locked
+     * @throws DisabledException if the account is disabled
+     */
+    private void assertAccountUsable(User user) {
+        // Exception messages are intentionally generic (no PII): they can surface to WARN/ERROR logs and
+        // user-facing error flows via handlers we do not control. The email is captured only in DEBUG logs.
+        if (user.isLocked()) {
+            log.debug("Rejecting authentication for locked account: {}", user.getEmail());
+            throw new LockedException("Account is locked");
+        }
+        if (!user.isEnabled()) {
+            log.debug("Rejecting authentication for disabled account: {}", user.getEmail());
+            throw new DisabledException("Account is disabled");
+        }
     }
 }

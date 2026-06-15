@@ -30,6 +30,13 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	VerificationToken findByUser(User user);
 
 	/**
+	 * Delete all tokens for the given user. Used to enforce a single active token per user.
+	 *
+	 * @param user the user whose tokens should be deleted
+	 */
+	void deleteByUser(User user);
+
+	/**
 	 * Find all by expiry date less than.
 	 *
 	 * @param now the now
@@ -52,4 +59,17 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 	@Modifying
 	@Query("delete from VerificationToken t where t.expiryDate <= ?1")
 	void deleteAllExpiredSince(Date now);
+
+	/**
+	 * Delete by token value using a direct DELETE query without fetching the entity first. Returns the
+	 * number of rows removed, which makes the DELETE usable as an atomic single-use guard: under
+	 * concurrent consumption the row lock serializes the deletes, so exactly one caller observes a
+	 * count of {@code 1} and the rest observe {@code 0}.
+	 *
+	 * @param token the token value (stored hash) to delete
+	 * @return the number of tokens deleted (0 or 1)
+	 */
+	@Modifying
+	@Query("delete from VerificationToken t where t.token = ?1")
+	int deleteByToken(String token);
 }

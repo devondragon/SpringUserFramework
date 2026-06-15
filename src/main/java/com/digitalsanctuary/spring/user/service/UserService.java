@@ -7,8 +7,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.ConcurrencyFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
 import org.springframework.security.core.Authentication;
@@ -19,13 +26,17 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
+import com.digitalsanctuary.spring.user.event.UserDisabledEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
@@ -37,6 +48,11 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationContext;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import com.digitalsanctuary.spring.user.util.TimeLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -226,6 +242,36 @@ public class UserService {
 
 	private final SessionInvalidationService sessionInvalidationService;
 
+	/** Hashes tokens before they are stored / looked up at rest. */
+	private final TokenHasher tokenHasher;
+
+	/**
+	 * The registration guard, enforced on every registration path (form, passwordless) in this service
+	 * so that direct callers cannot bypass it. Resolves to the primary
+	 * {@link com.digitalsanctuary.spring.user.registration.CompositeRegistrationGuard composite guard},
+	 * which applies first-deny-wins across all configured guards.
+	 */
+	private final RegistrationGuard registrationGuard;
+
+	/**
+	 * Self-reference, resolved through the Spring proxy, used to invoke the transactional persistence
+	 * methods from the non-transactional public entry points.
+	 *
+	 * <p>
+	 * bcrypt hashing is deliberately slow (~100ms+). Running it inside an open transaction holds a
+	 * pooled DB connection for the full hash and starves the pool under load. The public entry methods
+	 * are therefore annotated {@link Propagation#NOT_SUPPORTED} so they run with no transaction (no
+	 * connection held) while the encode happens, then delegate the actual DB write to a short
+	 * {@code @Transactional} persist method invoked <em>through this proxy reference</em>. Calling the
+	 * persist method directly ({@code this.persistX(...)}) would be a self-invocation that bypasses the
+	 * proxy, so the transaction would never start — hence the proxied self-reference. It is injected
+	 * {@link Lazy} to break the construction-time circular dependency on itself.
+	 * </p>
+	 */
+	@Lazy
+	@Autowired
+	private UserService self;
+
 	/** The send registration verification email flag. */
 	@Value("${user.registration.sendVerificationEmail:false}")
 	private boolean sendRegistrationVerificationEmail;
@@ -243,10 +289,28 @@ public class UserService {
 	 *
 	 * @param newUserDto the data transfer object containing the user registration
 	 *                   information
+	 * <p>
+	 * Runs with {@link Isolation#SERIALIZABLE} isolation to close the duplicate-registration
+	 * race when two requests register the same email concurrently. The {@link #emailExists}
+	 * pre-check handles the common case, but a concurrent insert can still fail at commit; in
+	 * that case the resulting {@link DataIntegrityViolationException} (unique-constraint
+	 * violation) or serialization failure ({@link CannotAcquireLockException} /
+	 * {@link ConcurrencyFailureException}) is translated into a {@link UserAlreadyExistException}
+	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
+	 * </p>
+	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
+	 *           transaction (and no pooled connection) held, and the DB write is delegated to a
+	 *           short, separate transaction. As a result this method does <em>not</em> enlist in a
+	 *           caller's transaction — if a consumer calls it from inside their own
+	 *           {@code @Transactional}, that outer transaction is suspended and the registration
+	 *           commits independently, so an outer rollback will not undo the persisted user.
+	 *
 	 * @return the newly created user entity
 	 * @throws UserAlreadyExistException if an account with the same email already
 	 *                                   exists
 	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public User registerNewUserAccount(final UserDto newUserDto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerNewUserAccount");
 		log.debug("UserService.registerNewUserAccount: called with userDto: {}", newUserDto);
@@ -262,19 +326,19 @@ public class UserService {
 			throw new IllegalArgumentException("Passwords do not match");
 		}
 
-		if (emailExists(newUserDto.getEmail())) {
-			log.debug("UserService.registerNewUserAccount: email already exists: {}", newUserDto.getEmail());
-			throw new UserAlreadyExistException(
-					"There is an account with that email address: " + newUserDto.getEmail());
-		}
+		// Enforce the RegistrationGuard for every form registration — including direct callers of this
+		// service method — before doing any (slow) work. A denial throws RegistrationDeniedException,
+		// which the UserAPI translates into the REGISTRATION_DENIED response.
+		evaluateRegistrationGuard(newUserDto.getEmail(), RegistrationSource.FORM, null);
 
-		// Create a new User entity
+		// Create a new User entity. The (deliberately slow) bcrypt encode runs HERE, with NO
+		// transaction active (this method is Propagation.NOT_SUPPORTED), so it never holds a pooled
+		// DB connection. The DB write happens afterward in the short, proxied persistNewUserAccount.
 		User user = new User();
 		user.setFirstName(newUserDto.getFirstName());
 		user.setLastName(newUserDto.getLastName());
 		user.setPassword(passwordEncoder.encode(newUserDto.getPassword()));
 		user.setEmail(newUserDto.getEmail().toLowerCase());
-		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
 
 		// If we are not sending a verification email
 		if (!sendRegistrationVerificationEmail) {
@@ -282,11 +346,70 @@ public class UserService {
 			user.setEnabled(true);
 		}
 
-		user = userRepository.save(user);
-		savePasswordHistory(user, user.getPassword());
-		// authWithoutPassword(user);
+		// Persist through the proxy so the SERIALIZABLE transaction actually applies (a direct
+		// this.persistNewUserAccount(...) self-invocation would bypass the proxy and run no transaction).
+		User saved = self.persistNewUserAccount(user);
+		// authWithoutPassword(saved);
 		timeLogger.end();
-		return user;
+		return saved;
+	}
+
+	/**
+	 * Persists a new user account inside a short, serializable transaction.
+	 *
+	 * <p>
+	 * This is the DB-only half of {@link #registerNewUserAccount(UserDto)}: the password has already
+	 * been encoded by the (non-transactional) caller, so no slow bcrypt work happens while this
+	 * connection-holding transaction is open. It runs with {@link Isolation#SERIALIZABLE} to close the
+	 * duplicate-registration race when two requests register the same email concurrently. The
+	 * {@link #emailExists} pre-check handles the common case, but a concurrent insert can still fail at
+	 * commit; in that case the resulting {@link DataIntegrityViolationException} (unique-constraint
+	 * violation) or serialization failure ({@link CannotAcquireLockException} /
+	 * {@link ConcurrencyFailureException}) is translated into a {@link UserAlreadyExistException}
+	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
+	 * deliberately <b>protected</b> so consumers cannot call it directly and bypass the centralized
+	 * RegistrationGuard enforced by {@link #registerNewUserAccount(UserDto)}. It must be
+	 * {@code protected} rather than package-private: the CGLIB proxy subclass is generated in a
+	 * different package, so it can only override (and therefore advise/route) {@code public} or
+	 * {@code protected} methods. A package-private method is not overridden, so the {@code self}
+	 * invocation would execute on the proxy instance — whose {@code @Autowired} fields are never
+	 * populated — and both the transaction and the dependencies would be missing.
+	 * </p>
+	 *
+	 * @param user the fully built user entity (password already encoded)
+	 * @return the saved user entity
+	 * @throws UserAlreadyExistException if an account with the same email already exists
+	 */
+	@Transactional(isolation = Isolation.SERIALIZABLE)
+	protected User persistNewUserAccount(final User user) {
+		if (emailExists(user.getEmail())) {
+			log.debug("UserService.persistNewUserAccount: email already exists: {}", user.getEmail());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + user.getEmail());
+		}
+
+		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
+
+		try {
+			User saved = userRepository.save(user);
+			savePasswordHistory(saved, saved.getPassword());
+			return saved;
+		} catch (DataIntegrityViolationException | ConcurrencyFailureException e) {
+			// A concurrent registration won the race: the unique-email constraint was violated
+			// (DataIntegrityViolationException) or the SERIALIZABLE transaction could not be
+			// serialized (ConcurrencyFailureException, e.g. CannotAcquireLockException). Translate
+			// to a 409 instead of letting it surface as a 500. Only these duplicate/serialization
+			// cases are translated; unrelated exceptions propagate unchanged.
+			log.debug("UserService.persistNewUserAccount: concurrent registration detected for email {}: {}",
+					user.getEmail(), e.getClass().getSimpleName());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + user.getEmail());
+		}
 	}
 
 	/**
@@ -315,25 +438,52 @@ public class UserService {
 
 	/**
 	 * Cleans up old password history entries for a user, keeping only the most recent entries.
-	 * Uses SERIALIZABLE isolation to prevent race conditions when the same user changes
-	 * their password concurrently from multiple sessions.
+	 *
+	 * <p>
+	 * This is a private helper reached via {@code savePasswordHistory} on the call chain
+	 * {@code changeUserPassword} → {@code self.persistChangedPassword} (proxied, {@code @Transactional})
+	 * → {@code savePasswordHistory} → {@code cleanUpPasswordHistory}. It therefore runs inside the
+	 * transaction opened at {@code persistChangedPassword}; it carries no {@code @Transactional} of its
+	 * own (one on a private/self-invoked method would be ignored by the proxy anyway). Rather than load
+	 * every history row and {@code deleteAll} the overflow (a read-then-delete window that races with
+	 * concurrent inserts), it issues a single set-based, bounded delete:
+	 * </p>
+	 * <ol>
+	 * <li>Locate the id of the oldest entry to keep (the {@code maxEntries}-th most recent entry,
+	 * ordered by primary key descending).</li>
+	 * <li>Delete all of the user's entries with an id strictly less than that cutoff.</li>
+	 * </ol>
+	 *
+	 * <p>
+	 * Ordering by id is reliable because the id is generated with {@code GenerationType.IDENTITY}
+	 * and is therefore monotonically increasing. The approach is portable across H2, MariaDB, and
+	 * PostgreSQL (no subquery {@code LIMIT}) and is tolerant of being called repeatedly.
+	 * </p>
 	 *
 	 * @param user the user whose password history should be cleaned up
 	 */
-	@Transactional(isolation = Isolation.SERIALIZABLE)
 	private void cleanUpPasswordHistory(User user) {
 		if (user == null || historyCount <= 0) {
 			return;
 		}
 
-		List<PasswordHistoryEntry> entries = passwordHistoryRepository.findByUserOrderByEntryDateDesc(user);
-		// Keep historyCount + 1 entries: the current password plus historyCount previous passwords
-		// This ensures we actually prevent reuse of the last historyCount passwords
+		// Keep historyCount + 1 entries: the current password plus historyCount previous passwords.
+		// This ensures we actually prevent reuse of the last historyCount passwords.
 		int maxEntries = historyCount + 1;
-		if (entries.size() > maxEntries) {
-			List<PasswordHistoryEntry> toDelete = entries.subList(maxEntries, entries.size());
-			passwordHistoryRepository.deleteAll(toDelete);
-			log.debug("Cleaned up {} old password history entries for user: {}", toDelete.size(), user.getEmail());
+
+		// Fetch only the cutoff row: the oldest entry we want to keep (0-based index maxEntries - 1,
+		// newest first). Everything older than this is pruned.
+		List<Long> cutoffIds =
+				passwordHistoryRepository.findIdsByUserOrderByIdDesc(user, PageRequest.of(maxEntries - 1, 1));
+		if (cutoffIds.isEmpty()) {
+			// Fewer than maxEntries rows exist; nothing to prune.
+			return;
+		}
+
+		Long cutoffId = cutoffIds.get(0);
+		int deleted = passwordHistoryRepository.deleteByUserAndIdLessThan(user, cutoffId);
+		if (deleted > 0) {
+			log.debug("Cleaned up {} old password history entries for user: {}", deleted, user.getEmail());
 		}
 	}
 
@@ -351,9 +501,9 @@ public class UserService {
 	 */
 	@Transactional
 	public void deleteOrDisableUser(final User user) {
-		log.debug("UserService.deleteOrDisableUser: called with user: {}", user);
+		log.debug("UserService.deleteOrDisableUser: called for user: {}", user != null ? user.getEmail() : null);
 		if (actuallyDeleteAccount) {
-			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user);
+			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user.getEmail());
 			// Capture user details before deletion for the post-delete event
 			Long userId = user.getId();
 			String userEmail = user.getEmail();
@@ -376,14 +526,56 @@ public class UserService {
 			// Delete the user
 			userRepository.delete(user);
 
-			// Publish UserDeletedEvent after successful deletion
-			log.debug("Publishing UserDeletedEvent");
-			eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userEmail));
+			// Publish UserDeletedEvent AFTER the surrounding transaction commits. The event is
+			// primarily consumed by external applications (often via @Async listeners) that must
+			// not observe a not-yet-committed deletion. There is no framework-internal listener
+			// for this event, so rather than annotate a listener we defer publication itself via a
+			// transaction synchronization. If no transaction is active (e.g. called outside a
+			// transactional context), fall back to publishing immediately.
+			publishEventAfterCommit(new UserDeletedEvent(this, userId, userEmail));
 		} else {
-			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user);
+			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is false, disabling user: {}", user.getEmail());
+			// Capture user details before the save for the post-commit event, mirroring the delete path.
+			Long userId = user.getId();
+			String userEmail = user.getEmail();
+
 			user.setEnabled(false);
 			userRepository.save(user);
 			log.debug("UserService.deleteOrDisableUser: user {} has been disabled", user.getEmail());
+
+			// Publish UserDisabledEvent AFTER the surrounding transaction commits so listeners (often
+			// @Async, in consuming apps) never observe a not-yet-committed change. This makes the default
+			// soft-delete path observable, matching the hard-delete path's UserDeletedEvent.
+			publishEventAfterCommit(new UserDisabledEvent(this, userId, userEmail));
+		}
+	}
+
+	/**
+	 * Publishes the given application event after the current transaction commits.
+	 *
+	 * <p>
+	 * If a transaction is active, the event is published from
+	 * {@link TransactionSynchronization#afterCommit()} so listeners (especially {@code @Async}
+	 * ones) never act on a change that has not yet been committed. If no transaction is active,
+	 * the event is published immediately so the behavior is still correct in non-transactional
+	 * callers. Used for both {@link UserDeletedEvent} (hard delete) and {@link UserDisabledEvent}
+	 * (soft delete).
+	 * </p>
+	 *
+	 * @param event the event to publish after commit
+	 */
+	private void publishEventAfterCommit(final ApplicationEvent event) {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					log.debug("Publishing {} after commit", event.getClass().getSimpleName());
+					eventPublisher.publishEvent(event);
+				}
+			});
+		} else {
+			log.debug("Publishing {} (no active transaction)", event.getClass().getSimpleName());
+			eventPublisher.publishEvent(event);
 		}
 	}
 
@@ -401,26 +593,49 @@ public class UserService {
 	}
 
 	/**
+	 * Resolves a password reset token by its raw value using a dual-read strategy.
+	 *
+	 * <p>
+	 * Tokens are stored hashed, so we first look up by {@code hash(rawToken)}. For backward
+	 * compatibility we fall back to looking up by the raw value, which resolves any pre-upgrade
+	 * tokens that were stored in plaintext before token hashing was introduced. This fallback is
+	 * permanently safe and needs no operator action to retire: every token carries an
+	 * {@code expiryDate} bounded by the configured lifetime, and the validate path rejects expired
+	 * tokens, so any lingering plaintext token becomes unusable within its lifetime window.
+	 * </p>
+	 *
+	 * @param rawToken the raw token value
+	 * @return the resolved token entity, or {@code null} if not found
+	 */
+	private PasswordResetToken resolvePasswordResetToken(final String rawToken) {
+		if (rawToken == null) {
+			return null;
+		}
+		PasswordResetToken token = passwordTokenRepository.findByToken(tokenHasher.hash(rawToken));
+		if (token == null) {
+			token = passwordTokenRepository.findByToken(rawToken);
+		}
+		return token;
+	}
+
+	/**
 	 * Gets the password reset token.
 	 *
-	 * @param token the token
+	 * @param token the raw token
 	 * @return the password reset token
 	 */
 	public PasswordResetToken getPasswordResetToken(final String token) {
-		return passwordTokenRepository.findByToken(token);
+		return resolvePasswordResetToken(token);
 	}
 
 	/**
 	 * Gets the user by password reset token.
 	 *
-	 * @param token the token
+	 * @param token the raw token
 	 * @return the user by password reset token
 	 */
 	public Optional<User> getUserByPasswordResetToken(final String token) {
-		if (token == null) {
-			return Optional.empty();
-		}
-		PasswordResetToken passwordResetToken = passwordTokenRepository.findByToken(token);
+		PasswordResetToken passwordResetToken = resolvePasswordResetToken(token);
 		if (passwordResetToken == null) {
 			return Optional.empty();
 		}
@@ -429,18 +644,72 @@ public class UserService {
 
 	/**
 	 * Deletes a password reset token after it has been used.
-	 * Uses a direct DELETE query for efficiency (no SELECT required).
 	 *
-	 * @param token the token string to delete
+	 * <p>
+	 * Uses dual-delete to match the dual-read lookup: deletes the hashed value first, then falls back
+	 * to the raw value to clean up any pre-upgrade plaintext token.
+	 * </p>
+	 *
+	 * @param token the raw token string to delete
 	 */
 	public void deletePasswordResetToken(final String token) {
 		if (token == null) {
 			return;
 		}
-		int deletedCount = passwordTokenRepository.deleteByToken(token);
-		if (deletedCount > 0) {
-			log.debug("Deleted password reset token: {}", token);
+		int deletedCount = passwordTokenRepository.deleteByToken(tokenHasher.hash(token));
+		if (deletedCount == 0) {
+			deletedCount = passwordTokenRepository.deleteByToken(token);
 		}
+		if (deletedCount > 0) {
+			log.debug("Deleted used password reset token.");
+		}
+	}
+
+	/**
+	 * Atomically validates and consumes a password reset token in a single transaction.
+	 *
+	 * <p>
+	 * This prevents a token from being double-consumed: validation and deletion happen together, so
+	 * two concurrent reset attempts cannot both succeed with the same token. Returns the associated
+	 * user when the token is valid (and deletes it), or {@code null} when the token is missing or
+	 * expired (expired tokens are also deleted as a cleanup). Uses dual-read so both hashed
+	 * (post-upgrade) and plaintext (pre-upgrade) tokens resolve.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Concurrency:</strong> the conditional {@code DELETE} is the atomicity guard, not the
+	 * surrounding transaction. A plain read-check-delete would let two concurrent requests both read the
+	 * row (under READ_COMMITTED) and both return the user before either delete commits. Instead we delete
+	 * by token value and only return the user when the delete actually removed the row ({@code count == 1});
+	 * the row lock serializes concurrent deletes so exactly one caller wins.
+	 * </p>
+	 *
+	 * @param token the raw token to validate and consume
+	 * @return the user associated with the token if it was valid, otherwise {@code null}
+	 */
+	@Transactional
+	public User validateAndConsumePasswordResetToken(final String token) {
+		final PasswordResetToken passToken = resolvePasswordResetToken(token);
+		if (passToken == null) {
+			return null;
+		}
+		final User user = passToken.getUser();
+		final boolean expired = passToken.getExpiryDate().before(Calendar.getInstance().getTime());
+
+		// Atomic single-use guard: consume by deleting the row and act only if THIS call removed it.
+		// Dual-delete mirrors the dual-read (hashed first, then pre-upgrade plaintext fallback).
+		int consumed = passwordTokenRepository.deleteByToken(tokenHasher.hash(token));
+		if (consumed == 0) {
+			consumed = passwordTokenRepository.deleteByToken(token);
+		}
+		if (consumed == 0) {
+			// Another concurrent reset attempt consumed the token first.
+			return null;
+		}
+		if (expired) {
+			return null;
+		}
+		return user;
 	}
 
 	/**
@@ -458,12 +727,56 @@ public class UserService {
 	 *
 	 * @param user     the user
 	 * @param password the password
+	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
+	 *           transaction (and no pooled connection) held, and the DB write is delegated to a
+	 *           short, separate transaction. As a result this method does <em>not</em> enlist in a
+	 *           caller's transaction — if a consumer calls it from inside their own
+	 *           {@code @Transactional}, that outer transaction is suspended and the password change
+	 *           commits independently, so an outer rollback will not undo it.
 	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void changeUserPassword(final User user, final String password) {
+		// Encode the new password with NO transaction active (this method is
+		// Propagation.NOT_SUPPORTED) so the slow bcrypt hash never holds a pooled DB connection.
 		String encodedPassword = passwordEncoder.encode(password);
 		user.setPassword(encodedPassword);
+		// Persist through the proxy so the short transaction applies.
+		self.persistChangedPassword(user, encodedPassword);
+	}
+
+	/**
+	 * Persists a changed password inside a short transaction.
+	 *
+	 * <p>
+	 * The DB-only half of {@link #changeUserPassword(User, String)}: the password has already been
+	 * encoded by the (non-transactional) caller, so no bcrypt work happens while this transaction holds
+	 * a connection. Saves the user, records password history, and invalidates all existing sessions so
+	 * a reset/change forces re-auth everywhere (OWASP).
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
+	 * <b>protected</b> so it stays out of the public API yet remains overridable by the CGLIB proxy
+	 * subclass — which is generated in a different package and therefore cannot override a
+	 * package-private method. A package-private method would not be advised and the {@code self}
+	 * invocation would run on the proxy instance (whose {@code @Autowired} fields are null), so it
+	 * must be {@code protected} (or public).
+	 * </p>
+	 *
+	 * @param user            the user whose password changed (password field already set/encoded)
+	 * @param encodedPassword the already-encoded password to record in history
+	 */
+	@Transactional
+	protected void persistChangedPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
+		// Force re-auth on a password change (OWASP). By default the current session is preserved and
+		// regenerated and only the user's OTHER sessions are invalidated, so the user is not logged out
+		// of the device they just used; set user.session.invalidation.keep-current-session-on-password-change=false
+		// to terminate every session including the current one.
+		sessionInvalidationService.invalidateSessionsAfterPasswordChange(user);
 	}
 
 	/**
@@ -502,7 +815,9 @@ public class UserService {
 		user.setPassword(null);
 		userRepository.save(user);
 		passwordHistoryRepository.deleteByUser(user);
-		sessionInvalidationService.invalidateUserSessions(user);
+		// Same policy as a password change: by default preserve+regenerate the current session and invalidate
+		// only the user's other sessions (see user.session.invalidation.keep-current-session-on-password-change).
+		sessionInvalidationService.invalidateSessionsAfterPasswordChange(user);
 		log.info("Password removed for user: {}", user.getEmail());
 	}
 
@@ -513,17 +828,54 @@ public class UserService {
 	 * @param user the user to set the password for
 	 * @param rawPassword the raw password to encode and save
 	 * @throws IllegalStateException if the user already has a password
+	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
+	 *           transaction (and no pooled connection) held, and the DB write is delegated to a
+	 *           short, separate transaction. As a result this method does <em>not</em> enlist in a
+	 *           caller's transaction — if a consumer calls it from inside their own
+	 *           {@code @Transactional}, that outer transaction is suspended and the password change
+	 *           commits independently, so an outer rollback will not undo it.
 	 */
-	@Transactional
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void setInitialPassword(User user, String rawPassword) {
 		if (hasPassword(user)) {
 			throw new IllegalStateException("User already has a password");
 		}
+		// Encode with NO transaction active (this method is Propagation.NOT_SUPPORTED) so the slow
+		// bcrypt hash never holds a pooled DB connection. The DB write runs in the proxied persist.
 		String encodedPassword = passwordEncoder.encode(rawPassword);
 		user.setPassword(encodedPassword);
+		// Persist through the proxy so the short transaction applies.
+		self.persistInitialPassword(user, encodedPassword);
+		log.info("Initial password set for user: {}", user.getEmail());
+	}
+
+	/**
+	 * Persists an initial password inside a short transaction.
+	 *
+	 * <p>
+	 * The DB-only half of {@link #setInitialPassword(User, String)}: the password has already been
+	 * encoded by the (non-transactional) caller, so no bcrypt work happens while this transaction holds
+	 * a connection. Saves the user and records password history.
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: this method exists only to split the DB write away from the bcrypt hash. It MUST
+	 * be invoked through the Spring proxy (via {@link #self}) so the transaction applies. It is
+	 * <b>protected</b> so it stays out of the public API yet remains overridable by the CGLIB proxy
+	 * subclass — which is generated in a different package and therefore cannot override a
+	 * package-private method. A package-private method would not be advised and the {@code self}
+	 * invocation would run on the proxy instance (whose {@code @Autowired} fields are null), so it
+	 * must be {@code protected} (or public).
+	 * </p>
+	 *
+	 * @param user            the user whose initial password is being set (password field already set)
+	 * @param encodedPassword the already-encoded password to record in history
+	 */
+	@Transactional
+	protected void persistInitialPassword(final User user, final String encodedPassword) {
 		userRepository.save(user);
 		savePasswordHistory(user, encodedPassword);
-		log.info("Initial password set for user: {}", user.getEmail());
 	}
 
 	/**
@@ -537,7 +889,12 @@ public class UserService {
 	@Transactional(isolation = Isolation.SERIALIZABLE)
 	public User registerPasswordlessAccount(final PasswordlessRegistrationDto dto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerPasswordlessAccount");
-		log.debug("UserService.registerPasswordlessAccount: called with dto: {}", dto);
+		log.debug("UserService.registerPasswordlessAccount: called for email: {}", dto != null ? dto.getEmail() : null);
+
+		// Enforce the RegistrationGuard for every passwordless registration — including direct callers of
+		// this service method. A denial throws RegistrationDeniedException, which the UserAPI translates
+		// into the REGISTRATION_DENIED response.
+		evaluateRegistrationGuard(dto.getEmail(), RegistrationSource.PASSWORDLESS, null);
 
 		if (emailExists(dto.getEmail())) {
 			log.debug("UserService.registerPasswordlessAccount: email already exists: {}", dto.getEmail());
@@ -572,13 +929,57 @@ public class UserService {
 	}
 
 	/**
+	 * Evaluates the configured {@link RegistrationGuard} for a registration attempt and throws a
+	 * {@link RegistrationDeniedException} if it is denied.
+	 *
+	 * <p>This centralizes guard enforcement in the service so that <em>every</em> registration path —
+	 * including direct callers of the public registration methods — is guarded exactly once with the
+	 * correct {@link RegistrationSource}. The injected guard is the primary
+	 * {@link com.digitalsanctuary.spring.user.registration.CompositeRegistrationGuard composite}, so all
+	 * configured guards are applied with first-deny-wins semantics.</p>
+	 *
+	 * @param email        the email address of the registration attempt (may be {@code null})
+	 * @param source       the registration source; never {@code null}
+	 * @param providerName the OAuth2/OIDC provider registration id, or {@code null} for form/passwordless
+	 * @throws RegistrationDeniedException if the guard denies the registration
+	 */
+	private void evaluateRegistrationGuard(final String email, final RegistrationSource source, final String providerName) {
+		RegistrationDecision decision = registrationGuard.evaluate(new RegistrationContext(email, source, providerName));
+		if (!decision.allowed()) {
+			log.info("Registration denied for source: {} provider: {} reason: {}", source, providerName, decision.reason());
+			throw new RegistrationDeniedException(decision.reason());
+		}
+	}
+
+	/**
+	 * Enforces the configured {@link RegistrationGuard} for a first-time OAuth2/OIDC social registration.
+	 *
+	 * <p>The OAuth2 and OIDC user services build and persist new social users themselves (with
+	 * provider-specific role assignment and audit events). To keep guard enforcement centralized in this
+	 * service — so the guard SPI lives in exactly one place and direct callers of the registration paths
+	 * cannot bypass it — those services delegate the guard check here at the point a NEW social user is
+	 * about to be created (never on login of an existing OAuth/OIDC user). On denial this throws
+	 * {@link RegistrationDeniedException}, which the OAuth/OIDC services translate into the appropriate
+	 * {@code OAuth2AuthenticationException}.</p>
+	 *
+	 * @param email        the email address from the OAuth2/OIDC provider
+	 * @param source       the registration source ({@link RegistrationSource#OAUTH2} or
+	 *                     {@link RegistrationSource#OIDC})
+	 * @param providerName the OAuth2/OIDC provider registration id (e.g. {@code "google"}, {@code "keycloak"})
+	 * @throws RegistrationDeniedException if the guard denies the registration
+	 */
+	public void enforceRegistrationGuard(final String email, final RegistrationSource source, final String providerName) {
+		evaluateRegistrationGuard(email, source, providerName);
+	}
+
+	/**
 	 * Validate password reset token.
 	 *
 	 * @param token the token
 	 * @return the password reset token validation result enum
 	 */
 	public TokenValidationResult validatePasswordResetToken(String token) {
-		final PasswordResetToken passToken = passwordTokenRepository.findByToken(token);
+		final PasswordResetToken passToken = resolvePasswordResetToken(token);
 		if (passToken == null) {
 			return TokenValidationResult.INVALID_TOKEN;
 		}
@@ -621,7 +1022,7 @@ public class UserService {
 	 * @param user The user to authenticate without password verification
 	 */
 	public void authWithoutPassword(User user) {
-		log.debug("UserService.authWithoutPassword: authenticating user: {}", user);
+		log.debug("UserService.authWithoutPassword: authenticating user: {}", user != null ? user.getEmail() : null);
 		if (user == null || user.getEmail() == null) {
 			log.error("Invalid user or user email");
 			return;
@@ -678,9 +1079,20 @@ public class UserService {
 		}
 
 		HttpServletRequest request = servletRequestAttributes.getRequest();
-		HttpSession session = request.getSession(true);
+		// Ensure a session exists before attempting to rotate its id.
+		request.getSession(true);
 
-		// Store the security context in the session
+		// Defend against session fixation on this programmatic-login path: issue a new session id
+		// (existing attributes are preserved) so a pre-auth fixed id cannot be reused post-authentication (OWASP).
+		try {
+			request.changeSessionId();
+		} catch (IllegalStateException e) {
+			// No active session to rotate (shouldn't happen after getSession(true)); fall back to a fresh session below.
+			log.warn("UserService.storeSecurityContextInSession: could not rotate session id: {}", e.getMessage());
+		}
+
+		// Store the security context on the (now rotated) session.
+		HttpSession session = request.getSession(true);
 		session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 	}
 

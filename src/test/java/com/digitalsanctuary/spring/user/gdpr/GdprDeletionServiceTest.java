@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.digitalsanctuary.spring.user.dto.GdprExportDTO;
 import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
@@ -57,6 +58,9 @@ class GdprDeletionServiceTest {
 
     @BeforeEach
     void setUp() {
+        // In production 'self' is the Spring proxy used to apply @Transactional on executeUserDeletion.
+        // There is no proxy in a unit test, so point it at the SUT to exercise the real call path.
+        ReflectionTestUtils.setField(gdprDeletionService, "self", gdprDeletionService);
         testUser = UserTestDataBuilder.aVerifiedUser()
                 .withId(1L)
                 .withEmail("test@example.com")

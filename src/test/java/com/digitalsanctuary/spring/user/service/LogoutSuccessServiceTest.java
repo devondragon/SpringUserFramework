@@ -239,7 +239,7 @@ class LogoutSuccessServiceTest {
         void shouldExtractIpFromXForwardedForHeader() throws IOException, ServletException {
             // Given
             String forwardedIp = "203.0.113.195";
-            when(request.getHeader("X-Forwarded-For")).thenReturn(forwardedIp);
+            lenient().when(request.getHeader("X-Forwarded-For")).thenReturn(forwardedIp);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             when(userDetails.getUser()).thenReturn(testUser);
 
@@ -259,8 +259,8 @@ class LogoutSuccessServiceTest {
         void shouldExtractIpFromXRealIpHeader() throws IOException, ServletException {
             // Given
             String realIp = "198.51.100.178";
-            when(request.getHeader("X-Forwarded-For")).thenReturn(null);
-            when(request.getHeader("X-Real-IP")).thenReturn(realIp);
+            lenient().when(request.getHeader("X-Forwarded-For")).thenReturn(null);
+            lenient().when(request.getHeader("X-Real-IP")).thenReturn(realIp);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             when(userDetails.getUser()).thenReturn(testUser);
 
@@ -280,9 +280,9 @@ class LogoutSuccessServiceTest {
         void shouldFallBackToRemoteAddress() throws IOException, ServletException {
             // Given
             String remoteAddr = "192.0.2.146";
-            when(request.getHeader("X-Forwarded-For")).thenReturn(null);
-            when(request.getHeader("X-Real-IP")).thenReturn(null);
-            when(request.getHeader("CF-Connecting-IP")).thenReturn(null);
+            lenient().when(request.getHeader("X-Forwarded-For")).thenReturn(null);
+            lenient().when(request.getHeader("X-Real-IP")).thenReturn(null);
+            lenient().when(request.getHeader("CF-Connecting-IP")).thenReturn(null);
             when(request.getRemoteAddr()).thenReturn(remoteAddr);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             when(userDetails.getUser()).thenReturn(testUser);
@@ -331,7 +331,7 @@ class LogoutSuccessServiceTest {
         @DisplayName("Should handle null user agent gracefully")
         void shouldHandleNullUserAgentGracefully() throws IOException, ServletException {
             // Given
-            when(request.getHeader("User-Agent")).thenReturn(null);
+            lenient().when(request.getHeader("User-Agent")).thenReturn(null);
             when(authentication.getPrincipal()).thenReturn(userDetails);
             when(userDetails.getUser()).thenReturn(testUser);
 

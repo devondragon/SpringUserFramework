@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -21,10 +22,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
@@ -35,11 +39,16 @@ import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.event.UserDeletedEvent;
+import com.digitalsanctuary.spring.user.event.UserDisabledEvent;
 import com.digitalsanctuary.spring.user.event.UserPreDeleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordHistoryEntry;
@@ -52,6 +61,8 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
+import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.RoleTestDataBuilder;
 import com.digitalsanctuary.spring.user.test.builders.TokenTestDataBuilder;
@@ -90,6 +101,10 @@ public class UserServiceTest {
     private PasswordHistoryRepository passwordHistoryRepository;
     @Mock
     private SessionInvalidationService sessionInvalidationService;
+    @Mock
+    private TokenHasher tokenHasher;
+    @Mock
+    private RegistrationGuard registrationGuard;
     @InjectMocks
     private UserService userService;
     private User testUser;
@@ -100,6 +115,19 @@ public class UserServiceTest {
         // Use centralized test fixtures for consistent test data
         testUser = TestFixtures.Users.standardUser();
         testUserDto = TestFixtures.DTOs.validUserRegistration();
+
+        // The public entry methods (registerNewUserAccount/changeUserPassword/setInitialPassword) run
+        // with NO transaction so bcrypt never holds a DB connection, then delegate the DB write to a
+        // @Transactional persist method invoked through the Spring proxy (the "self" reference). Under
+        // @InjectMocks there is no proxy and "self" is null, so wire it back to the unit-under-test so
+        // the real persist logic executes during these unit tests.
+        ReflectionTestUtils.setField(userService, "self", userService);
+
+        // The RegistrationGuard is now enforced inside the registration entry points. Default it to
+        // allow so existing registration tests are unaffected; guard-denial behavior is exercised by
+        // the dedicated UserServiceRegistrationGuardTest.
+        org.mockito.Mockito.lenient().when(registrationGuard.evaluate(any()))
+                .thenReturn(RegistrationDecision.allow());
     }
 
     @Test
@@ -134,6 +162,57 @@ public class UserServiceTest {
         assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
                 .isInstanceOf(UserAlreadyExistException.class)
                 .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - translates DataIntegrityViolationException from save into UserAlreadyExistException")
+    void registerNewUserAccount_translatesDataIntegrityViolationToUserAlreadyExist() {
+        // Given: pre-check passes (email not found) but the concurrent insert loses the race at commit
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
+
+        // When & Then
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(UserAlreadyExistException.class)
+                .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - translates serialization failure (ConcurrencyFailureException) into UserAlreadyExistException")
+    void registerNewUserAccount_translatesConcurrencyFailureToUserAlreadyExist() {
+        // Given: pre-check passes but the SERIALIZABLE transaction cannot acquire the lock at commit
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new CannotAcquireLockException("could not serialize access"));
+
+        // When & Then
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(UserAlreadyExistException.class)
+                .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - does not swallow unrelated runtime exceptions from save")
+    void registerNewUserAccount_doesNotSwallowUnrelatedExceptions() {
+        // Given
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new IllegalStateException("unrelated failure"));
+
+        // When & Then: the unrelated exception must propagate, not be translated to 409
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unrelated failure");
     }
 
     @Test
@@ -189,6 +268,20 @@ public class UserServiceTest {
         verify(userRepository).save(testUser);
     }
 
+    @Test
+    void changeUserPassword_invalidatesExistingSessions() {
+        // Given
+        String newPassword = "newTestPassword";
+        when(passwordEncoder.encode(newPassword)).thenReturn("encodedNewPassword");
+        when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+        // When
+        userService.changeUserPassword(testUser, newPassword);
+
+        // Then
+        verify(sessionInvalidationService).invalidateSessionsAfterPasswordChange(testUser);
+    }
+
     // Additional tests for comprehensive coverage
     @Test
     @DisplayName("saveRegisteredUser - saves and returns user")
@@ -231,9 +324,9 @@ public class UserServiceTest {
         }
 
         @Test
-        @DisplayName("deleteOrDisableUser - when actuallyDeleteAccount is false - disables user")
+        @DisplayName("deleteOrDisableUser - when actuallyDeleteAccount is false - disables user and publishes UserDisabledEvent")
         void deleteOrDisableUser_whenActuallyDeleteFalse_disablesUser() {
-            // Given
+            // Given: no active transaction, so the disable event is published immediately (fallback path)
             ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", false);
             when(userRepository.save(any(User.class))).thenReturn(testUser);
 
@@ -244,7 +337,90 @@ public class UserServiceTest {
             assertThat(testUser.isEnabled()).isFalse();
             verify(userRepository).save(testUser);
             verify(userRepository, never()).delete(any());
-            verify(eventPublisher, never()).publishEvent(any());
+
+            // The soft-delete path is now observable via UserDisabledEvent.
+            ArgumentCaptor<UserDisabledEvent> captor = ArgumentCaptor.forClass(UserDisabledEvent.class);
+            verify(eventPublisher).publishEvent(captor.capture());
+            assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
+            assertThat(captor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
+            // No delete-path events should be published on the disable branch.
+            verify(eventPublisher, never()).publishEvent(any(UserPreDeleteEvent.class));
+            verify(eventPublisher, never()).publishEvent(any(UserDeletedEvent.class));
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - UserDisabledEvent is deferred until after transaction commit")
+        void deleteOrDisableUser_publishesUserDisabledEventAfterCommit() {
+            // Given: an active transaction synchronization (simulating the surrounding @Transactional)
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", false);
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                // When
+                userService.deleteOrDisableUser(testUser);
+
+                // Then: the disable event must NOT yet be published
+                verify(eventPublisher, never()).publishEvent(any(UserDisabledEvent.class));
+
+                // A synchronization was registered for after-commit delivery
+                List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+                assertThat(syncs).hasSize(1);
+
+                // When the transaction commits, the disable event is delivered
+                syncs.forEach(TransactionSynchronization::afterCommit);
+
+                // Then
+                ArgumentCaptor<UserDisabledEvent> captor = ArgumentCaptor.forClass(UserDisabledEvent.class);
+                verify(eventPublisher).publishEvent(captor.capture());
+                assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
+                assertThat(captor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - UserDeletedEvent is deferred until after transaction commit")
+        void deleteOrDisableUser_publishesUserDeletedEventAfterCommit() {
+            // Given: an active transaction synchronization (simulating the surrounding @Transactional)
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", true);
+            TransactionSynchronizationManager.initSynchronization();
+            try {
+                // When
+                userService.deleteOrDisableUser(testUser);
+
+                // Then: the pre-delete event fires immediately, but the deleted event must NOT yet
+                verify(eventPublisher).publishEvent(any(UserPreDeleteEvent.class));
+                verify(eventPublisher, never()).publishEvent(any(UserDeletedEvent.class));
+
+                // A synchronization was registered for after-commit delivery
+                List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+                assertThat(syncs).hasSize(1);
+
+                // When the transaction commits, the deleted event is delivered
+                syncs.forEach(TransactionSynchronization::afterCommit);
+
+                // Then
+                ArgumentCaptor<UserDeletedEvent> captor = ArgumentCaptor.forClass(UserDeletedEvent.class);
+                verify(eventPublisher).publishEvent(captor.capture());
+                assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
+                assertThat(captor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+            }
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - UserDeletedEvent still fires when no transaction is active")
+        void deleteOrDisableUser_publishesUserDeletedEventWhenNoTransaction() {
+            // Given: no active transaction synchronization
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", true);
+
+            // When
+            userService.deleteOrDisableUser(testUser);
+
+            // Then: the deleted event is published immediately (fallback path)
+            verify(eventPublisher).publishEvent(any(UserDeletedEvent.class));
         }
 
         @Test
@@ -286,6 +462,15 @@ public class UserServiceTest {
     @Nested
     @DisplayName("Password Reset Token Tests")
     class PasswordResetTokenTests {
+
+        @BeforeEach
+        void stubHasher() {
+            // These tests stub findByToken with the raw token string. The service hashes the token
+            // before lookup (dual-read), so make the hasher identity here to keep the existing
+            // stubs valid. The hashing behavior itself is covered by TokenHashingSecurityTest.
+            org.mockito.Mockito.lenient().when(tokenHasher.hash(anyString()))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+        }
 
         @Test
         @DisplayName("getPasswordResetToken - returns token when exists")
@@ -618,6 +803,45 @@ public class UserServiceTest {
                 // Should not throw exception even when request context is null
             }
         }
+
+        @Test
+        @DisplayName("authWithoutPassword - rotates the session id to defend against session fixation")
+        void shouldRotateSessionIdWhenAuthSucceeds() {
+            // Given a real request/session bound to the RequestContextHolder so that the servlet
+            // changeSessionId() contract is exercised faithfully (MockHttpServletRequest rotates the
+            // underlying MockHttpSession id while preserving attributes).
+            DSUserDetails userDetails = new DSUserDetails(testUser);
+            Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+
+            when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
+            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
+
+            MockHttpServletRequest mockRequest = new MockHttpServletRequest();
+            // Ensure a pre-auth session exists with a fixed id and a pre-existing attribute
+            HttpSession preAuthSession = mockRequest.getSession(true);
+            preAuthSession.setAttribute("preAuthAttr", "value");
+            String preAuthSessionId = preAuthSession.getId();
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(mockRequest));
+
+            try {
+                // When
+                userService.authWithoutPassword(testUser);
+
+                // Then - the session id must have rotated (fixation defense)...
+                HttpSession postAuthSession = mockRequest.getSession(false);
+                assertThat(postAuthSession).isNotNull();
+                assertThat(postAuthSession.getId())
+                        .as("session id should change after programmatic login")
+                        .isNotEqualTo(preAuthSessionId);
+                // ...while preserving existing session attributes...
+                assertThat(postAuthSession.getAttribute("preAuthAttr")).isEqualTo("value");
+                // ...and the security context must be stored on the (rotated) session.
+                assertThat(postAuthSession.getAttribute("SPRING_SECURITY_CONTEXT")).isNotNull();
+            } finally {
+                RequestContextHolder.resetRequestAttributes();
+                SecurityContextHolder.clearContext();
+            }
+        }
     }
     @Nested
     @DisplayName("Password Status Tests")
@@ -694,7 +918,7 @@ public class UserServiceTest {
             assertThat(testUser.getPassword()).isNull();
             verify(userRepository).save(testUser);
             verify(passwordHistoryRepository).deleteByUser(testUser);
-            verify(sessionInvalidationService).invalidateUserSessions(testUser);
+            verify(sessionInvalidationService).invalidateSessionsAfterPasswordChange(testUser);
         }
     }
 
@@ -783,6 +1007,99 @@ public class UserServiceTest {
             assertThatThrownBy(() -> userService.registerPasswordlessAccount(dto))
                     .isInstanceOf(UserAlreadyExistException.class)
                     .hasMessageContaining("There is an account with that email address");
+        }
+    }
+
+    @Nested
+    @DisplayName("Password Hashing Outside Transaction Tests")
+    class PasswordHashingOutsideTransactionTests {
+
+        /**
+         * bcrypt is deliberately slow, so it must run BEFORE the connection-holding DB write. Since the
+         * encode now happens in the non-transactional public entry method and the save happens in the
+         * proxied @Transactional persist method, asserting that {@code passwordEncoder.encode(...)}
+         * fires strictly before {@code userRepository.save(...)} proves the hash is computed outside the
+         * transactional persistence step.
+         */
+        @Test
+        @DisplayName("registerNewUserAccount - encodes password BEFORE the persisting save (hash outside the DB write)")
+        void registerNewUserAccount_encodesBeforeSave() {
+            // Given
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.registerNewUserAccount(testUserDto);
+
+            // Then: encode runs before the repository save (hash computed outside the persist step)
+            InOrder inOrder = inOrder(passwordEncoder, userRepository);
+            inOrder.verify(passwordEncoder).encode(anyString());
+            inOrder.verify(userRepository).save(any(User.class));
+        }
+
+        /**
+         * The transactional persist method must receive an ALREADY-encoded password: it does no
+         * encoding itself, confirming the (slow) hash happened in the non-transactional caller. We also
+         * assert the saved entity carries the encoded value, not the raw password.
+         */
+        @Test
+        @DisplayName("registerNewUserAccount - the persisted user carries the already-encoded password; persist does not re-encode")
+        void registerNewUserAccount_persistReceivesEncodedPassword() {
+            // Given
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(passwordEncoder.encode(testUserDto.getPassword())).thenReturn("encodedPassword");
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.registerNewUserAccount(testUserDto);
+
+            // Then: the entity handed to save already holds the encoded password (not the raw value),
+            // and encode was invoked exactly once (only in the non-transactional entry method).
+            ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+            verify(userRepository).save(captor.capture());
+            assertThat(captor.getValue().getPassword()).isEqualTo("encodedPassword");
+            verify(passwordEncoder).encode(testUserDto.getPassword());
+        }
+
+        @Test
+        @DisplayName("changeUserPassword - encodes password BEFORE the persisting save (hash outside the DB write)")
+        void changeUserPassword_encodesBeforeSave() {
+            // Given
+            String newPassword = "newTestPassword";
+            when(passwordEncoder.encode(newPassword)).thenReturn("encodedNewPassword");
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            userService.changeUserPassword(testUser, newPassword);
+
+            // Then: encode runs before save, and session invalidation still happens (in the persist).
+            InOrder inOrder = inOrder(passwordEncoder, userRepository, sessionInvalidationService);
+            inOrder.verify(passwordEncoder).encode(newPassword);
+            inOrder.verify(userRepository).save(testUser);
+            inOrder.verify(sessionInvalidationService).invalidateSessionsAfterPasswordChange(testUser);
+        }
+
+        @Test
+        @DisplayName("setInitialPassword - encodes password BEFORE the persisting save (hash outside the DB write)")
+        void setInitialPassword_encodesBeforeSave() {
+            // Given
+            testUser.setPassword(null);
+            String rawPassword = "NewSecurePassword123!";
+            when(passwordEncoder.encode(rawPassword)).thenReturn("encodedNewPassword");
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            userService.setInitialPassword(testUser, rawPassword);
+
+            // Then
+            InOrder inOrder = inOrder(passwordEncoder, userRepository);
+            inOrder.verify(passwordEncoder).encode(rawPassword);
+            inOrder.verify(userRepository).save(testUser);
         }
     }
 

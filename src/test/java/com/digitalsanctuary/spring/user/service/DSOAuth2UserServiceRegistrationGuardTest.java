@@ -3,6 +3,10 @@ package com.digitalsanctuary.spring.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -24,10 +28,14 @@ import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
+import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 
+/**
+ * Verifies that {@link DSOAuth2UserService} enforces the centralized {@link com.digitalsanctuary.spring.user.registration.RegistrationGuard}
+ * (via {@link UserService#enforceRegistrationGuard}) on first-time OAuth2 registration only, and translates a
+ * {@link RegistrationDeniedException} into the same {@code registration_denied} {@link OAuth2AuthenticationException}.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DSOAuth2UserService RegistrationGuard Tests")
 class DSOAuth2UserServiceRegistrationGuardTest {
@@ -42,7 +50,7 @@ class DSOAuth2UserServiceRegistrationGuardTest {
     private LoginHelperService loginHelperService;
 
     @Mock
-    private RegistrationGuard registrationGuard;
+    private UserService userService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -70,8 +78,8 @@ class DSOAuth2UserServiceRegistrationGuardTest {
                 .build();
 
         when(userRepository.findByEmail("new@gmail.com")).thenReturn(null);
-        when(registrationGuard.evaluate(any(RegistrationContext.class)))
-                .thenReturn(RegistrationDecision.deny("Domain not allowed"));
+        doThrow(new RegistrationDeniedException("Domain not allowed"))
+                .when(userService).enforceRegistrationGuard(eq("new@gmail.com"), eq(RegistrationSource.OAUTH2), anyString());
 
         assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
                 .isInstanceOf(OAuth2AuthenticationException.class)
@@ -92,8 +100,8 @@ class DSOAuth2UserServiceRegistrationGuardTest {
                 .build();
 
         when(userRepository.findByEmail("allowed@gmail.com")).thenReturn(null);
-        when(registrationGuard.evaluate(any(RegistrationContext.class)))
-                .thenReturn(RegistrationDecision.allow());
+        doNothing().when(userService)
+                .enforceRegistrationGuard(eq("allowed@gmail.com"), eq(RegistrationSource.OAUTH2), anyString());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         User result = service.handleOAuthLoginSuccess("google", googleUser);
@@ -123,6 +131,6 @@ class DSOAuth2UserServiceRegistrationGuardTest {
         User result = service.handleOAuthLoginSuccess("google", googleUser);
 
         assertThat(result).isNotNull();
-        verifyNoInteractions(registrationGuard);
+        verifyNoInteractions(userService);
     }
 }

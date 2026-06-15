@@ -1,8 +1,6 @@
 package com.digitalsanctuary.spring.user.audit;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,22 +10,24 @@ import lombok.extern.slf4j.Slf4j;
  * <p>This component ensures buffered audit data is written to the file at regular intervals,
  * balancing write performance with data integrity.
  *
- * <p><strong>Conditional Activation:</strong> This scheduler is only active when both conditions are met:
+ * <p><strong>Conditional Activation:</strong> This scheduler is contributed as a {@code @Bean} by
+ * {@link AuditMailAutoConfiguration} only when all of these hold:
  * <ul>
  *   <li>{@code user.audit.logEvents=true} - audit logging is enabled</li>
  *   <li>{@code user.audit.flushOnWrite=false} - immediate flush is disabled</li>
+ *   <li>a {@link FileAuditLogWriter} bean is present (i.e. a consumer has not replaced the writer)</li>
  * </ul>
  *
  * <p>When flush-on-write is enabled, logs are flushed immediately after each write,
  * making this scheduler unnecessary. The flush frequency is controlled by
- * {@code user.audit.flushRate} (in milliseconds).
+ * {@code user.audit.flushRate} (in milliseconds). It is not component-scanned because it depends on the
+ * auto-configured {@link FileAuditLogWriter} and must back off when that writer is absent.
  *
  * @see FileAuditLogWriter
  * @see AuditConfig
+ * @see AuditMailAutoConfiguration
  */
 @Slf4j
-@Component
-@ConditionalOnExpression("${user.audit.logEvents:true} && !${user.audit.flushOnWrite:true}")
 @RequiredArgsConstructor
 public class FileAuditLogFlushScheduler {
 

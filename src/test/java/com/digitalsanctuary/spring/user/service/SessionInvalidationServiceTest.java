@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,9 +17,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
@@ -272,6 +277,99 @@ class SessionInvalidationServiceTest {
             // Then - verify the session was invalidated (log verification would require LogCaptor)
             assertThat(invalidatedCount).isEqualTo(1);
             verify(session).expireNow();
+        }
+    }
+
+    @Nested
+    @DisplayName("invalidateSessionsAfterPasswordChange Tests")
+    class InvalidateSessionsAfterPasswordChangeTests {
+
+        @AfterEach
+        void clearRequestContext() {
+            RequestContextHolder.resetRequestAttributes();
+        }
+
+        private void bindRequestWithSession(String sessionId) {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setSession(new MockHttpSession(null, sessionId));
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        }
+
+        @Test
+        @DisplayName("by default preserves and regenerates the current session, invalidating only the user's OTHER sessions")
+        void preservesAndRegeneratesCurrentSession() {
+            ReflectionTestUtils.setField(sessionInvalidationService, "keepCurrentSessionOnPasswordChange", true);
+            bindRequestWithSession("current-session");
+
+            SessionInformation currentSession = mock(SessionInformation.class);
+            SessionInformation otherSession = mock(SessionInformation.class);
+            when(currentSession.getSessionId()).thenReturn("current-session");
+            when(otherSession.getSessionId()).thenReturn("other-session");
+            when(sessionRegistry.getAllPrincipals()).thenReturn(List.of(testUser));
+            when(sessionRegistry.getAllSessions(testUser, false)).thenReturn(Arrays.asList(currentSession, otherSession));
+
+            int invalidated = sessionInvalidationService.invalidateSessionsAfterPasswordChange(testUser);
+
+            // Only the OTHER session is invalidated; the current one is preserved (kept logged in).
+            assertThat(invalidated).isEqualTo(1);
+            verify(otherSession).expireNow();
+            verify(currentSession, never()).expireNow();
+            // The current session's id is regenerated (fixation protection) and the registry kept consistent.
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            String newSessionId = attrs.getRequest().getSession(false).getId();
+            assertThat(newSessionId).isNotEqualTo("current-session");
+            verify(sessionRegistry).removeSessionInformation("current-session");
+            verify(sessionRegistry).registerNewSession(newSessionId, testUser);
+        }
+
+        @Test
+        @DisplayName("when policy is disabled, invalidates ALL sessions including the current one")
+        void invalidatesAllWhenPolicyDisabled() {
+            ReflectionTestUtils.setField(sessionInvalidationService, "keepCurrentSessionOnPasswordChange", false);
+            bindRequestWithSession("current-session");
+
+            SessionInformation currentSession = mock(SessionInformation.class);
+            when(currentSession.getSessionId()).thenReturn("current-session");
+            when(sessionRegistry.getAllPrincipals()).thenReturn(List.of(testUser));
+            when(sessionRegistry.getAllSessions(testUser, false)).thenReturn(List.of(currentSession));
+
+            int invalidated = sessionInvalidationService.invalidateSessionsAfterPasswordChange(testUser);
+
+            assertThat(invalidated).isEqualTo(1);
+            verify(currentSession).expireNow();
+            verify(sessionRegistry, never()).registerNewSession(anyString(), any());
+        }
+
+        @Test
+        @DisplayName("with no current request (e.g. token-based reset), invalidates all of the user's sessions")
+        void invalidatesAllWhenNoCurrentRequest() {
+            ReflectionTestUtils.setField(sessionInvalidationService, "keepCurrentSessionOnPasswordChange", true);
+            // No RequestContextHolder bound: there is no current session to preserve.
+
+            SessionInformation session1 = mock(SessionInformation.class);
+            SessionInformation session2 = mock(SessionInformation.class);
+            when(session1.getSessionId()).thenReturn("s1");
+            when(session2.getSessionId()).thenReturn("s2");
+            when(sessionRegistry.getAllPrincipals()).thenReturn(List.of(testUser));
+            when(sessionRegistry.getAllSessions(testUser, false)).thenReturn(Arrays.asList(session1, session2));
+
+            int invalidated = sessionInvalidationService.invalidateSessionsAfterPasswordChange(testUser);
+
+            assertThat(invalidated).isEqualTo(2);
+            verify(session1).expireNow();
+            verify(session2).expireNow();
+            verify(sessionRegistry, never()).registerNewSession(anyString(), any());
+        }
+
+        @Test
+        @DisplayName("returns 0 and does nothing when user is null")
+        void returnsZeroWhenUserIsNull() {
+            ReflectionTestUtils.setField(sessionInvalidationService, "keepCurrentSessionOnPasswordChange", true);
+
+            int invalidated = sessionInvalidationService.invalidateSessionsAfterPasswordChange(null);
+
+            assertThat(invalidated).isEqualTo(0);
+            verify(sessionRegistry, never()).getAllPrincipals();
         }
     }
 }

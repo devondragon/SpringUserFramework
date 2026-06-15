@@ -30,13 +30,12 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.fixtures.OAuth2UserTestDataBuilder;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 
 /**
  * Comprehensive unit tests for DSOAuth2UserService that verify actual business logic,
@@ -57,7 +56,7 @@ class DSOAuth2UserServiceTest {
     private LoginHelperService loginHelperService;
 
     @Mock
-    private RegistrationGuard registrationGuard;
+    private UserService userService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -73,7 +72,8 @@ class DSOAuth2UserServiceTest {
         userRole.setName("ROLE_USER");
         userRole.setId(1L);
         lenient().when(roleRepository.findByName("ROLE_USER")).thenReturn(userRole);
-        lenient().when(registrationGuard.evaluate(any())).thenReturn(RegistrationDecision.allow());
+        // userService.enforceRegistrationGuard is a void method: by default the mock does nothing,
+        // which represents an allow decision (no RegistrationDeniedException thrown).
     }
 
     @Nested
@@ -116,6 +116,13 @@ class DSOAuth2UserServiceTest {
             assertThat(auditEvent.getAction()).isEqualTo("OAuth2 Registration Success");
             assertThat(auditEvent.getActionStatus()).isEqualTo("Success");
             assertThat(auditEvent.getUser().getEmail()).isEqualTo("john.doe@gmail.com");
+
+            // Verify a registration event was published for the first-time social registration so consumers
+            // can observe OAuth2 registrations the same way they observe form registrations.
+            ArgumentCaptor<OnRegistrationCompleteEvent> regCaptor = ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
+            verify(eventPublisher).publishEvent(regCaptor.capture());
+            assertThat(regCaptor.getValue().getUser().getEmail()).isEqualTo("john.doe@gmail.com");
+            assertThat(regCaptor.getValue().getUser().isEnabled()).isTrue();
         }
 
         @Test
@@ -192,6 +199,105 @@ class DSOAuth2UserServiceTest {
 
             // Then
             verify(userRepository).findByEmail("john.doe@gmail.com"); // Lowercase lookup
+        }
+    }
+
+    @Nested
+    @DisplayName("Google email_verified Tests")
+    class GoogleEmailVerifiedTests {
+
+        @Test
+        @DisplayName("Should accept Google login when email_verified is Boolean true")
+        void shouldAcceptWhenEmailVerifiedBooleanTrue() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("verified@gmail.com")
+                .withAttribute("email_verified", Boolean.TRUE)
+                .build();
+
+            when(userRepository.findByEmail("verified@gmail.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOAuthLoginSuccess("google", googleUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("verified@gmail.com");
+        }
+
+        @Test
+        @DisplayName("Should accept Google login when email_verified is String \"true\"")
+        void shouldAcceptWhenEmailVerifiedStringTrue() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("verified-str@gmail.com")
+                .withAttribute("email_verified", "true")
+                .build();
+
+            when(userRepository.findByEmail("verified-str@gmail.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOAuthLoginSuccess("google", googleUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("verified-str@gmail.com");
+        }
+
+        @Test
+        @DisplayName("Should accept Google login when email_verified is absent (trusted)")
+        void shouldAcceptWhenEmailVerifiedAbsent() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("noclaim@gmail.com")
+                .withoutAttribute("email_verified")
+                .build();
+
+            when(userRepository.findByEmail("noclaim@gmail.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOAuthLoginSuccess("google", googleUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("noclaim@gmail.com");
+        }
+
+        @Test
+        @DisplayName("Should reject Google login when email_verified is Boolean false")
+        void shouldRejectWhenEmailVerifiedBooleanFalse() {
+            // Given
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("unverified@gmail.com")
+                .withAttribute("email_verified", Boolean.FALSE)
+                .build();
+
+            // When/Then
+            assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(ex -> assertThat(((OAuth2AuthenticationException) ex).getError().getErrorCode())
+                        .isEqualTo("email_not_verified"));
+            verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("Should reject Google login when email_verified is String \"false\"")
+        void shouldRejectWhenEmailVerifiedStringFalse() {
+            // Given - String "false" with mixed case to verify case-insensitive handling
+            OAuth2User googleUser = OAuth2UserTestDataBuilder.google()
+                .withEmail("unverified-str@gmail.com")
+                .withAttribute("email_verified", "False")
+                .build();
+
+            // When/Then
+            assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(ex -> assertThat(((OAuth2AuthenticationException) ex).getError().getErrorCode())
+                        .isEqualTo("email_not_verified"));
+            verify(userRepository, never()).save(any(User.class));
         }
     }
 

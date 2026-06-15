@@ -12,28 +12,15 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
-import org.springframework.security.authentication.AuthenticationEventPublisher;
-import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
-import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
 import com.digitalsanctuary.spring.user.service.LoginSuccessService;
@@ -53,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 @EqualsAndHashCode(callSuper = false)
 @Configuration
 @RequiredArgsConstructor
-@EnableWebSecurity
 public class WebSecurityConfig {
 
 
@@ -111,9 +97,6 @@ public class WebSecurityConfig {
 	@Value("${spring.security.oauth2.enabled:false}")
 	private boolean oauth2Enabled;
 
-	@Value("${user.security.bcryptStrength}")
-	private int bcryptStrength = 10;
-
 	@Value("${user.security.rememberMe.enabled:false}")
 	private boolean rememberMeEnabled;
 
@@ -127,23 +110,28 @@ public class WebSecurityConfig {
 	private final UserDetailsService userDetailsService;
 	private final LoginSuccessService loginSuccessService;
 	private final LogoutSuccessService logoutSuccessService;
-	private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
 	private final WebAuthnConfigProperties webAuthnConfigProperties;
 	private final MfaConfigProperties mfaConfigProperties;
 	private final Environment environment;
+	private final ApplicationEventPublisher applicationEventPublisher;
 
 	/**
-	 *
-	 * The securityFilterChain method builds the security filter chain for Spring Security.
+	 * Builds the library's security filter chain for Spring Security.
+	 * <p>
+	 * This method is invoked by {@link WebSecurityFilterChainAutoConfiguration}, which exposes the result as a {@link SecurityFilterChain} bean at a
+	 * low precedence and backs off entirely when the consuming application defines its own {@link SecurityFilterChain}. It is intentionally NOT a
+	 * {@code @Bean} method here: {@code @ConditionalOnMissingBean} is only reliable on auto-configuration classes (which load after user-defined
+	 * beans), so the conditional/ordering lives on the auto-configuration class rather than on this component-scanned {@code @Configuration}.
+	 * </p>
 	 *
 	 * @param http the HttpSecurity object
+	 * @param sessionRegistry the SessionRegistry used to track active sessions
 	 * @return the SecurityFilterChain object
 	 * @throws Exception if there is an issue creating the SecurityFilterChain
 	 */
-	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain buildSecurityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry) throws Exception {
 		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
 		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(getUnprotectedURIsArray()));
 		List<String> unprotectedURIs = getUnprotectedURIsList();
@@ -160,8 +148,16 @@ public class WebSecurityConfig {
 			http.rememberMe(rememberMe -> rememberMe.key(rememberMeKey).userDetailsService(userDetailsService));
 		}
 
-		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessUrl(logoutSuccessURI).invalidateHttpSession(true)
+		// Use the LogoutSuccessService handler (instead of logoutSuccessUrl) so logout publishes an audit event.
+		// The handler still redirects to logoutSuccessURI (see LogoutSuccessService.onLogoutSuccess).
+		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessHandler(logoutSuccessService).invalidateHttpSession(true)
 				.deleteCookies("JSESSIONID"));
+
+		// Register sessions in the SessionRegistry so SessionInvalidationService and concurrent-session
+		// features actually work. maximumSessions(-1) = unlimited concurrent sessions, but still tracked
+		// in the registry. The SessionRegistry is injected (rather than calling the local bean method) so
+		// consumers and tests can override it via a @Primary / @ConditionalOnMissingBean bean.
+		http.sessionManagement(session -> session.maximumSessions(-1).sessionRegistry(sessionRegistry));
 
 		// If we have URIs to disable CSRF validation on, do so here
 		String[] baseDisableCSRFURIs = getDisableCSRFURIsArray();
@@ -216,13 +212,12 @@ public class WebSecurityConfig {
 	 * @throws Exception the exception
 	 */
 	private void setupOAuth2(HttpSecurity http) throws Exception {
-		// Entry point is handled globally in securityFilterChain via the injected authenticationEntryPoint bean
-		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService).failureHandler((request, response, exception) -> {
-					log.error("WebSecurityConfig.configure: OAuth2 login failure: {}", exception.getMessage());
-					request.getSession().setAttribute("error.message", exception.getMessage());
-					response.sendRedirect(loginPageURI);
-					// handler.onAuthenticationFailure(request, response, exception);
-				}).userInfoEndpoint(userInfo -> {
+		// Entry point is handled globally in securityFilterChain via the injected authenticationEntryPoint bean.
+		// The failure handler stores only a GENERIC message in the session for the UI (raw exception messages can
+		// leak account emails from Locked/Disabled exceptions and the registered provider from conflict errors);
+		// the real detail is logged server-side by the handler itself.
+		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService)
+				.failureHandler(new SanitizingOAuth2AuthenticationFailureHandler(loginPageURI)).userInfoEndpoint(userInfo -> {
 					userInfo.userService(dsOAuth2UserService);
 					userInfo.oidcUserService(dsOidcUserService);
 				}));
@@ -290,7 +285,7 @@ public class WebSecurityConfig {
 		return new ObjectPostProcessor<WebAuthnAuthenticationFilter>() {
 			@Override
 			public <O extends WebAuthnAuthenticationFilter> O postProcess(O filter) {
-				filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService));
+				filter.setAuthenticationSuccessHandler(new WebAuthnAuthenticationSuccessHandler(userDetailsService, applicationEventPublisher));
 				return filter;
 			}
 		};
@@ -323,96 +318,28 @@ public class WebSecurityConfig {
 		}
 		if (mfaConfigProperties.isEnabled()) {
 			unprotectedURIs.add("/user/mfa/status");
+			// A partially-authenticated user (one factor satisfied) is redirected to the configured factor
+			// entry-point page(s) to complete the remaining factor(s). Those pages MUST be reachable without
+			// full authentication; otherwise the redirect target is itself denied and the user loops between
+			// entry points (ERR_TOO_MANY_REDIRECTS). Auto-unprotect the configured entry-point URIs so a
+			// consuming app does not have to remember to list them manually.
+			addIfHasText(unprotectedURIs, mfaConfigProperties.getPasswordEntryPointUri());
+			addIfHasText(unprotectedURIs, mfaConfigProperties.getWebauthnEntryPointUri());
 		}
 		unprotectedURIs.removeAll(Collections.emptyList());
 		return unprotectedURIs;
 	}
 
 	/**
-	 * The authProvider method creates a DaoAuthenticationProvider and sets the UserDetailsService and PasswordEncoder for the provider.
+	 * Adds the given URI to the list only when it is non-null and not blank.
 	 *
-	 * @return the DaoAuthenticationProvider object
+	 * @param uris the list to add to
+	 * @param uri the candidate URI (may be {@code null} or blank)
 	 */
-	@Bean
-	public DaoAuthenticationProvider authProvider() {
-		DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
-		authProvider.setPasswordEncoder(encoder());
-		return authProvider;
-	}
-
-	/**
-	 * The encoder method creates a BCryptPasswordEncoder with the bcryptStrength value.
-	 *
-	 * @return the BCryptPasswordEncoder object
-	 */
-	@Bean
-	public PasswordEncoder encoder() {
-		return new BCryptPasswordEncoder(bcryptStrength);
-	}
-
-	/**
-	 * The sessionRegistry method creates a SessionRegistryImpl object.
-	 *
-	 * @return the SessionRegistryImpl object
-	 */
-	@Bean
-	public SessionRegistry sessionRegistry() {
-		return new SessionRegistryImpl();
-	}
-
-	/**
-	 * The roleHierarchy method creates a RoleHierarchyImpl object from the roleHierarchyString in the rolesAndPrivilegesConfig object.
-	 *
-	 * @return the RoleHierarchyImpl object
-	 */
-	@Bean
-	public RoleHierarchy roleHierarchy() {
-		if (rolesAndPrivilegesConfig == null) {
-			log.error("WebSecurityConfig.roleHierarchy: rolesAndPrivilegesConfig is null!");
-			return null;
+	private void addIfHasText(List<String> uris, String uri) {
+		if (uri != null && !uri.isBlank()) {
+			uris.add(uri);
 		}
-		if (rolesAndPrivilegesConfig.getRoleHierarchyString() == null) {
-			log.error("WebSecurityConfig.roleHierarchy: rolesAndPrivilegesConfig.getRoleHierarchyString() is null!");
-			return null;
-		}
-		RoleHierarchyImpl roleHierarchy = RoleHierarchyImpl.fromHierarchy(rolesAndPrivilegesConfig.getRoleHierarchyString());
-		log.debug("WebSecurityConfig.roleHierarchy: roleHierarchy: {}", roleHierarchy.toString());
-		return roleHierarchy;
-	}
-
-	/**
-	 * The methodSecurityExpressionHandler method creates a MethodSecurityExpressionHandler object and sets the roleHierarchy for the handler. This
-	 * ensures that method security annotations like @PreAuthorize use the configured role hierarchy.
-	 *
-	 * @return the MethodSecurityExpressionHandler object
-	 */
-	@Bean
-	static MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
-		DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
-		expressionHandler.setRoleHierarchy(roleHierarchy);
-		return expressionHandler;
-	}
-
-	/**
-	 * The httpSessionEventPublisher method creates an HttpSessionEventPublisher object.
-	 *
-	 * @return the HttpSessionEventPublisher object
-	 */
-	@Bean
-	public HttpSessionEventPublisher httpSessionEventPublisher() {
-		return new HttpSessionEventPublisher();
-	}
-
-	/**
-	 * This is required to publish authentication events to the Spring event system. This allows us to listen for authentication events and perform
-	 * actions based on successful or failed authentication.
-	 *
-	 * @param applicationEventPublisher the Spring ApplicationEventPublisher
-	 * @return the Spring Security default AuthenticationEventPublisher
-	 */
-	@Bean
-	public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-		return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
 	}
 
 	/**

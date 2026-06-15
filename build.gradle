@@ -46,7 +46,6 @@ dependencies {
 
     // Other dependencies (moved to test scope for library)
     implementation 'org.passay:passay:2.0.0'
-    implementation 'com.google.guava:guava:33.6.0-jre'
     implementation 'org.apache.commons:commons-text:1.15.0'
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
     compileOnly 'org.springframework.retry:spring-retry:2.0.12'
@@ -93,12 +92,12 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
     testImplementation 'org.testcontainers:testcontainers-mariadb:2.0.5'
     testImplementation 'org.testcontainers:testcontainers-postgresql:2.0.5'
-    testImplementation 'com.github.tomakehurst:wiremock:3.0.1'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.2'
     testImplementation 'org.assertj:assertj-core:3.27.7'
-    testImplementation 'io.rest-assured:rest-assured:6.0.0'
-    testImplementation 'com.icegreen:greenmail:2.1.8'
-    testImplementation 'org.awaitility:awaitility:4.3.0'
+    // Legacy Jackson 2 (com.fasterxml.jackson) for test JSON utilities. Spring Boot 4 ships Jackson 3
+    // (tools.jackson), so the com.fasterxml.jackson APIs these tests use must be declared explicitly
+    // rather than relied upon transitively. Version is managed by the Spring Boot BOM.
+    testImplementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
 
 tasks.named('bootJar') {
@@ -140,6 +139,13 @@ tasks.named('jar') {
 // This is necessary because Lombok generates constructors that cannot be documented
 tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    // Register the standard JDK documentation tags so @apiNote/@implSpec/@implNote are recognized
+    // by the doclet (otherwise they are reported as "unknown tag" errors and fail the Javadoc jar).
+    options.tags = [
+        'apiNote:a:API Note:',
+        'implSpec:a:Implementation Requirements:',
+        'implNote:a:Implementation Note:'
+    ]
 }
 
 def registerJdkTestTask(name, jdkVersion) {
@@ -176,15 +182,17 @@ def registerJdkTestTask(name, jdkVersion) {
     }
 }
 
-registerJdkTestTask('testJdk17', 17)
+// Spring Boot 4.x requires Java 21+, so the library compiles to Java 21 bytecode (see the toolchain
+// above) and is tested for runtime compatibility on Java 21 (the minimum) and Java 25 (the current LTS).
 registerJdkTestTask('testJdk21', 21)
+registerJdkTestTask('testJdk25', 25)
 
 
 // Optional task that runs tests with multiple JDKs
 tasks.register('testAll') {
-    dependsOn(tasks.named('testJdk17'), tasks.named('testJdk21'))
+    dependsOn(tasks.named('testJdk21'), tasks.named('testJdk25'))
     doFirst {
-        println("Running tests with both JDK 17 and JDK 21")
+        println("Running tests with JDK 21 and JDK 25")
     }
 }
 

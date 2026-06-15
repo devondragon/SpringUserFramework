@@ -14,6 +14,7 @@ This guide explains how to use the Registration Guard SPI in Spring User Framewo
     - [Invite-Only with OAuth2 Bypass](#invite-only-with-oauth2-bypass)
     - [Beta Access / Waitlist](#beta-access--waitlist)
   - [Denial Behavior](#denial-behavior)
+  - [Composing Multiple Guards](#composing-multiple-guards)
   - [Key Constraints](#key-constraints)
   - [Troubleshooting](#troubleshooting)
 
@@ -54,11 +55,19 @@ The Registration Guard SPI consists of these types in the `com.digitalsanctuary.
 
 4. **`RegistrationSource`** — Enum identifying the registration path: `FORM`, `PASSWORDLESS`, `OAUTH2`, `OIDC`
 
-5. **`DefaultRegistrationGuard`** — The built-in permit-all fallback. Automatically registered via `@ConditionalOnMissingBean` when no custom guard bean exists.
+5. **`DefaultRegistrationGuard`** — The built-in permit-all fallback. Automatically registered via `@ConditionalOnMissingBean` when no custom guard bean exists, so the composite always has at least one delegate.
+
+6. **`CompositeRegistrationGuard`** — The primary (`@Primary`) guard the framework injects everywhere. It wraps **all** `RegistrationGuard` beans and evaluates them in order with **first-deny-wins** semantics (see [Composing Multiple Guards](#composing-multiple-guards)). You normally never reference it directly.
+
+7. **`RegistrationDeniedException`** — A `RuntimeException` carrying the denial `reason`. The framework throws this from the service layer when a guard denies, and translates it into the appropriate response per path (see [Denial Behavior](#denial-behavior)). Consumers rarely need to catch it.
+
+### Where the guard runs
+
+The guard is enforced **inside `UserService`** (and, for first-time social sign-ups, via `UserService.enforceRegistrationGuard(...)` called by the OAuth2/OIDC user services). Because enforcement lives in the service rather than the controller, **every** registration path — REST API, OAuth2, OIDC, and any direct call to `UserService.registerNewUserAccount(...)` / `registerPasswordlessAccount(...)` — is guarded exactly once and cannot be bypassed. The guard runs only for **new** registrations; existing users logging in are never evaluated.
 
 ## Implementation Guide
 
-Create a `@Component` that implements `RegistrationGuard`. That's it — the default guard is automatically replaced.
+Create a `@Component` that implements `RegistrationGuard`. That's it — the default guard is automatically replaced, and your guard is wrapped by the composite.
 
 ```java
 @Component
@@ -158,11 +167,34 @@ The JSON error code `6` identifies a registration guard denial specifically, dis
 
 For OAuth2/OIDC denials, customize the user experience by configuring Spring Security's OAuth2 login failure handler to inspect the error code and display an appropriate message.
 
-All denied registrations are logged at INFO level with the email, source, and denial reason.
+All denied registrations are logged at INFO level with the source and denial reason.
+
+Internally, a denial surfaces from the service layer as a `RegistrationDeniedException` carrying the reason. The REST API catches it and returns the form/passwordless JSON above; the OAuth2/OIDC user services catch it and re-throw the `OAuth2AuthenticationException` shown above. The HTTP contract is identical regardless of how registration was triggered.
+
+## Composing Multiple Guards
+
+You may define **more than one** `RegistrationGuard` bean. The framework wraps them all in a `CompositeRegistrationGuard` (registered as `@Primary`) that evaluates them **in order, first-deny-wins**:
+
+- Guards are consulted in `@Order` / `org.springframework.core.Ordered` order (lowest value first; unordered beans come last).
+- The **first** guard to return `deny(...)` short-circuits — later guards are not consulted — and its reason is propagated.
+- If every guard allows (or you define no guards at all, leaving only the permit-all default), registration proceeds.
+
+This lets you layer independent policies — for example an invite-only guard **and** a domain-allowlist guard — where any single denial blocks the registration. Each guard stays small and single-purpose:
+
+```java
+@Component
+@Order(1)
+public class InviteOnlyGuard implements RegistrationGuard { /* ... */ }
+
+@Component
+@Order(2)
+public class DomainAllowlistGuard implements RegistrationGuard { /* ... */ }
+```
 
 ## Key Constraints
 
-- **Single-bean SPI** — Only one `RegistrationGuard` bean may be active at a time. This is not a chain or filter pattern; define exactly one guard.
+- **Composable SPI** — One or more `RegistrationGuard` beans may be active; they are composed with first-deny-wins ordering. (You can still define exactly one guard — that is just a composite of size one.)
+- **Enforced in the service** — The guard runs inside `UserService`, so direct callers of the service registration methods are guarded too; the SPI cannot be bypassed by skipping the controller.
 - **Thread safety required** — The guard may be invoked concurrently from multiple request threads. Ensure your implementation is thread-safe.
 - **No configuration properties** — The guard is activated entirely by bean presence. There are no `user.*` properties involved.
 - **Existing users unaffected** — The guard only runs for new registrations. Existing users logging in via OAuth2/OIDC are not evaluated.
@@ -176,8 +208,8 @@ All denied registrations are logged at INFO level with the email, source, and de
 - You can also check the active guard via `/actuator/beans` (if enabled) or your IDE's Spring tooling.
 
 **Multiple Guards Defined**
-- Only one `RegistrationGuard` bean is allowed. If multiple beans are defined, Spring will throw a `NoUniqueBeanDefinitionException` at startup.
-- If you need to compose multiple rules, implement a single guard that delegates internally.
+- Multiple `RegistrationGuard` beans are fully supported — they are composed automatically with first-deny-wins ordering (see [Composing Multiple Guards](#composing-multiple-guards)). Use `@Order` to control evaluation order.
+- The framework injects the `@Primary` `CompositeRegistrationGuard` everywhere, so defining several guards does **not** cause a `NoUniqueBeanDefinitionException`.
 
 **OAuth2/OIDC Denial UX**
 - By default, OAuth2/OIDC denials redirect to Spring Security's default failure URL with a generic error.
@@ -197,6 +229,6 @@ All denied registrations are logged at INFO level with the email, source, and de
 
 ---
 
-This SPI provides a clean extension point for controlling registration without modifying framework internals. Implement a single bean, return allow or deny, and the framework handles the rest across all registration paths.
+This SPI provides a clean extension point for controlling registration without modifying framework internals. Implement one or more beans, return allow or deny, and the framework composes them and handles the rest across all registration paths.
 
 For a complete working example, refer to the [Spring User Framework Demo Application](https://github.com/devondragon/SpringUserFrameworkDemoApp).

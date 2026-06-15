@@ -29,13 +29,12 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.fixtures.OidcUserTestDataBuilder;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 
 /**
  * Comprehensive unit tests for DSOidcUserService that verify actual business logic
@@ -55,7 +54,7 @@ class DSOidcUserServiceTest {
     private LoginHelperService loginHelperService;
 
     @Mock
-    private RegistrationGuard registrationGuard;
+    private UserService userService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -71,7 +70,8 @@ class DSOidcUserServiceTest {
         userRole.setName("ROLE_USER");
         userRole.setId(1L);
         lenient().when(roleRepository.findByName("ROLE_USER")).thenReturn(userRole);
-        lenient().when(registrationGuard.evaluate(any())).thenReturn(RegistrationDecision.allow());
+        // userService.enforceRegistrationGuard is a void method: by default the mock does nothing,
+        // which represents an allow decision (no RegistrationDeniedException thrown).
     }
 
     @Nested
@@ -110,6 +110,14 @@ class DSOidcUserServiceTest {
             
             verify(userRepository).save(any(User.class));
             verify(eventPublisher).publishEvent(any(AuditEvent.class));
+
+            // Verify a registration event was published for the first-time social registration so consumers
+            // can observe OIDC registrations the same way they observe form registrations.
+            org.mockito.ArgumentCaptor<OnRegistrationCompleteEvent> regCaptor =
+                    org.mockito.ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
+            verify(eventPublisher).publishEvent(regCaptor.capture());
+            assertThat(regCaptor.getValue().getUser().getEmail()).isEqualTo("john.doe@company.com");
+            assertThat(regCaptor.getValue().getUser().isEnabled()).isTrue();
         }
 
         @Test
@@ -209,6 +217,68 @@ class DSOidcUserServiceTest {
             assertThat(result.getEmail()).isNull();
             assertThat(result.getFirstName()).isNull();
             assertThat(result.getLastName()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("OIDC email_verified Tests")
+    class OidcEmailVerifiedTests {
+
+        @Test
+        @DisplayName("Should accept OIDC login when email_verified claim is true")
+        void shouldAcceptWhenEmailVerifiedTrue() {
+            // Given
+            OidcUser keycloakUser = OidcUserTestDataBuilder.keycloak()
+                .withEmail("verified@keycloak.com")
+                .withUserInfoClaim("email_verified", true)
+                .build();
+
+            when(userRepository.findByEmail("verified@keycloak.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOidcLoginSuccess("keycloak", keycloakUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("verified@keycloak.com");
+        }
+
+        @Test
+        @DisplayName("Should accept OIDC login when email_verified claim is absent (trusted)")
+        void shouldAcceptWhenEmailVerifiedAbsent() {
+            // Given
+            OidcUser keycloakUser = OidcUserTestDataBuilder.keycloak()
+                .withEmail("noclaim@keycloak.com")
+                .withoutUserInfoClaim("email_verified")
+                .build();
+
+            when(userRepository.findByEmail("noclaim@keycloak.com")).thenReturn(null);
+            when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User result = service.handleOidcLoginSuccess("keycloak", keycloakUser);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo("noclaim@keycloak.com");
+        }
+
+        @Test
+        @DisplayName("Should reject OIDC login when email_verified claim is false")
+        void shouldRejectWhenEmailVerifiedFalse() {
+            // Given
+            OidcUser keycloakUser = OidcUserTestDataBuilder.keycloak()
+                .withEmail("unverified@keycloak.com")
+                .withUserInfoClaim("email_verified", false)
+                .build();
+
+            // When/Then
+            assertThatThrownBy(() -> service.handleOidcLoginSuccess("keycloak", keycloakUser))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(ex -> assertThat(((OAuth2AuthenticationException) ex).getError().getErrorCode())
+                        .isEqualTo("email_not_verified"));
+            verify(userRepository, never()).save(any(User.class));
         }
     }
 

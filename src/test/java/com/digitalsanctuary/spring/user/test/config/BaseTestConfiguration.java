@@ -93,9 +93,16 @@ public class BaseTestConfiguration {
 
     /**
      * Helper class to configure test properties programmatically.
+     *
+     * <p>Note: {@code spring.profiles.active=test} is set globally here so that integration tests using a
+     * bare {@code @SpringBootTest} (no {@code @ActiveProfiles}) still resolve the test datasource and share
+     * a single H2 configuration across the JVM. Without it, default-profile contexts spin up a second
+     * datasource and contend on H2 locks under parallel execution. Tests that must run with a different
+     * profile (e.g. {@code RegistrationGuardConfigurationTest}) override this locally via a
+     * higher-precedence inlined property source rather than relying on this ambient value.</p>
      */
     public static class TestPropertySourcesConfigurer {
-        
+
         public TestPropertySourcesConfigurer() {
             // Set system properties for tests
             System.setProperty("spring.profiles.active", "test");
@@ -103,4 +110,5 @@ public class BaseTestConfiguration {
             System.setProperty("spring.datasource.initialization-mode", "always");
         }
     }
+
 }

@@ -36,9 +36,26 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 
 ## Audit Logging
 
-- **Log File Path (`user.audit.logFilePath`)**: The path to the audit log file.
-- **Flush on Write (`user.audit.flushOnWrite`)**: Set to `true` for immediate log flushing. Defaults to `false` for performance.
-- **Max Query Results (`user.audit.maxQueryResults`)**: Maximum number of audit events returned from queries. Prevents memory issues with large logs. Defaults to `10000`.
+- **Log File Path (`user.audit.logFilePath`)**: The path to the audit log file. If this path is not writable, the system falls back to the system temp directory.
+- **Flush on Write (`user.audit.flushOnWrite`)**: Set to `true` for immediate log flushing on every write. Defaults to `false` for performance. See **Durability** below.
+- **Flush Rate (`user.audit.flushRate`)**: The interval, in milliseconds, at which the buffered audit log is flushed to disk when `flushOnWrite=false`. Defaults to `30000` (30 seconds).
+- **Max Query Results (`user.audit.maxQueryResults`)**: Maximum number of audit events returned from queries. The query service streams the active log file and retains only the most-recent `maxQueryResults` matching events in a bounded ring buffer, so query memory stays bounded regardless of file size. Defaults to `10000`.
+- **Max File Size (`user.audit.maxFileSizeMb`)**: Maximum size, in megabytes, of the active audit log file before it is rotated. When exceeded, the active file is renamed to `<name>.1` (shifting existing archives up to `maxFiles`) and a fresh active file is opened. Set to `0` or a negative value to **disable rotation** (logs grow unbounded). Defaults to `10`. **Rotation is enabled by default** to prevent unbounded disk growth.
+- **Max Files (`user.audit.maxFiles`)**: Maximum number of rotated archive files to retain (e.g. `user-audit.log.1` .. `user-audit.log.5`). The oldest archive beyond this count is deleted on rotation. Defaults to `5`.
+
+### Durability
+
+The file audit sink uses a buffered writer. With the default `flushOnWrite=false`, audit events are written to an in-memory buffer and flushed to disk periodically on the `flushRate` schedule. On a hard crash, JVM kill (SIGKILL), or power loss, **up to one `flushRate` interval of buffered audit events (plus any un-flushed buffer contents) can be lost**.
+
+For compliance or security-critical deployments where no audit event may be lost, set `user.audit.flushOnWrite=true`. This flushes to disk after every event, eliminating the durability window at a per-write performance cost (under heavy load). Alternatively, lowering `flushRate` narrows the window without paying the full per-write cost.
+
+### Query Scope
+
+Audit queries (used by GDPR export and consent history) read only the **active** log file. Rotated archive files (`<name>.1`, `<name>.2`, ...) are not included in query results. If long-range historical queries are required, use a larger `maxFileSizeMb`/`maxFiles` window or a database-backed `AuditLogWriter`/`AuditLogQueryService`.
+
+## JPA Auditing
+
+- **Enable JPA Auditing (`user.jpa.auditing.enabled`)**: Controls whether the library enables Spring Data JPA auditing (`@EnableJpaAuditing`) and registers an `AuditorAware` that captures the current user from the Spring Security context for `@CreatedBy`/`@LastModifiedBy` fields. Defaults to `true`. Set to `false` if your application runs its own JPA auditing or supplies its own `AuditorAware` bean, so the library does not hijack it. This property is the primary opt-out, because the library's `@EnableJpaAuditing` resolves the auditor bean by name (`auditorProvider`).
 
 ## GDPR Compliance
 
@@ -64,6 +81,16 @@ user:
 - **Failed Login Attempts (`spring.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout.
 - **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
 - **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
+
+### Token Security
+
+Verification and password-reset tokens are **hashed at rest**. The raw token is only ever sent to the user in the emailed link; the database stores its hash. Lookups hash the incoming token and match by hash, with a transparent fallback to plaintext lookup so that any links issued before upgrading keep working until they expire. This requires no schema migration and no action from consuming applications.
+
+- **Token Hash Secret (`user.security.tokenHashSecret`)**: Optional secret used to key the at-rest hashing (HMAC-SHA-256) of verification and password-reset tokens. If left unset, plain SHA-256 is used, which is adequate because tokens are high-entropy random values. Setting a secret (kept outside the database) adds defense-in-depth against a database-only compromise. Default: unset.
+- **Password Reset Token Lifetime (`user.security.passwordResetTokenValidityMinutes`)**: Lifetime in minutes of a password reset token before it expires. Default is `1440` (24 hours).
+- **Verification Token Lifetime (`user.registration.verificationTokenValidityMinutes`)**: Lifetime in minutes of a registration verification token before it expires. Default is `1440` (24 hours).
+
+Only one active token per user is kept for each token type: requesting a new password reset or verification email invalidates the previous one.
 
 ## WebAuthn / Passkey Settings
 
@@ -137,6 +164,13 @@ user:
 ## Mail Configuration
 
 - **From Address (`spring.mail.fromAddress`)**: The email address used as the sender in outgoing emails.
+
+### Mail Executor
+
+Email is sent asynchronously (`@Async`) with retry/backoff. To prevent an SMTP outage from starving the shared application task executor that other
+async features rely on, mail runs on its own dedicated, bounded executor bean named `dsMailExecutor` (core pool 2, max pool 4, queue capacity 50, with
+a `CallerRunsPolicy` rejection handler that applies backpressure to the calling thread when the pool and queue are saturated). To change the sizing,
+supply your own `dsMailExecutor` bean (a `ThreadPoolTaskExecutor`); the library's default backs off via `@ConditionalOnMissingBean(name = "dsMailExecutor")`.
 
 
 ## Role and Privileges

@@ -96,6 +96,19 @@ class MfaFeatureEnabledIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("auto-unprotects the configured WebAuthn factor entry-point URI (prevents the partial-auth redirect loop)")
+	void shouldUnprotectConfiguredWebauthnEntryPointUri() throws Exception {
+		// A partially-authenticated user (missing the WEBAUTHN factor) is redirected to the WebAuthn entry-point
+		// page to complete it. If that page is itself protected, the redirect target is denied and the user loops
+		// between entry points (ERR_TOO_MANY_REDIRECTS). The framework auto-unprotects the configured entry-point
+		// URIs, so an unauthenticated request must NOT be redirected to the login page (a protected path would be).
+		String webauthnEntryPoint = mfaConfigProperties.getWebauthnEntryPointUri();
+		mockMvc.perform(get(webauthnEntryPoint)).andExpect(result -> assertThat(result.getResponse().getStatus())
+				.as("MFA WebAuthn entry point %s must be unprotected (not redirected to login)", webauthnEntryPoint)
+				.isNotEqualTo(org.springframework.http.HttpStatus.FOUND.value()));
+	}
+
+	@Test
 	@DisplayName("should report fully authenticated when user has all required factor authorities")
 	void shouldReportFullyAuthenticatedWhenUserHasAllRequiredFactorAuthorities() throws Exception {
 		List<GrantedAuthority> authorities = List.of(

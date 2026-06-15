@@ -164,7 +164,7 @@ All configuration uses `user.*` prefix in application.yml. Key property groups:
 
 ## Testing
 
-Tests use H2 in-memory database with JUnit 5 parallel execution. Key dependencies: Testcontainers, WireMock, GreenMail, AssertJ, REST Assured.
+Tests use H2 in-memory database with JUnit 5 parallel execution. Key dependencies: AssertJ, spring-security-test, Testcontainers (MariaDB/PostgreSQL), Awaitility, ArchUnit, and H2.
 
 ### Custom Test Annotations (use these instead of raw Spring annotations)
 

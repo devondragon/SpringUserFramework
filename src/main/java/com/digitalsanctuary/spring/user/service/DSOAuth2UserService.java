@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.Arrays;
+import java.util.Locale;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -11,12 +12,11 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
-import com.digitalsanctuary.spring.user.registration.RegistrationContext;
-import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
-import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +47,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
 
     private final LoginHelperService loginHelperService;
 
-    private final RegistrationGuard registrationGuard;
+    /** The user service, used to enforce the centralized RegistrationGuard on first-time registration. */
+    private final UserService userService;
 
     /** The Event Publisher. */
     private final ApplicationEventPublisher eventPublisher;
@@ -104,13 +105,15 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
             return userRepository.save(existingUser);
         } else {
             log.debug("handleOAuthLoginSuccess: registering new user with email: {}", user.getEmail());
-            RegistrationDecision decision = registrationGuard.evaluate(
-                    new RegistrationContext(user.getEmail(), RegistrationSource.OAUTH2, registrationId));
-            if (!decision.allowed()) {
-                log.info("Registration denied for email: {} source: OAUTH2 provider: {} reason: {}",
-                        user.getEmail(), registrationId, decision.reason());
+            // Enforce the centralized RegistrationGuard (in UserService) on first-time registration only.
+            // A denial surfaces as RegistrationDeniedException, which we translate into the same
+            // registration_denied OAuth2AuthenticationException this path returned previously.
+            try {
+                userService.enforceRegistrationGuard(user.getEmail(), RegistrationSource.OAUTH2, registrationId);
+            } catch (RegistrationDeniedException ex) {
+                log.info("Registration denied for source: OAUTH2 provider: {} reason: {}", registrationId, ex.getReason());
                 throw new OAuth2AuthenticationException(
-                        new OAuth2Error("registration_denied", decision.reason(), null), decision.reason());
+                        new OAuth2Error("registration_denied", ex.getReason(), null), ex.getReason());
             }
             user = registerNewOAuthUser(registrationId, user);
             return user;
@@ -136,6 +139,13 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(savedUser).action("OAuth2 Registration Success").actionStatus("Success")
                 .message("Registration Confirmed. User logged in.").build();
         eventPublisher.publishEvent(registrationAuditEvent);
+        // Publish a registration event for this first-time social registration so consumers can hook it the
+        // same way they hook form registrations. This method is only reached for brand-new users (existing
+        // users take the update branch in handleOAuthLoginSuccess). OAuth2 users are created ENABLED, so the
+        // RegistrationListener intentionally skips sending them a verification email; the event still fires.
+        // No HttpServletRequest is available here, so locale defaults and appUrl is null (only the verification
+        // email, which is skipped for enabled users, would have used appUrl).
+        eventPublisher.publishEvent(new OnRegistrationCompleteEvent(savedUser, Locale.getDefault(), null));
         return savedUser;
     }
 
@@ -161,11 +171,18 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
      * @return A User object representing the authenticated user.
      */
     public User getUserFromGoogleOAuth2User(OAuth2User principal) {
-        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal);
+        log.debug("Getting user info from Google OAuth2 provider with principal: {}", principal != null ? principal.getName() : null);
         if (principal == null) {
             return null;
         }
-        log.debug("Principal attributes: {}", principal.getAttributes());
+        log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
+        // Reject the login if Google explicitly reports the email as NOT verified.
+        // Providers that do not expose email_verified are trusted; only an explicit false is rejected.
+        if (isExplicitlyUnverified(principal.getAttribute("email_verified"))) {
+            log.warn("getUserFromGoogleOAuth2User: rejecting login because Google reports email_verified=false");
+            throw new OAuth2AuthenticationException(new OAuth2Error("email_not_verified"),
+                    "Your email address is not verified with your login provider.");
+        }
         User user = new User();
         String email = principal.getAttribute("email");
         user.setEmail(email != null ? email.toLowerCase() : null);
@@ -176,17 +193,53 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
     }
 
     /**
+     * Determines whether an {@code email_verified} claim value represents an explicit "not verified" signal.
+     *
+     * <p>
+     * Google's userinfo serializes {@code email_verified} as either a {@link Boolean} or a {@link String}
+     * ({@code "true"}/{@code "false"}) depending on the response format, so both are handled here. The value is
+     * treated as explicitly unverified only when it is {@link Boolean#FALSE} or the case-insensitive String
+     * {@code "false"}. An absent ({@code null}) claim is trusted and is NOT treated as unverified.
+     * </p>
+     *
+     * @param emailVerified the raw {@code email_verified} attribute value (may be {@code Boolean}, {@code String}, or {@code null})
+     * @return {@code true} only when the provider explicitly reports the email as not verified
+     */
+    private boolean isExplicitlyUnverified(Object emailVerified) {
+        if (emailVerified == null) {
+            return false;
+        }
+        if (emailVerified instanceof Boolean booleanValue) {
+            return Boolean.FALSE.equals(booleanValue);
+        }
+        if (emailVerified instanceof String stringValue) {
+            return "false".equalsIgnoreCase(stringValue.trim());
+        }
+        // Unknown type: trust (do not reject) rather than risk locking out legitimate users.
+        return false;
+    }
+
+    /**
      * Retrieves user information from a Facebook OAuth2User object.
      *
      * @param principal The OAuth2User object containing information about the authenticated user.
      * @return A User object representing the authenticated user.
      */
     public User getUserFromFacebookOAuth2User(OAuth2User principal) {
-        log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal);
+        log.debug("Getting user info from Facebook OAuth2 provider with principal: {}", principal != null ? principal.getName() : null);
         if (principal == null) {
             return null;
         }
-        log.debug("Principal attributes: {}", principal.getAttributes());
+        log.debug("Principal attribute keys: {}", principal.getAttributes().keySet());
+        // Reject the login if Facebook explicitly reports the email as NOT verified. Facebook exposes this
+        // under "email_verified" on newer Graph API versions and "verified" on older ones; either explicit
+        // false rejects. Providers that do not expose the claim at all are trusted (only an explicit false
+        // is rejected), matching the Google path's policy in getUserFromGoogleOAuth2User.
+        if (isExplicitlyUnverified(principal.getAttribute("email_verified")) || isExplicitlyUnverified(principal.getAttribute("verified"))) {
+            log.warn("getUserFromFacebookOAuth2User: rejecting login because Facebook reports the email as not verified");
+            throw new OAuth2AuthenticationException(new OAuth2Error("email_not_verified"),
+                    "Your email address is not verified with your login provider.");
+        }
         User user = new User();
         String email = principal.getAttribute("email");
         user.setEmail(email != null ? email.toLowerCase() : null);

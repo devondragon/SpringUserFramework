@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.TokenHasher;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.service.UserVerificationService;
@@ -78,7 +79,7 @@ public class UserActionController {
 	@GetMapping("${user.security.changePasswordURI:/user/changePassword}")
 	public ModelAndView showChangePasswordPage(final HttpServletRequest request, final ModelMap model,
 			@RequestParam("token") final String token) {
-		log.debug("UserAPI.showChangePasswordPage: called with token: {}", token);
+		log.debug("UserAPI.showChangePasswordPage: called with token: {}", TokenHasher.fingerprint(token));
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
 		log.debug("UserAPI.showChangePasswordPage: result: {}", result);
 		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
@@ -111,16 +112,18 @@ public class UserActionController {
 	@GetMapping("${user.security.registrationConfirmURI:/user/registrationConfirm}")
 	public ModelAndView confirmRegistration(final HttpServletRequest request, final ModelMap model,
 			@RequestParam("token") final String token) throws UnsupportedEncodingException {
-		log.debug("UserAPI.confirmRegistration: called with token: {}", token);
+		log.debug("UserAPI.confirmRegistration: called with token: {}", TokenHasher.fingerprint(token));
 		Locale locale = request.getLocale();
 		model.addAttribute("lang", locale.getLanguage());
+		// Resolve the user BEFORE validating: validateVerificationToken atomically consumes (deletes) the token,
+		// so a lookup by the same raw token afterward would no longer resolve.
+		final User user = userVerificationService.getUserByVerificationToken(token);
 		final TokenValidationResult result = userVerificationService.validateVerificationToken(token);
 
 		if (result == TokenValidationResult.VALID) {
-			final User user = userVerificationService.getUserByVerificationToken(token);
 			if (user != null) {
+				// The token was already consumed (deleted) atomically inside validateVerificationToken.
 				userService.authWithoutPassword(user);
-				userVerificationService.deleteVerificationToken(token);
 
 				AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user)
 						.sessionId(request.getSession().getId())

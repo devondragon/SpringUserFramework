@@ -12,7 +12,6 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 import org.thymeleaf.context.Context;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,9 +22,12 @@ import lombok.extern.slf4j.Slf4j;
  * <p>Email is treated as optional: if no {@link JavaMailSender} bean is available (typically because {@code spring.mail.host} is not configured),
  * a single warning is logged at startup and all send operations silently no-op, so the application starts and runs normally with email-dependent
  * features degraded.</p>
+ *
+ * <p>This class is not component-scanned; it is contributed as a consumer-overridable {@code @Bean} by
+ * {@code AuditMailAutoConfiguration} so a consumer can replace mail delivery by supplying their own {@link MailService}
+ * (or subclass) bean, which the library's default then backs off from via {@code @ConditionalOnMissingBean}.</p>
  */
 @Slf4j
-@Service
 public class MailService {
 
 	private final ObjectProvider<JavaMailSender> mailSenderProvider;
@@ -59,6 +61,9 @@ public class MailService {
 		resolvedSender = mailSenderProvider.getIfAvailable();
 		if (resolvedSender == null) {
 			log.warn("JavaMailSender is not configured — email sending is disabled. Set 'spring.mail.host' to enable.");
+		} else if (fromAddress == null || fromAddress.isBlank()) {
+			log.warn("JavaMailSender is configured but 'user.mail.fromAddress' is not set — outbound emails will have no valid sender address. "
+					+ "Set 'user.mail.fromAddress' to a valid from address.");
 		}
 	}
 
@@ -69,7 +74,7 @@ public class MailService {
 	 * @param subject the subject of the email
 	 * @param text the text to include as the email message body
 	 */
-	@Async
+	@Async("dsMailExecutor")
 	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendSimpleMessage(String to, String subject, String text) {
@@ -98,7 +103,7 @@ public class MailService {
 	 * @param variables a map of variables (key->value) to use in building the dynamic content via the template
 	 * @param templatePath the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
 	 */
-	@Async
+	@Async("dsMailExecutor")
 	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
 			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {

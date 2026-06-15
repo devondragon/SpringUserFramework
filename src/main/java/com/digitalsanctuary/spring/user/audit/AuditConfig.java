@@ -42,8 +42,11 @@ public class AuditConfig {
     private boolean flushOnWrite;
 
     /**
-     * The flush rate. This is the rate at which the audit log buffer is flushed to the log file. The value is in milliseconds and can be set to any
-     * positive integer. The default value is 1000 (1 second).
+     * The flush rate, in milliseconds, at which the audit log buffer is flushed to the log file when
+     * {@link #flushOnWrite} is {@code false}. May be set to any positive integer. The library default
+     * (from {@code dsspringuserconfig.properties}) is {@code 30000} (30 seconds). Smaller values reduce
+     * the durability window (the amount of buffered audit data that can be lost on a hard crash) at a
+     * small performance cost.
      */
     private int flushRate;
 
@@ -54,5 +57,27 @@ public class AuditConfig {
      * Default is 10000.
      */
     private int maxQueryResults = 10000;
+
+    /**
+     * Maximum size of the active audit log file, in megabytes, before it is rotated.
+     * When the active log file exceeds this size, it is rotated: the current file is renamed to
+     * {@code <name>.1} (shifting any existing {@code <name>.1} to {@code <name>.2}, and so on, up to
+     * {@link #maxFiles}) and a fresh active file is opened. Set to a positive value to enable rotation.
+     * <p>
+     * <strong>Default is {@code 0} (rotation disabled).</strong> Rotation is opt-in because the audit
+     * query/export reader currently reads only the active log file; once rotation moves older events into
+     * {@code <name>.1}, {@code <name>.2}, ... they are no longer visible to GDPR exports or investigations.
+     * Enable rotation only when you have external log shipping/retention, or wait for the query reader to
+     * read rotated archives (planned follow-up). With the default, logs grow unbounded.
+     * </p>
+     */
+    private int maxFileSizeMb = 0;
+
+    /**
+     * Maximum number of rotated audit log files to keep (e.g. {@code user-audit.log.1} ..
+     * {@code user-audit.log.5}). When rotation produces more than this many archived files, the oldest
+     * is deleted. Must be at least {@code 1} for rotation to retain any history. Default is {@code 5}.
+     */
+    private int maxFiles = 5;
 
 }

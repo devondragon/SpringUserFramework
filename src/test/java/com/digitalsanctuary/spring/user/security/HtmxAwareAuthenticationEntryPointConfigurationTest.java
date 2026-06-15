@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 
@@ -84,7 +83,10 @@ class HtmxAwareAuthenticationEntryPointConfigurationTest {
         }
     }
 
-    @Configuration
+    // Not annotated with @Configuration so the integration tests' component scan does not pick it up
+    // (it is registered explicitly via ApplicationContextRunner.withUserConfiguration above). A scanned
+    // @Configuration here would leak a plain LoginUrlAuthenticationEntryPoint("/custom/login") into every
+    // @SpringBootTest context, overriding the framework's HtmxAwareAuthenticationEntryPoint.
     static class ConsumerEntryPointConfiguration {
         @Bean
         public AuthenticationEntryPoint consumerEntryPoint() {

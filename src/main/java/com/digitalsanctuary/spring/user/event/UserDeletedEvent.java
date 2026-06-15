@@ -6,9 +6,21 @@ import org.springframework.context.ApplicationEvent;
  * Event published after a user entity has been successfully deleted.
  *
  * <p>Unlike {@link UserPreDeleteEvent} which is published before deletion and allows
- * cleanup operations within the transaction, this event is published after the
- * deletion has been committed. Use this event for post-deletion notifications,
- * external system updates, or logging that should only occur after successful deletion.
+ * cleanup operations within the transaction, this event is delivered <strong>after the
+ * deletion transaction has committed</strong>. Listeners (including {@code @Async} ones)
+ * are therefore guaranteed to observe a committed deletion and will never act on a
+ * not-yet-committed change. Use this event for post-deletion notifications, external
+ * system updates, or logging that should only occur after successful deletion.
+ *
+ * <p>Delivery-after-commit is achieved by the publisher itself, not by the listener:
+ * the event is published from a registered {@code TransactionSynchronization.afterCommit}
+ * callback, so it is only fired once the surrounding transaction has committed. Because
+ * publication is already deferred, consumers do <strong>not</strong> need
+ * {@code @TransactionalEventListener} &mdash; a plain {@code @EventListener} (or an
+ * {@code @Async @EventListener}) will already receive the event post-commit. When no
+ * transaction synchronization is active (e.g. a non-transactional caller), the event is
+ * published immediately as a fallback. {@code GdprDeletionService.executeUserDeletion}
+ * uses this same deferred-publication mechanism.
  *
  * <p>Note: Since the user entity has been deleted by the time this event is published,
  * only the user's ID and email are retained in this event.
