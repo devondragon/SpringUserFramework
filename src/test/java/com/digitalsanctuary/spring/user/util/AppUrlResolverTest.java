@@ -56,6 +56,21 @@ class AppUrlResolverTest {
     }
 
     @Test
+    void matchesAllowListedForwardedHostCaseInsensitively() {
+        // Hostnames are case-insensitive (RFC 4343): a mixed-case allow-list entry and a mixed-case
+        // forwarded host must still match, otherwise the CWE-640 fix silently falls back to the server name.
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("Trusted.Example.Com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("http");
+        req.setServerName("internal");
+        req.setServerPort(8080);
+        req.addHeader("X-Forwarded-Proto", "https");
+        req.addHeader("X-Forwarded-Host", "TRUSTED.example.com");
+        req.addHeader("X-Forwarded-Port", "443");
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://TRUSTED.example.com");
+    }
+
+    @Test
     void honorsAllowListedIpv6ForwardedHostWhenForwarded() {
         AppUrlResolver resolver = new AppUrlResolver(null, List.of("[::1]"));
         MockHttpServletRequest req = new MockHttpServletRequest();

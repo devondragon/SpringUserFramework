@@ -22,7 +22,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	User findByEmail(String email);
 
 	/**
-	 * Find by email, eagerly loading the user's roles and each role's privileges in a single query via an entity graph.
+	 * Find by email, eagerly loading the user's roles and each role's privileges in a single round trip via an entity
+	 * graph (a bounded, typically single query — the exact statement count can vary by JPA provider/version).
 	 *
 	 * <p>This is the finder used on the authentication path (see {@code DSUserDetailsService}). Because {@code User.roles}
 	 * is {@link jakarta.persistence.FetchType#LAZY}, callers that must traverse a user's roles (and their privileges)

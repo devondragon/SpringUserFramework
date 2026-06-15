@@ -168,7 +168,7 @@ CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
 
 ### Lazy fetching of roles and privileges
 
-**What changed:** The `roles` collection on `User` was previously `FetchType.EAGER` and is now `FetchType.LAZY`. The authentication path (`DSUserDetailsService.loadUserByUsername`) loads the full `User` &rarr; `roles` &rarr; `privileges` graph via a new `@EntityGraph` repository finder, `UserRepository.findWithRolesByEmail(String email)`, which fetches everything in a **single query**.
+**What changed:** The `roles` collection on `User` was previously `FetchType.EAGER` and is now `FetchType.LAZY`. The authentication path (`DSUserDetailsService.loadUserByUsername`) loads the full `User` &rarr; `roles` &rarr; `privileges` graph via a new `@EntityGraph` repository finder, `UserRepository.findWithRolesByEmail(String email)`, which fetches everything in a **single round trip** (a bounded, typically single query — the exact statement count can vary by JPA provider/version).
 
 > **Note (5.0.0 → 5.0.1):** `Role.privileges` was also switched to `LAZY` in 5.0.0, but that was reverted to `EAGER` in **5.0.1** because it made `role.getPrivileges()` throw outside a transaction for marginal benefit. If you are on 5.0.1 or later, only `User.roles` is lazy — `role.getPrivileges()` is safe everywhere. The guidance below is written for 5.0.1+; on 5.0.0 specifically, the privilege caveats also apply.
 
@@ -178,7 +178,7 @@ CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
 
 **Remediation patterns for consumers** that traverse a user's roles on a `User` they obtained outside a transaction:
 
-- **Load through the authentication path or the entity-graph finder.** Use `UserRepository.findWithRolesByEmail(email)` (it initializes roles and privileges in one query) instead of the plain `findByEmail(email)` when you need authorities.
+- **Load through the authentication path or the entity-graph finder.** Use `UserRepository.findWithRolesByEmail(email)` (it initializes roles and privileges in a single round trip) instead of the plain `findByEmail(email)` when you need authorities.
 - **Access the collections inside a transaction.** Annotate the method that reads `user.getRoles()` with `@Transactional` so the persistence session is still open when the lazy collection is first touched.
 - **Use a DTO projection.** Map the roles/privileges you need into a DTO while still inside the session, then pass the DTO around the detached boundary.
 - **Initialize before detaching.** If you must hand a `User` to detached code, call `Hibernate.initialize(user.getRolesAsSet())` while the session is open (privileges come along eagerly once the roles are loaded).

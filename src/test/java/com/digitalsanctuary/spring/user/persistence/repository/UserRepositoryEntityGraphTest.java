@@ -20,8 +20,8 @@ import jakarta.persistence.EntityManager;
 /**
  * Database-slice tests verifying that {@link UserRepository#findWithRolesByEmail(String)} eagerly loads the
  * User &rarr; roles &rarr; privileges graph via {@code @EntityGraph} in a bounded number of queries, while the plain
- * {@link UserRepository#findByEmail(String)} leaves the now-LAZY collections uninitialized. This is the regression guard
- * for the EAGER &rarr; LAZY switch on {@code User.roles} and {@code Role.privileges}.
+ * {@link UserRepository#findByEmail(String)} leaves the now-LAZY {@code User.roles} collection uninitialized. This is the
+ * regression guard for the EAGER &rarr; LAZY switch on {@code User.roles}. ({@code Role.privileges} remains EAGER.)
  */
 @DatabaseTest
 class UserRepositoryEntityGraphTest {
@@ -113,7 +113,7 @@ class UserRepositoryEntityGraphTest {
 
         User user = userRepository.findByEmail("lazy@test.com");
 
-        // The plain finder must leave roles uninitialized, proving the EAGER -> LAZY switch took effect.
+        // The plain finder must leave roles uninitialized, proving the User.roles EAGER -> LAZY switch took effect.
         assertThat(Hibernate.isInitialized(user.getRolesAsSet())).isFalse();
     }
 

@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.util;
 
 import java.util.List;
+import java.util.Locale;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,7 +42,10 @@ public class AppUrlResolver {
         // Strip any trailing slash to honour the "no trailing slash" contract on resolveAppUrl's return value.
         // Without this, appUrl + "/user/..." produces double slashes when the consumer misconfigures a trailing slash.
         this.configuredAppUrl = (trimmed != null && trimmed.endsWith("/")) ? trimmed.replaceAll("/+$", "") : trimmed;
-        this.trustedHosts = trustedHosts == null ? List.of() : trustedHosts.stream().map(String::trim).toList();
+        // Hostnames are case-insensitive (RFC 4343); normalise the allow-list to lower case so a mixed-case
+        // configured or forwarded host (e.g. "App.Example.Com") still matches "app.example.com".
+        this.trustedHosts = trustedHosts == null ? List.of()
+                : trustedHosts.stream().map(s -> s.trim().toLowerCase(Locale.ROOT)).toList();
     }
 
     /**
@@ -60,7 +64,7 @@ public class AppUrlResolver {
         // only, otherwise legitimate multi-proxy chains (e.g. ALB + nginx) never match and silently fall
         // back to the container's server name.
         String fwdHost = firstHeaderValue(request.getHeader("X-Forwarded-Host"));
-        boolean useForwarded = fwdHost != null && !fwdHost.isEmpty() && trustedHosts.contains(stripPort(fwdHost));
+        boolean useForwarded = fwdHost != null && !fwdHost.isEmpty() && trustedHosts.contains(stripPort(fwdHost).toLowerCase(Locale.ROOT));
         if (fwdHost != null && !fwdHost.isEmpty() && !useForwarded) {
             log.warn("AppUrlResolver: ignoring untrusted X-Forwarded-Host '{}' (not in user.security.trustedHosts)", sanitizeForLog(fwdHost));
         }
