@@ -276,6 +276,37 @@ High-collision library beans now have explicit, namespaced bean names so they no
 
 **Remediation:** Update any by-name reference — `@Qualifier("userService")`, `@Resource(name = "userService")`, `@DependsOn("userService")`, or `applicationContext.getBean("userService", ...)` — to the new `ds`-prefixed name (e.g. `@Qualifier("dsUserService")`). Injection by type (e.g. `@Autowired UserService userService;`) requires no change.
 
+### Auto-configuration entry point and toggleable cross-cutting features
+
+The library's entry point, `UserConfiguration`, is now a proper Spring Boot `@AutoConfiguration` instead of a plain `@Configuration`. It is still registered in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, so it continues to load automatically — but it now runs in the auto-configuration phase (after your application's own beans), which is the correct lifecycle for a library entry point.
+
+**Impact:** None for normal usage. The library still discovers and registers all of its components, and all existing behavior is preserved.
+
+**Remediation:** Only required in the uncommon case that you imported the entry point yourself. If you have `@Import(UserConfiguration.class)` anywhere, or you deliberately arranged for your application's own `@ComponentScan` to pick up `com.digitalsanctuary.spring.user`, remove that — the library configures itself via auto-configuration and doing it twice is unnecessary.
+
+**New opt-out toggles for cross-cutting features.** The library enables four cross-cutting Spring features. Each is now gated behind its own property, all defaulting to `true`, so **no action is needed** to keep current behavior:
+
+| Property (default `true`) | Enables |
+|---|---|
+| `user.async.enabled` | `@EnableAsync` |
+| `user.retry.enabled` | `@EnableRetry` |
+| `user.scheduling.enabled` | `@EnableScheduling` |
+| `user.method-security.enabled` | `@EnableMethodSecurity` |
+
+**Use case:** If your application already enables one of these globally (for example you have your own `@EnableScheduling` or a global `@EnableMethodSecurity` with custom settings), you can disable the library's copy to avoid double-activation conflicts:
+
+```yaml
+user:
+  scheduling:
+    enabled: false   # you run your own @EnableScheduling
+  method-security:
+    enabled: false   # you run your own @EnableMethodSecurity
+```
+
+Leave them unset (or `true`) to keep the library managing these for you, exactly as before.
+
+> **Note on async/retry interaction:** These toggles are independent. If you disable `user.async.enabled=false` while retry remains enabled (the default), any `@Retryable` methods in the library will still be registered for retry — but if those methods were previously executing on an async thread pool, they will now run synchronously on the caller's thread. In practice the library's `@Retryable` methods are not themselves `@Async`, so the common case is unaffected; however, consumers that wrap library calls in their own async boundaries should verify the combined behavior when selectively disabling these features.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

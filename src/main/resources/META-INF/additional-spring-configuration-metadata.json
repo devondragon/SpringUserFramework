@@ -311,6 +311,30 @@
       "name": "user.web.globalUserModelOptIn",
       "type": "java.lang.Boolean",
       "description": "Add user to model by default (true) or only with annotation (false)"
+    },
+    {
+      "name": "user.async.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable the library's asynchronous method execution support (@EnableAsync). Set to false if the consuming application already enables async processing globally to avoid double-activation.",
+      "defaultValue": true
+    },
+    {
+      "name": "user.retry.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable the library's Spring Retry support (@EnableRetry). Set to false if the consuming application already enables retry globally to avoid double-activation.",
+      "defaultValue": true
+    },
+    {
+      "name": "user.scheduling.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable the library's scheduled task execution (@EnableScheduling), used by token purge and similar jobs. Set to false if the consuming application already enables scheduling globally to avoid double-activation.",
+      "defaultValue": true
+    },
+    {
+      "name": "user.method-security.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable the library's Spring Security method-level security (@EnableMethodSecurity). Set to false if the consuming application already enables method security globally to avoid double-activation.",
+      "defaultValue": true
     }
   ]
 }
