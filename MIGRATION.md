@@ -225,6 +225,24 @@ Previously it carried a bare `@ControllerAdvice`, which made it apply **applicat
 
 **Remediation:** If your application relied on this library formatting validation errors for **your own** controllers, that no longer happens. Provide your own `@ControllerAdvice` (or `@RestControllerAdvice`) to format `MethodArgumentNotValidException` / `ConstraintViolationException` for your controllers. The library's response shape (for reference) is `{ "success": false, "code": 400, "message": "Validation failed", "errors": { <field-or-object>: <message> } }`.
 
+### Package consolidation
+
+The duplicate `com.digitalsanctuary.spring.user.exception` package (singular) has been merged into the canonical `com.digitalsanctuary.spring.user.exceptions` package (plural). The only class that moved is `GlobalValidationExceptionHandler`.
+
+**Impact:** Only affects code that imports `GlobalValidationExceptionHandler` by its fully-qualified name or via an explicit import statement.
+
+**Remediation:** Update any import referencing the old package:
+
+```java
+// Before (5.0.x prior to this change)
+import com.digitalsanctuary.spring.user.exception.GlobalValidationExceptionHandler;
+
+// After
+import com.digitalsanctuary.spring.user.exceptions.GlobalValidationExceptionHandler;
+```
+
+The empty, unused `com.digitalsanctuary.spring.user.api.data` package has also been removed. This package contained only a placeholder `Response.java` with no content and was not referenced anywhere. No remediation required.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

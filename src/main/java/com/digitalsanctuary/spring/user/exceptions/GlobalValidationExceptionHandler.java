@@ -1,4 +1,4 @@
-package com.digitalsanctuary.spring.user.exception;
+package com.digitalsanctuary.spring.user.exceptions;
 
 import java.util.HashMap;
 import java.util.Map;
