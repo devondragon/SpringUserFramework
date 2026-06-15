@@ -44,8 +44,13 @@ public class Role implements Serializable {
 	private Set<User> users = new HashSet<>();
 
 	/** The privileges. */
+	// EAGER by design: privileges are small, static reference data and there is no hot path that loads many Roles at
+	// once, so eager-loading them is cheap. Keeping this EAGER lets consumers call role.getPrivileges() outside a
+	// transaction without a LazyInitializationException. The user-load N+1 is addressed by User.roles being LAZY (see
+	// User), and the authentication path still fetches the full graph in one query via
+	// UserRepository.findWithRolesByEmail. (Role.privileges was briefly LAZY in 5.0.0; reverted in 5.0.1.)
 	@ToString.Exclude
-	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
+	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
 	@JoinTable(name = "roles_privileges", joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"),
 			inverseJoinColumns = @JoinColumn(name = "privilege_id", referencedColumnName = "id"))
 	private Set<Privilege> privileges = new HashSet<>();
