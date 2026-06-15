@@ -102,9 +102,17 @@ public class RolePrivilegeSetupService implements ApplicationListener<ContextRef
             final List<String> privileges = entry.getValue();
             if (roleName != null && privileges != null) {
                 for (String privilegeName : privileges) {
-                    getOrCreatePrivilege(privilegeName);
+                    if (privilegeName != null && !privilegeName.isBlank()) {
+                        getOrCreatePrivilege(privilegeName);
+                    } else {
+                        log.warn("RolePrivilegeSetupService: skipping null/blank privilege name in role '{}'", roleName);
+                    }
                 }
-                getOrCreateRole(roleName, new HashSet<>(privileges));
+                // Pass only non-null/non-blank privilege names to the role, matching what was persisted above.
+                Set<String> validPrivileges = privileges.stream()
+                        .filter(p -> p != null && !p.isBlank())
+                        .collect(java.util.stream.Collectors.toSet());
+                getOrCreateRole(roleName, validPrivileges);
             }
         }
         alreadySetup = true;
