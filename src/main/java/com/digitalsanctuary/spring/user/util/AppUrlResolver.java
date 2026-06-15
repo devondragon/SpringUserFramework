@@ -37,7 +37,10 @@ public class AppUrlResolver {
      * @param trustedHosts the allow-listed forwarded hosts ({@code user.security.trustedHosts}); null is treated as empty
      */
     public AppUrlResolver(String configuredAppUrl, List<String> trustedHosts) {
-        this.configuredAppUrl = (configuredAppUrl == null || configuredAppUrl.isBlank()) ? null : configuredAppUrl.trim();
+        String trimmed = (configuredAppUrl == null || configuredAppUrl.isBlank()) ? null : configuredAppUrl.trim();
+        // Strip any trailing slash to honour the "no trailing slash" contract on resolveAppUrl's return value.
+        // Without this, appUrl + "/user/..." produces double slashes when the consumer misconfigures a trailing slash.
+        this.configuredAppUrl = (trimmed != null && trimmed.endsWith("/")) ? trimmed.replaceAll("/+$", "") : trimmed;
         this.trustedHosts = trustedHosts == null ? List.of() : trustedHosts.stream().map(String::trim).toList();
     }
 

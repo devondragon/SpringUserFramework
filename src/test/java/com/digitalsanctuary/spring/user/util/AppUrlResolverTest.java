@@ -12,6 +12,16 @@ import org.springframework.mock.web.MockHttpServletRequest;
 class AppUrlResolverTest {
 
     @Test
+    void stripsTrailingSlashFromConfiguredAppUrl() {
+        // A consumer misconfiguring a trailing slash must not produce double slashes in email links
+        // (e.g. appUrl + "/user/registrationConfirm?token=..." → "https://app.example.com//user/...")
+        assertThat(new AppUrlResolver("https://app.example.com/", List.of())
+                .resolveAppUrl(new MockHttpServletRequest())).isEqualTo("https://app.example.com");
+        assertThat(new AppUrlResolver("https://app.example.com///", List.of())
+                .resolveAppUrl(new MockHttpServletRequest())).isEqualTo("https://app.example.com");
+    }
+
+    @Test
     void usesConfiguredAppUrlAndIgnoresForwardedHostWhenConfigured() {
         AppUrlResolver resolver = new AppUrlResolver("https://app.example.com", List.of());
         MockHttpServletRequest req = new MockHttpServletRequest();
