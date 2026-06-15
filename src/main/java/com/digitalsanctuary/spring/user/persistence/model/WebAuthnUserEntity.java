@@ -7,19 +7,26 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 /**
  * JPA entity for the {@code user_entities} table. Maps WebAuthn user handles to application users. The {@code id} is
  * the Base64url-encoded WebAuthn user handle.
  */
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 @Entity
 @Table(name = "user_entities")
 public class WebAuthnUserEntity {
 
 	/** Base64url-encoded WebAuthn user handle. */
 	@Id
+	@EqualsAndHashCode.Include
 	private String id;
 
 	/** Username (email). */
@@ -31,6 +38,7 @@ public class WebAuthnUserEntity {
 	private String displayName;
 
 	/** FK to the application user. */
+	@ToString.Exclude
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "user_account_id", nullable = false)
 	private User user;

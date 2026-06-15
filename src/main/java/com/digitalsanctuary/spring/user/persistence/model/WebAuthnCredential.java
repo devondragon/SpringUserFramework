@@ -8,24 +8,32 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.hibernate.Length;
 
 /**
  * JPA entity for the {@code user_credentials} table. Stores WebAuthn credentials (public keys) for passkey
  * authentication. The {@code credentialId} is stored as a Base64url string matching Spring Security's convention.
  */
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 @Entity
 @Table(name = "user_credentials")
 public class WebAuthnCredential {
 
 	/** Credential ID as Base64url string (matches Spring Security's storage convention). */
 	@Id
+	@EqualsAndHashCode.Include
 	@Column(name = "credential_id", length = 512)
 	private String credentialId;
 
 	/** FK to the WebAuthn user entity. */
+	@ToString.Exclude
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "user_entity_user_id", nullable = false)
 	private WebAuthnUserEntity userEntity;
@@ -39,6 +47,7 @@ public class WebAuthnCredential {
 	 * MariaDB DDL failure described in GitHub issue #286. Do not replace with {@code @Lob}, which maps
 	 * to {@code OID} on PostgreSQL.</p>
 	 */
+	@ToString.Exclude
 	@Column(name = "public_key", nullable = false, length = Length.LONG32)
 	private byte[] publicKey;
 
@@ -71,6 +80,7 @@ public class WebAuthnCredential {
 	 *
 	 * <p>See {@link #publicKey} for why {@code length = Length.LONG32} is used here.</p>
 	 */
+	@ToString.Exclude
 	@Column(name = "attestation_object", length = Length.LONG32)
 	private byte[] attestationObject;
 
@@ -79,6 +89,7 @@ public class WebAuthnCredential {
 	 *
 	 * <p>See {@link #publicKey} for why {@code length = Length.LONG32} is used here.</p>
 	 */
+	@ToString.Exclude
 	@Column(name = "attestation_client_data_json", length = Length.LONG32)
 	private byte[] attestationClientDataJson;
 

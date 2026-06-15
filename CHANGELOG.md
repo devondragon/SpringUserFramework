@@ -22,6 +22,7 @@
 - Added UNIQUE, NOT NULL constraints on `role.name` and `privilege.name` (schema/DDL change). See MIGRATION.md.
 - The registration and resend-verification endpoints now always return HTTP 200 with a uniform generic body. Previously an existing email returned 409 on registration, and resend returned 409 (already verified) or 500 (unknown email). Clients that branched on those status codes or messages must update — the response is now intentionally uniform.
 - `removePassword` and passkey delete/rename now require a `currentPassword` for password-holding accounts; requests omitting it are rejected. Update clients to send the current password. See MIGRATION.md.
+- JPA entities (`User`, `PasswordResetToken`, `VerificationToken`, `PasswordHistoryEntry`, `WebAuthnCredential`, `WebAuthnUserEntity`) now use identity-based (id-only) `equals`/`hashCode` instead of Lombok `@Data`'s all-fields equality. Code relying on field-by-field entity equality, or using transient (unsaved, id=null) entities as `Set`/`Map` keys, may behave differently. `toString` no longer includes collections or secrets. See MIGRATION.md.
 
 ### Notes
 - Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.

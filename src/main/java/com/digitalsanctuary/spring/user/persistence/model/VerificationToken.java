@@ -12,12 +12,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Transient;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 /**
  * The VerificationToken Entity. Stores Registration Verification Token data.
  */
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 @Entity
 public class VerificationToken {
 
@@ -27,13 +33,16 @@ public class VerificationToken {
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	@EqualsAndHashCode.Include
 	private Long id;
 
 	/** The token. */
+	@ToString.Exclude
 	@Column(name = "token", nullable = false, unique = true)
 	private String token;
 
 	/** The user. */
+	@ToString.Exclude
 	@OneToOne(targetEntity = User.class, fetch = FetchType.EAGER)
 	@JoinColumn(nullable = false, name = "user_id", foreignKey = @ForeignKey(name = "FK_VERIFY_USER"))
 	private User user;
@@ -47,6 +56,7 @@ public class VerificationToken {
 	 * email link can be built) when a service regenerates a token. It is {@code null} on entities
 	 * loaded from the database.
 	 */
+	@ToString.Exclude
 	@Transient
 	private transient String plainToken;
 

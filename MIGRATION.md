@@ -167,6 +167,22 @@ CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
 
 The plain `UserRepository.findByEmail(String)` finder is retained unchanged for callers that do not need the authority graph (token lookups, existence checks, lockout counters); it intentionally leaves `roles`/`privileges` uninitialized.
 
+### Entity equals/hashCode now identity-based
+
+**What changed:** The JPA entities `User`, `PasswordResetToken`, `VerificationToken`, `PasswordHistoryEntry`, `WebAuthnCredential`, and `WebAuthnUserEntity` previously used Lombok `@Data`, which generates `equals`/`hashCode` over **all** fields. They now use an identity-based implementation that includes only the primary key (`@EqualsAndHashCode(onlyExplicitlyIncluded = true)` with `@EqualsAndHashCode.Include` on the id), matching the pattern already used by `Role` and `Privilege`. Their `toString` also no longer renders collections, associations, passwords, or token/credential secrets.
+
+Note: `WebAuthnCredential` and `WebAuthnUserEntity` use their **assigned natural String keys** (`credentialId` and `id` respectively, both Base64url-encoded values assigned before persistence) rather than a database-generated surrogate id. Equality is therefore defined by that String key.
+
+**Why:** All-fields `equals`/`hashCode` on JPA entities is unsafe: it changes as mutable fields change (breaking `Set`/`Map` membership), can force lazy collections to load, and a generated `toString` can trigger `LazyInitializationException` or leak secrets (password hashes, raw/hashed token values, key material) into logs. Identity-based equality is the standard JPA recommendation.
+
+**Impact / risk:**
+
+- **Two entities are now equal only when they share a non-null id.** If you compared entities field-by-field (relying on `@Data`'s all-fields equality), that behavior is gone — equality is now purely by primary key.
+- **Standard JPA caveat for transient (unsaved) entities:** two newly-constructed entities that have not yet been persisted both have `id == null` and are therefore **not** considered equal to each other (and an unsaved entity is not equal to its persisted counterpart until the id is assigned). Do not use transient, id-less entities as `Set`/`Map` keys and then expect lookups to match after persistence assigns the id. If you need value-equality for unsaved instances, compare the relevant fields explicitly rather than relying on `equals`.
+- **`toString` output changed:** collections, associations, and secret fields are excluded. Any code (or log assertion) that depended on those values appearing in `toString()` must be updated.
+
+No remediation is required for the common cases (comparing managed/persisted entities by identity, or using them in collections after they have ids). This change only affects code that depended on field-by-field entity equality or on the old `toString` format.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)
