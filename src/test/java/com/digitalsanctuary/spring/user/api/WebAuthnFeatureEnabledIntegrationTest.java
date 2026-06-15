@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -36,6 +37,8 @@ class WebAuthnFeatureEnabledIntegrationTest {
 
 	private static final String TEST_EMAIL = "webauthn-user@test.com";
 
+	private static final String TEST_PASSWORD = "currentPassword1!";
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -54,6 +57,9 @@ class WebAuthnFeatureEnabledIntegrationTest {
 	@Autowired
 	private WebAuthnCredentialManagementService credentialManagementService;
 
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+
 	@BeforeEach
 	void setUp() {
 		webAuthnCredentialRepository.deleteAll();
@@ -65,7 +71,7 @@ class WebAuthnFeatureEnabledIntegrationTest {
 		user.setFirstName("Web");
 		user.setLastName("Authn");
 		user.setEnabled(true);
-		user.setPassword("encoded-password");
+		user.setPassword(passwordEncoder.encode(TEST_PASSWORD));
 		User savedUser = userRepository.saveAndFlush(user);
 
 		WebAuthnUserEntity userEntity = new WebAuthnUserEntity();
@@ -123,8 +129,56 @@ class WebAuthnFeatureEnabledIntegrationTest {
 	@Test
 	@DisplayName("should return business error response when service throws WebAuthnException")
 	void shouldReturnBusinessErrorWhenServiceFails() throws Exception {
-		mockMvc.perform(delete("/user/webauthn/credentials/does-not-exist").with(user(TEST_EMAIL).roles("USER")).with(csrf()))
-				.andExpect(status().isBadRequest())
+		String payload = "{\"currentPassword\":\"" + TEST_PASSWORD + "\"}";
+		mockMvc.perform(delete("/user/webauthn/credentials/does-not-exist").with(user(TEST_EMAIL).roles("USER")).with(csrf())
+				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.message").value("Credential not found or access denied"));
+	}
+
+	@Test
+	@DisplayName("should reject passkey deletion when account has password and current password missing")
+	void shouldRejectDeleteWhenCurrentPasswordMissingForPasswordAccount() throws Exception {
+		mockMvc.perform(delete("/user/webauthn/credentials/cred-1").with(user(TEST_EMAIL).roles("USER")).with(csrf()))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", containsString("Current password is required")));
+
+		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1")).isPresent();
+	}
+
+	@Test
+	@DisplayName("should reject passkey deletion when account has password and current password incorrect")
+	void shouldRejectDeleteWhenCurrentPasswordIncorrectForPasswordAccount() throws Exception {
+		String payload = "{\"currentPassword\":\"wrongPassword!\"}";
+		mockMvc.perform(delete("/user/webauthn/credentials/cred-1").with(user(TEST_EMAIL).roles("USER")).with(csrf())
+				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", containsString("Current password is incorrect")));
+
+		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1")).isPresent();
+	}
+
+	@Test
+	@DisplayName("should reject passkey rename when account has password and current password missing")
+	void shouldRejectRenameWhenCurrentPasswordMissingForPasswordAccount() throws Exception {
+		String payload = "{\"label\":\"New Label\"}";
+		mockMvc.perform(put("/user/webauthn/credentials/cred-1/label").with(user(TEST_EMAIL).roles("USER")).with(csrf())
+				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", containsString("Current password is required")));
+
+		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1"))
+				.isPresent()
+				.hasValueSatisfying(c -> assertThat(c.getLabel()).isEqualTo("My Device"));
+	}
+
+	@Test
+	@DisplayName("should reject passkey rename when account has password and current password incorrect")
+	void shouldRejectRenameWhenCurrentPasswordIncorrectForPasswordAccount() throws Exception {
+		String payload = "{\"label\":\"New Label\",\"currentPassword\":\"wrongPassword!\"}";
+		mockMvc.perform(put("/user/webauthn/credentials/cred-1/label").with(user(TEST_EMAIL).roles("USER")).with(csrf())
+				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", containsString("Current password is incorrect")));
+
+		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1"))
+				.isPresent()
+				.hasValueSatisfying(c -> assertThat(c.getLabel()).isEqualTo("My Device"));
 	}
 }

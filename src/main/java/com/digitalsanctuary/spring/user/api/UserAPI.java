@@ -475,6 +475,20 @@ public class UserAPI {
 	/**
 	 * Sets an initial password for a passwordless account.
 	 *
+	 * <p>
+	 * This endpoint only applies to passwordless (passkey-only) accounts and rejects the request if a password is already
+	 * set (use {@code /user/updatePassword} to change an existing password, which requires the current password). Because
+	 * the account has no current password to verify, this credential-altering operation cannot require re-authentication
+	 * via a current password, and this library does not yet implement a WebAuthn step-up assertion.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Residual risk:</strong> a session-only actor on a passwordless account could set an initial password. This is
+	 * a known, documented limitation (see MIGRATION.md "Re-authentication required for credential changes"). It is not a
+	 * regression and is bounded: the new password does not displace any existing credential, and consuming applications can
+	 * front this endpoint with their own step-up if required.
+	 * </p>
+	 *
 	 * @param userDetails the authenticated user details
 	 * @param setPasswordDto the set password DTO
 	 * @param request the HTTP servlet request

@@ -6,6 +6,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +29,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.validation.annotation.Validated;
 
 /**
  * REST API for WebAuthn credential management.
@@ -46,7 +46,22 @@ import org.springframework.validation.annotation.Validated;
  * <li>GET /user/webauthn/has-credentials - Check if user has any passkeys</li>
  * <li>PUT /user/webauthn/credentials/{id}/label - Rename a passkey</li>
  * <li>DELETE /user/webauthn/credentials/{id} - Delete a passkey</li>
+ * <li>DELETE /user/webauthn/password - Remove the account password (passkey-only)</li>
  * </ul>
+ *
+ * <p>
+ * <strong>Re-authentication for credential-altering operations:</strong> Removing the password and deleting/renaming a
+ * passkey change the account's authentication methods. When the account has a password set, these operations require the
+ * caller to supply the current password ({@code currentPassword}), which is verified before any mutation. This prevents a
+ * session-only actor (e.g. via a hijacked or unattended session) from silently altering how the account authenticates.
+ * </p>
+ *
+ * <p>
+ * <strong>Residual risk (passwordless accounts):</strong> For passwordless (passkey-only) accounts there is no current
+ * password to verify, and this library does not yet implement a WebAuthn step-up assertion. Passkey delete/rename on such
+ * accounts therefore remain session-only operations. Last-credential protection still prevents lockout, and ownership
+ * (IDOR) checks remain enforced in the service layer. See MIGRATION.md for details and guidance.
+ * </p>
  */
 @Slf4j
 @RestController
@@ -107,6 +122,7 @@ public class WebAuthnManagementAPI {
 			@RequestBody @Valid RenameCredentialRequest request,
 			@AuthenticationPrincipal UserDetails userDetails) {
 		User user = findAuthenticatedUser(userDetails);
+		requireCurrentPasswordIfSet(user, request.currentPassword());
 		credentialManagementService.renameCredential(id, request.label(), user);
 		return ResponseEntity.ok(new GenericResponse("Passkey renamed successfully"));
 	}
@@ -123,14 +139,24 @@ public class WebAuthnManagementAPI {
 	 * If this is the user's last passkey and they have no password, the deletion will be blocked with an error message.
 	 * </p>
 	 *
+	 * <p>
+	 * <strong>Re-authentication:</strong> If the account has a password set, the request body must include the current
+	 * {@code currentPassword}, which is verified before the passkey is deleted. This prevents a session-only actor from
+	 * altering the account's authentication methods. For passwordless (passkey-only) accounts there is no current
+	 * credential to verify; see the class-level note on the residual risk for passwordless credential changes.
+	 * </p>
+	 *
 	 * @param id the credential ID to delete
+	 * @param request the (optional) request body carrying the current password; may be {@code null} for passwordless accounts
 	 * @param userDetails the authenticated user details
 	 * @return ResponseEntity with success message or error
 	 */
 	@DeleteMapping("/credentials/{id}")
 	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable @NotBlank @Size(max = 512) String id,
+			@RequestBody(required = false) CurrentPasswordRequest request,
 			@AuthenticationPrincipal UserDetails userDetails) {
 		User user = findAuthenticatedUser(userDetails);
+		requireCurrentPasswordIfSet(user, request != null ? request.currentPassword() : null);
 		credentialManagementService.deleteCredential(id, user);
 		return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));
 	}
@@ -139,22 +165,36 @@ public class WebAuthnManagementAPI {
 	 * Remove the user's password, making the account passwordless (passkey-only).
 	 *
 	 * <p>
-	 * Requires the user to have at least one passkey registered. This ensures
-	 * the user can still authenticate after the password is removed.
+	 * Requires the user to have at least one passkey registered. This ensures the user can still authenticate after the
+	 * password is removed.
 	 * </p>
 	 *
+	 * <p>
+	 * <strong>Re-authentication:</strong> Because the account by definition has a password (it is being removed), the
+	 * caller must supply {@code currentPassword} in the request body. The body is declared {@code required = false} so
+	 * that a missing body does not produce a generic 415/400 from the message converter; instead, a missing or empty body
+	 * is treated identically to a missing {@code currentPassword} field — both are routed through
+	 * {@link #requireCurrentPasswordIfSet} and result in HTTP 400 with the message
+	 * {@code "Current password is required to change authentication methods."}. A blank or incorrect
+	 * {@code currentPassword} is likewise rejected with a 400 before any mutation occurs.
+	 * </p>
+	 *
+	 * @param body the request body carrying the current password; technically optional at the HTTP layer so that a
+	 *        missing body produces a clear 400 rather than a framework-level error, but functionally required
 	 * @param userDetails the authenticated user details
 	 * @param request the HTTP servlet request
 	 * @return ResponseEntity with success message or error
 	 */
 	@DeleteMapping("/password")
-	public ResponseEntity<GenericResponse> removePassword(@AuthenticationPrincipal UserDetails userDetails,
-			HttpServletRequest request) {
+	public ResponseEntity<GenericResponse> removePassword(@RequestBody(required = false) CurrentPasswordRequest body,
+			@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest request) {
 		User user = findAuthenticatedUser(userDetails);
 
 		if (!userService.hasPassword(user)) {
 			throw new WebAuthnException("User does not have a password to remove");
 		}
+
+		requireCurrentPasswordIfSet(user, body != null ? body.currentPassword() : null);
 
 		if (!credentialManagementService.hasCredentials(user)) {
 			throw new WebAuthnException("Cannot remove password. Please register a passkey first.");
@@ -182,10 +222,47 @@ public class WebAuthnManagementAPI {
 	}
 
 	/**
+	 * Requires and verifies the current password for a credential-altering operation when the account has a password set.
+	 *
+	 * <p>
+	 * If the account has a password, the supplied {@code currentPassword} must be present and valid (verified via
+	 * {@link UserService#checkIfValidOldPassword(User, String)}); otherwise a {@link WebAuthnException} (HTTP 400) is
+	 * thrown <em>before</em> any mutation, preventing a session-only actor from changing the account's authentication
+	 * methods. If the account is passwordless (passkey-only) there is no current credential to verify, so this check is
+	 * a no-op — see the residual-risk note in MIGRATION.md.
+	 * </p>
+	 *
+	 * @param user the authenticated user
+	 * @param currentPassword the current password supplied by the client (may be {@code null})
+	 * @throws WebAuthnException if the account has a password and the supplied current password is missing or incorrect
+	 */
+	private void requireCurrentPasswordIfSet(User user, String currentPassword) {
+		if (!userService.hasPassword(user)) {
+			// Passwordless (passkey-only) account: no current credential exists to verify. See MIGRATION.md residual-risk note.
+			return;
+		}
+		if (currentPassword == null || currentPassword.isBlank()) {
+			throw new WebAuthnException("Current password is required to change authentication methods.");
+		}
+		if (!userService.checkIfValidOldPassword(user, currentPassword)) {
+			throw new WebAuthnException("Current password is incorrect.");
+		}
+	}
+
+	/**
 	 * Request DTO for renaming credential.
 	 *
 	 * @param label the new label (must not be blank, max 64 chars)
+	 * @param currentPassword the current account password, required when the account has a password set (re-authentication)
 	 */
-	public record RenameCredentialRequest(@NotBlank @Size(max = 64) String label) {
+	public record RenameCredentialRequest(@NotBlank @Size(max = 64) String label, String currentPassword) {
+	}
+
+	/**
+	 * Request DTO carrying the current account password for credential-altering operations that re-authenticate the user.
+	 *
+	 * @param currentPassword the current account password, required when the account has a password set
+	 */
+	public record CurrentPasswordRequest(String currentPassword) {
 	}
 }

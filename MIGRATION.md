@@ -100,6 +100,33 @@ Internally the framework still does the correct thing — a brand-new registrati
 
 **Action required:** Clients (web UIs, mobile apps, integrations) must no longer rely on the `409` status (existing/verified account) or the `500` status (unknown email on resend) to detect account existence or verification state. Branch only on the `success` flag for these two endpoints, and present the generic message to end users.
 
+### Re-authentication required for credential changes
+
+Operations that change *how an account authenticates* now require the user to prove knowledge of the current password **when the account has one**. This closes a gap where a session-only actor (e.g. an unattended or hijacked session) could silently alter the account's authentication methods without re-authenticating (CWE-620 / weak re-authentication).
+
+Affected endpoints (all require `user.webauthn.enabled=true` except where noted):
+
+| Endpoint | Method | What changed | How to send the current password |
+|---|---|---|---|
+| `/user/webauthn/password` | `DELETE` | Removing the password (converting to passkey-only) now requires the current password. | JSON body `{"currentPassword": "..."}` |
+| `/user/webauthn/credentials/{id}` | `DELETE` | Deleting a passkey requires the current password **when the account has a password**. | JSON body `{"currentPassword": "..."}` |
+| `/user/webauthn/credentials/{id}/label` | `PUT` | Renaming a passkey requires the current password **when the account has a password**. The existing body gains a `currentPassword` field. | JSON body `{"label": "...", "currentPassword": "..."}` |
+
+**Behavior when the account has a password:**
+- Missing `currentPassword` → `HTTP 400` with message *"Current password is required to change authentication methods."* — nothing is mutated.
+- Incorrect `currentPassword` → `HTTP 400` with message *"Current password is incorrect."* — nothing is mutated.
+- Correct `currentPassword` → the operation proceeds as before.
+
+`/user/updatePassword` is unchanged: it already required and verified `oldPassword`.
+
+**Action required:** Update any client that calls the three endpoints above so that it collects the user's current password and sends it in the request body. `DELETE /user/webauthn/credentials/{id}` and `DELETE /user/webauthn/password`, which previously had no request body, now accept (and for password-holding accounts require) a JSON body carrying `currentPassword`. Existing IDOR/ownership checks and last-credential lockout protection are unchanged.
+
+**Passwordless (passkey-only) accounts — residual risk:** For accounts with no password set, there is no current credential to verify, and this library does not yet implement a WebAuthn step-up assertion (a feasible recent-authentication signal does not currently exist in the framework). As a result:
+- Deleting or renaming a passkey on a passwordless account remains a session-only operation (last-credential lockout protection and ownership checks still apply).
+- Setting an *initial* password via `POST /user/setPassword` on a passwordless account also cannot require a current password (there is none); this endpoint still rejects accounts that already have a password.
+
+This is a deliberate, documented limitation rather than a half-measure: implementing a true WebAuthn step-up assertion would require significant new challenge/response infrastructure. Consuming applications that need stronger guarantees for passwordless accounts can front these endpoints with their own step-up (e.g. require a fresh passkey assertion) before allowing the call. This will be revisited if/when a step-up mechanism is added to the framework.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)
