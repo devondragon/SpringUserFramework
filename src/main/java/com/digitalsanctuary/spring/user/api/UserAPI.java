@@ -38,6 +38,7 @@ import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
+import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
@@ -72,6 +73,7 @@ public class UserAPI {
 	private final ApplicationEventPublisher eventPublisher;
 	private final PasswordPolicyService passwordPolicyService;
 	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
+	private final AppUrlResolver appUrlResolver;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -151,7 +153,7 @@ public class UserAPI {
 			if (user.isEnabled()) {
 				return buildErrorResponse("Account is already verified.", 1, HttpStatus.CONFLICT);
 			}
-			userEmailService.sendRegistrationVerificationEmail(user, UserUtils.getAppUrl(request));
+			userEmailService.sendRegistrationVerificationEmail(user, appUrlResolver.resolveAppUrl(request));
 			logAuditEvent("Resend Reg Token", "Success", "Verification Email Resent", user, request);
 			return buildSuccessResponse("Verification Email Resent Successfully!", registrationPendingURI);
 		}
@@ -203,7 +205,7 @@ public class UserAPI {
 	public ResponseEntity<JSONResponse> resetPassword(@Valid @RequestBody PasswordResetRequestDto passwordResetRequest, HttpServletRequest request) {
 		User user = userService.findUserByEmail(passwordResetRequest.getEmail());
 		if (user != null) {
-			userEmailService.sendForgotPasswordVerificationEmail(user, UserUtils.getAppUrl(request));
+			userEmailService.sendForgotPasswordVerificationEmail(user, appUrlResolver.resolveAppUrl(request));
 			logAuditEvent("Reset Password", "Success", "Password reset email sent", user, request);
 		}
 		return buildSuccessResponse("If account exists, password reset email has been sent!", forgotPasswordPendingURI);
@@ -542,7 +544,7 @@ public class UserAPI {
 	 * @param request the HTTP servlet request
 	 */
 	private void publishRegistrationEvent(User user, HttpServletRequest request) {
-		String appUrl = UserUtils.getAppUrl(request);
+		String appUrl = appUrlResolver.resolveAppUrl(request);
 		eventPublisher.publishEvent(new OnRegistrationCompleteEvent(user, request.getLocale(), appUrl));
 	}
 

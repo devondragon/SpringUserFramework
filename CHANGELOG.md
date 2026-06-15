@@ -5,10 +5,12 @@
 > **⚠️ ACTION REQUIRED if you run behind a reverse proxy:** password-reset and email-verification links are now built from a configured canonical URL and ignore `X-Forwarded-Host` unless it is explicitly allow-listed. Set `user.security.appUrl` (recommended) or `user.security.trustedHosts`, or your reset/verification links will point at the wrong host. See `MIGRATION.md`.
 
 ### Features
+- Added `AppUrlResolver` and `user.security.appUrl` / `user.security.trustedHosts` properties: password-reset and email-verification links are now built from a configured canonical URL, ignoring `X-Forwarded-Host` unless allow-listed (CWE-640).
 
 ### Fixes
 
 ### Breaking Changes
+- Reset/verification email links no longer trust `X-Forwarded-Host` by default. Deployments behind a reverse proxy must set `user.security.appUrl` or `user.security.trustedHosts` (see MIGRATION.md). `UserUtils.getAppUrl(HttpServletRequest)` is deprecated for removal.
 
 ### Notes
 - Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.

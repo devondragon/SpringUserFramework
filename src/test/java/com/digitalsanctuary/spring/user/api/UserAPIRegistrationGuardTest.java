@@ -33,6 +33,7 @@ import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,6 +67,9 @@ class UserAPIRegistrationGuardTest {
 
     @Mock
     private WebAuthnCredentialManagementService webAuthnService;
+
+    @Mock
+    private AppUrlResolver appUrlResolver;
 
     @InjectMocks
     private UserAPI userAPI;

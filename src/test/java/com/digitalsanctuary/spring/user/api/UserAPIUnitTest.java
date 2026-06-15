@@ -22,6 +22,7 @@ import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
+import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -90,6 +91,9 @@ public class UserAPIUnitTest {
 
     @Mock
     private PasswordPolicyService passwordPolicyService;
+
+    @Mock
+    private AppUrlResolver appUrlResolver;
 
     @InjectMocks
     private UserAPI userAPI;
@@ -286,6 +290,7 @@ public class UserAPIUnitTest {
                     .disabled()
                     .build();
             when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(unverifiedUser);
+            when(appUrlResolver.resolveAppUrl(any())).thenReturn("http://localhost:8080");
 
             // When & Then
             mockMvc.perform(post("/user/resendRegistrationToken")
@@ -342,6 +347,7 @@ public class UserAPIUnitTest {
         void resetPassword_success() throws Exception {
             // Given
             when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(testUser);
+            when(appUrlResolver.resolveAppUrl(any())).thenReturn("http://localhost:8080");
 
             // When & Then
             mockMvc.perform(post("/user/resetPassword")

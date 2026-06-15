@@ -37,6 +37,16 @@
       "description": "Cron expression for token purge schedule"
     },
     {
+      "name": "user.security.appUrl",
+      "type": "java.lang.String",
+      "description": "Canonical base URL for security email links (password reset, verification). STRONGLY recommended in production to prevent Host-header poisoning (CWE-640). When set, X-Forwarded-Host is ignored."
+    },
+    {
+      "name": "user.security.trustedHosts",
+      "type": "java.util.List<java.lang.String>",
+      "description": "When user.security.appUrl is not set, X-Forwarded-Host is honored only for hosts in this comma-separated allowlist; otherwise the container's own server name is used."
+    },
+    {
       "name": "user.security.loginActionURI",
       "type": "java.lang.String",
       "description": "URI for login form submission"
