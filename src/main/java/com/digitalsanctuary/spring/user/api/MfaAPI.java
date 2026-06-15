@@ -28,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  */
 @Slf4j
-@RestController
+@RestController("dsMfaAPI")
 @RequestMapping(path = "/user/mfa", produces = "application/json")
 @ConditionalOnProperty(name = "user.mfa.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor

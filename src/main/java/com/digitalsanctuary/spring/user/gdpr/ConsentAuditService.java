@@ -130,7 +130,7 @@ public class ConsentAuditService {
         eventPublisher.publishEvent(auditEvent);
 
         // Publish consent changed event
-        eventPublisher.publishEvent(new ConsentChangedEvent(this, user, record,
+        eventPublisher.publishEvent(new ConsentChangedEvent(this, user.getId(), user.getEmail(), record,
                 ConsentChangedEvent.ChangeType.GRANTED));
 
         // Log consent type safely - avoid exposing custom type names which could contain PII
@@ -210,7 +210,7 @@ public class ConsentAuditService {
         eventPublisher.publishEvent(auditEvent);
 
         // Publish consent changed event
-        eventPublisher.publishEvent(new ConsentChangedEvent(this, user, record,
+        eventPublisher.publishEvent(new ConsentChangedEvent(this, user.getId(), user.getEmail(), record,
                 ConsentChangedEvent.ChangeType.WITHDRAWN));
 
         // Log consent type safely - avoid exposing custom type names which could contain PII

@@ -10,8 +10,9 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.persistence.*;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 
 /**
@@ -24,7 +25,10 @@ import lombok.ToString;
  * distributed sessions must ensure any custom profile or data reachable from the session-stored principal is also {@link Serializable}.
  * </p>
  */
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "user_account")
@@ -67,6 +71,9 @@ public class User implements Serializable {
 	@Id
 	@Column(unique = true, nullable = false)
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	// Identity-based equality keys on this id only. Two transient (unsaved, id == null) instances compare equal,
+	// so never use unsaved entities as Set/Map keys; add them only after they have been persisted. See EntityEqualityTest.
+	@EqualsAndHashCode.Include
 	private Long id;
 
 	/** The first name. */
@@ -110,15 +117,13 @@ public class User implements Serializable {
 
 	/** The roles - stored as Set to avoid Hibernate immutable collection issues */
 	@ToString.Exclude
-	@EqualsAndHashCode.Exclude
-	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
+	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
 	@JoinTable(name = "users_roles", joinColumns = @JoinColumn(name = "user_id", referencedColumnName = "id"),
 			inverseJoinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"))
 	private Set<Role> roles = new HashSet<>();
 
 	/** The password history entries. */
 	@ToString.Exclude
-	@EqualsAndHashCode.Exclude
 	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 	private List<PasswordHistoryEntry> passwordHistoryEntries = new ArrayList<>();
 

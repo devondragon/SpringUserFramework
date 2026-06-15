@@ -52,7 +52,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 @Slf4j
 @RequiredArgsConstructor
-@RestController
+@RestController("dsGdprAPI")
 @RequestMapping(path = "/user/gdpr", produces = "application/json")
 public class GdprAPI {
 

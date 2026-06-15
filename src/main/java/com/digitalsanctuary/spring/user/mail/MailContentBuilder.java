@@ -18,7 +18,7 @@ import org.thymeleaf.context.Context;
  * </dependency>
  * }</pre>
  */
-@Service
+@Service("dsMailContentBuilder")
 public class MailContentBuilder {
 
 	/** The template engine. */

@@ -1,3 +1,44 @@
+## [5.0.0] - Unreleased
+
+> **Major release.** Contains breaking changes (Java API, HTTP/response contracts, database schema, required configuration, and bean/auto-configuration structure). Read `MIGRATION.md` ("Migrating to 5.0.x") before upgrading.
+>
+> **⚠️ ACTION REQUIRED if you run behind a reverse proxy:** password-reset and email-verification links are now built from a configured canonical URL and ignore `X-Forwarded-Host` unless it is explicitly allow-listed. Set `user.security.appUrl` (recommended) or `user.security.trustedHosts`, or your reset/verification links will point at the wrong host. See `MIGRATION.md`.
+
+### Features
+- Added `AppUrlResolver` and `user.security.appUrl` / `user.security.trustedHosts` properties: password-reset and email-verification links are now built from a configured canonical URL, ignoring `X-Forwarded-Host` unless allow-listed (CWE-640).
+
+### Fixes
+- Registration (form and passwordless) and resend-verification endpoints no longer reveal whether an email is registered or already verified (account-enumeration hardening).
+- Credential-altering operations (remove password, delete/rename passkey) now require the current password when the account has one, preventing a session-only actor from changing authentication methods. These current-password checks now also participate in brute-force lockout (`LoginAttemptService`): a locked account is rejected, each wrong password counts toward the lockout threshold, and a correct one resets the counter — closing an unlimited-guess gap on the WebAuthn credential-management endpoints.
+- `AppUrlResolver` now parses a multi-valued `X-Forwarded-Host` (comma-separated, RFC 7230) by matching its first value against `user.security.trustedHosts`, so legitimate multi-proxy chains are honored instead of silently falling back. `X-Forwarded-Proto` is validated to `http`/`https` (an invalid value from a misconfigured proxy can no longer flow into email links), and attacker-controlled header values are sanitized before logging.
+- Registration denials (`RegistrationGuard`) now emit an audit event on both the form and passwordless paths, matching the audit trail already produced for duplicate-email registrations.
+- Role/privilege startup setup is now idempotent and safe under concurrent multi-node startup (handles unique-constraint races by re-reading the existing row).
+- The library's validation @ControllerAdvice now returns HTTP 400 (not 500) for the class-level @PasswordMatches constraint, surfacing global validation errors.
+- The library entry point is now a proper `@AutoConfiguration`. The cross-cutting `@EnableAsync`/`@EnableRetry`/`@EnableScheduling`/`@EnableMethodSecurity` are each now gated behind `user.async.enabled`/`user.retry.enabled`/`user.scheduling.enabled`/`user.method-security.enabled` (all default true), so consumers who manage these themselves can opt out to avoid double-activation.
+
+### Performance
+- `User` &rarr; `roles` and `Role` &rarr; `privileges` are now LAZY-fetched; the authentication path loads them via `@EntityGraph` in a single query (`UserRepository.findWithRolesByEmail`), removing the previous two-level eager fetch and the associated N+1 problem while keeping authority resolution correct.
+
+### Breaking Changes
+- Role and privilege collections on `User`/`Role` are now LAZY. Consumer code that accesses `user.getRoles()` or `role.getPrivileges()` outside an open transaction/session may now throw `LazyInitializationException`. Load via the authentication path / an `@EntityGraph` query (e.g. `UserRepository.findWithRolesByEmail`), or access the collections within a transaction. See MIGRATION.md.
+- Reset/verification email links no longer trust `X-Forwarded-Host` by default. Deployments behind a reverse proxy must set `user.security.appUrl` or `user.security.trustedHosts` (see MIGRATION.md). `UserUtils.getAppUrl(HttpServletRequest)` is deprecated for removal.
+- Added a UNIQUE, NOT NULL constraint on the `token` column of `password_reset_token` and `verification_token`. This is a schema/DDL change — see MIGRATION.md.
+- Added UNIQUE, NOT NULL constraints on `role.name` and `privilege.name` (schema/DDL change). See MIGRATION.md.
+- The registration (`/user/registration`, `/user/registration/passwordless`) and resend-verification endpoints now always return HTTP 200 with a uniform generic body. Previously an existing email returned 409 on both registration paths, and resend returned 409 (already verified) or 500 (unknown email). Clients that branched on those status codes or messages must update — the response is now intentionally uniform.
+- `removePassword` and passkey delete/rename now require a `currentPassword` for password-holding accounts; requests omitting it are rejected. Update clients to send the current password. See MIGRATION.md.
+- JPA entities (`User`, `PasswordResetToken`, `VerificationToken`, `PasswordHistoryEntry`, `WebAuthnCredential`, `WebAuthnUserEntity`) now use identity-based (id-only) `equals`/`hashCode` instead of Lombok `@Data`'s all-fields equality. Code relying on field-by-field entity equality, or using transient (unsaved, id=null) entities as `Set`/`Map` keys, may behave differently. `toString` no longer includes collections or secrets. See MIGRATION.md.
+- Application events (`OnRegistrationCompleteEvent`, `UserPreDeleteEvent`, `ConsentChangedEvent`) no longer carry live JPA `User` entities; they now expose immutable ids/scalars (e.g. `userId`, `userEmail`). Custom listeners calling `event.getUser()` must switch to the new accessors. This prevents detached-entity/`LazyInitializationException` hazards in `@Async` listeners. See MIGRATION.md.
+- GlobalValidationExceptionHandler is now scoped to the library's own controllers (assignableTypes) instead of applying application-wide. Consuming apps that relied on the library formatting validation errors for THEIR controllers must provide their own @ControllerAdvice.
+- Consolidated the duplicate `com.digitalsanctuary.spring.user.exception` package into `com.digitalsanctuary.spring.user.exceptions` (GlobalValidationExceptionHandler moved). Removed the empty, unused `com.digitalsanctuary.spring.user.api.data` package. Consumers importing `...exception.GlobalValidationExceptionHandler` must update the import to `...exceptions.GlobalValidationExceptionHandler`.
+- The library no longer sets `spring.messages.basename` (which previously overrode the consuming app's message bundle); it now registers its own `messages/dsspringusermessages` bundle additively via an EnvironmentPostProcessor. Library bean names are now namespaced (dsUserService, dsUserAPI, dsMailService, etc.); code referencing these beans by their old default names (e.g. @Qualifier("userService")) must update.
+- `UserConfiguration` is now an `@AutoConfiguration` instead of a regular `@Configuration`. It loads in the auto-configuration phase (after consumer beans) and remains registered in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`. This is transparent for normal usage, but any consumer that imported `UserConfiguration` directly (e.g. via `@Import(UserConfiguration.class)`) or relied on it being picked up by their own application's `@ComponentScan` should remove that — the library configures itself via auto-configuration. The cross-cutting enablers (`@EnableAsync`/`@EnableRetry`/`@EnableScheduling`/`@EnableMethodSecurity`) now live in nested gated configurations toggleable via `user.async.enabled`/`user.retry.enabled`/`user.scheduling.enabled`/`user.method-security.enabled` (all default true, so behavior is unchanged unless explicitly disabled).
+
+### Dependencies
+- Built and tested against Spring Boot 4.1.0 (up from 4.0.6). Starters remain `compileOnly`, so consuming applications still supply their own Spring Boot version; the library is now verified against the 4.1.x line. (dependabot #317)
+
+### Notes
+- Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.
+
 ## [4.4.0] - 2026-06-15
 ### Features
 - Token security hardened: verification and password-reset tokens are now hashed at rest (HMAC-SHA-256 when user.security.tokenHashSecret is set; plain SHA-256 otherwise). Dual-read ensures pre-upgrade plaintext tokens still work until expiry. Only one active token per user is kept; generators delete any previous token before issuing a new one. New properties:

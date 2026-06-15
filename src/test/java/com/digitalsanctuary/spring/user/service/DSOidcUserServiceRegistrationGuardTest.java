@@ -77,7 +77,7 @@ class DSOidcUserServiceRegistrationGuardTest {
                 .withFamilyName("User")
                 .build();
 
-        when(userRepository.findByEmail("new@company.com")).thenReturn(null);
+        when(userRepository.findWithRolesByEmail("new@company.com")).thenReturn(null);
         doThrow(new RegistrationDeniedException("Organization not whitelisted"))
                 .when(userService).enforceRegistrationGuard(eq("new@company.com"), eq(RegistrationSource.OIDC), anyString());
 
@@ -99,7 +99,7 @@ class DSOidcUserServiceRegistrationGuardTest {
                 .withFamilyName("User")
                 .build();
 
-        when(userRepository.findByEmail("allowed@company.com")).thenReturn(null);
+        when(userRepository.findWithRolesByEmail("allowed@company.com")).thenReturn(null);
         doNothing().when(userService)
                 .enforceRegistrationGuard(eq("allowed@company.com"), eq(RegistrationSource.OIDC), anyString());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -125,7 +125,7 @@ class DSOidcUserServiceRegistrationGuardTest {
         existingUser.setEmail("existing@company.com");
         existingUser.setProvider(User.Provider.KEYCLOAK);
 
-        when(userRepository.findByEmail("existing@company.com")).thenReturn(existingUser);
+        when(userRepository.findWithRolesByEmail("existing@company.com")).thenReturn(existingUser);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         User result = service.handleOidcLoginSuccess("keycloak", keycloakUser);

@@ -173,7 +173,7 @@ public class GdprDeletionService {
 
         // Step 3: Publish UserPreDeleteEvent for additional cleanup
         log.debug("GdprDeletionService.deleteUser: Publishing UserPreDeleteEvent for user {}", userId);
-        eventPublisher.publishEvent(new UserPreDeleteEvent(this, user));
+        eventPublisher.publishEvent(new UserPreDeleteEvent(this, userId, userEmail));
 
         // Step 4: Delete framework-managed data
         deleteFrameworkData(user);

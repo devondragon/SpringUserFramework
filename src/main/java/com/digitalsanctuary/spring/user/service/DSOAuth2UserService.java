@@ -90,7 +90,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
                     "Unable to retrieve email address from " + registrationId + ". Please ensure you have granted email permissions.");
         }
         log.debug("handleOAuthLoginSuccess: looking up user with email: {}", user.getEmail());
-        User existingUser = userRepository.findByEmail(user.getEmail().toLowerCase());
+        User existingUser = userRepository.findWithRolesByEmail(user.getEmail().toLowerCase());
         log.debug("handleOAuthLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
             log.debug("handleOAuthLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());
@@ -145,7 +145,8 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
         // RegistrationListener intentionally skips sending them a verification email; the event still fires.
         // No HttpServletRequest is available here, so locale defaults and appUrl is null (only the verification
         // email, which is skipped for enabled users, would have used appUrl).
-        eventPublisher.publishEvent(new OnRegistrationCompleteEvent(savedUser, Locale.getDefault(), null));
+        eventPublisher.publishEvent(OnRegistrationCompleteEvent.builder().userId(savedUser.getId()).userEmail(savedUser.getEmail())
+                .userEnabled(savedUser.isEnabled()).locale(Locale.getDefault()).appUrl(null).build());
         return savedUser;
     }
 

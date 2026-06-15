@@ -1,13 +1,22 @@
 package com.digitalsanctuary.spring.user.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.Collections;
+import java.util.Locale;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
@@ -22,9 +31,9 @@ import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
+import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -36,22 +45,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.HttpStatus;
-import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
-
-import java.util.Collections;
-import java.util.Locale;
-
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserAPI Unit Tests")
@@ -90,6 +93,9 @@ public class UserAPIUnitTest {
 
     @Mock
     private PasswordPolicyService passwordPolicyService;
+
+    @Mock
+    private AppUrlResolver appUrlResolver;
 
     @InjectMocks
     private UserAPI userAPI;
@@ -151,16 +157,16 @@ public class UserAPIUnitTest {
                     .thenReturn(Collections.emptyList());
 
             // When & Then
-            MvcResult result = mockMvc.perform(post("/user/registration")
+            mockMvc.perform(post("/user/registration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto))
                     .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.code").value(0))
-                    .andExpect(jsonPath("$.messages[0]").value("Registration Successful!"))
-                    .andExpect(jsonPath("$.redirectUrl").value("/user/registration-pending.html"))
-                    .andReturn();
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your email address is eligible, you will receive a verification email shortly."))
+                    .andExpect(jsonPath("$.redirectUrl").value("/user/registration-pending.html"));
 
             // Verify event publishing
             verify(eventPublisher, times(2)).publishEvent(any());
@@ -169,7 +175,8 @@ public class UserAPIUnitTest {
             ArgumentCaptor<OnRegistrationCompleteEvent> registrationCaptor = ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
             verify(eventPublisher).publishEvent(registrationCaptor.capture());
             OnRegistrationCompleteEvent registrationEvent = registrationCaptor.getValue();
-            assertThat(registrationEvent.getUser()).isEqualTo(newUser);
+            assertThat(registrationEvent.getUserEmail()).isEqualTo(newUser.getEmail());
+            assertThat(registrationEvent.isUserEnabled()).isEqualTo(newUser.isEnabled());
             
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
@@ -205,23 +212,29 @@ public class UserAPIUnitTest {
         }
 
         @Test
-        @DisplayName("POST /user/registration - user already exists")
-        void registerUserAccount_userAlreadyExists() throws Exception {
-            // Given
+        @DisplayName("POST /user/registration - existing email returns the same uniform 200 body as a new registration")
+        void registerUserAccount_existingEmail_returnsUniformResponse() throws Exception {
+            // Given - the service signals the email is already registered
             when(userService.registerNewUserAccount(any(UserDto.class)))
                     .thenThrow(new UserAlreadyExistException("User already exists"));
             when(passwordPolicyService.validate(any(), anyString(), anyString(), any(Locale.class)))
                     .thenReturn(Collections.emptyList());
 
-            // When & Then
+            // When & Then - response is indistinguishable from a brand-new registration
             mockMvc.perform(post("/user/registration")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto))
                     .with(csrf()))
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.code").value(2))
-                    .andExpect(jsonPath("$.messages[0]").value("An account already exists for the email address"));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your email address is eligible, you will receive a verification email shortly."))
+                    .andExpect(jsonPath("$.redirectUrl").value("/user/registration-pending.html"));
+
+            // No new account is created: no registration event is published and no auto-login occurs.
+            verify(eventPublisher, never()).publishEvent(any(OnRegistrationCompleteEvent.class));
+            verify(userService, never()).authWithoutPassword(any());
         }
 
         @Test
@@ -286,6 +299,7 @@ public class UserAPIUnitTest {
                     .disabled()
                     .build();
             when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(unverifiedUser);
+            when(appUrlResolver.resolveAppUrl(any())).thenReturn("http://localhost:8080");
 
             // When & Then
             mockMvc.perform(post("/user/resendRegistrationToken")
@@ -294,42 +308,51 @@ public class UserAPIUnitTest {
                     .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.messages[0]").value("Verification Email Resent Successfully!"));
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your account requires verification, a new verification email has been sent."));
 
             verify(userEmailService).sendRegistrationVerificationEmail(eq(unverifiedUser), anyString());
         }
 
         @Test
-        @DisplayName("POST /user/resendRegistrationToken - account already verified")
-        void resendRegistrationToken_alreadyVerified() throws Exception {
-            // Given
+        @DisplayName("POST /user/resendRegistrationToken - already-verified account returns the same uniform 200 body")
+        void resendRegistrationToken_alreadyVerified_returnsUniformResponse() throws Exception {
+            // Given - an existing, already-enabled (verified) account
             when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(testUser); // enabled user
 
-            // When & Then
+            // When & Then - same response as the unverified case, and no email is sent
             mockMvc.perform(post("/user/resendRegistrationToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto))
                     .with(csrf()))
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.code").value(1))
-                    .andExpect(jsonPath("$.messages[0]").value("Account is already verified."));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your account requires verification, a new verification email has been sent."));
+
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
         }
 
         @Test
-        @DisplayName("POST /user/resendRegistrationToken - user not found")
-        void resendRegistrationToken_userNotFound() throws Exception {
-            // Given
+        @DisplayName("POST /user/resendRegistrationToken - unknown email returns the same uniform 200 body (no 500 leak)")
+        void resendRegistrationToken_unknownEmail_returnsUniformResponse() throws Exception {
+            // Given - no account exists for the email
             when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(null);
 
-            // When & Then
+            // When & Then - same uniform 200 response; nothing leaks existence
             mockMvc.perform(post("/user/resendRegistrationToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(testUserDto))
                     .with(csrf()))
-                    .andExpect(status().isInternalServerError())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.code").value(2));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your account requires verification, a new verification email has been sent."));
+
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
         }
     }
 
@@ -342,6 +365,7 @@ public class UserAPIUnitTest {
         void resetPassword_success() throws Exception {
             // Given
             when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(testUser);
+            when(appUrlResolver.resolveAppUrl(any())).thenReturn("http://localhost:8080");
 
             // When & Then
             mockMvc.perform(post("/user/resetPassword")

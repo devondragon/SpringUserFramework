@@ -28,6 +28,7 @@ import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
@@ -47,6 +48,9 @@ class GdprExportServiceTest {
 
     @Mock
     private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -100,6 +104,27 @@ class GdprExportServiceTest {
             assertThat(export.getUserData().getFirstName()).isEqualTo("Test");
             assertThat(export.getUserData().getLastName()).isEqualTo("User");
             assertThat(export.getUserData().isEnabled()).isTrue();
+        }
+
+        @Test
+        @DisplayName("exports role names by reloading the user through the entity-graph finder")
+        void exportsRoleNamesViaEntityGraphFinder() {
+            // Given - roles are LAZY, so the export service reloads the user with roles initialized.
+            User userWithRoles = UserTestDataBuilder.aVerifiedUser()
+                    .withId(1L)
+                    .withEmail("test@example.com")
+                    .withRole("ROLE_USER")
+                    .build();
+            when(userRepository.findWithRolesByEmail("test@example.com")).thenReturn(userWithRoles);
+            when(gdprConfig.isConsentTracking()).thenReturn(true);
+            when(auditLogQueryService.findByUser(testUser)).thenReturn(new ArrayList<>());
+            when(auditLogQueryService.findByUserAndAction(any(), any())).thenReturn(new ArrayList<>());
+
+            // When
+            GdprExportDTO export = gdprExportService.exportUserData(testUser);
+
+            // Then
+            assertThat(export.getUserData().getRoles()).containsExactly("ROLE_USER");
         }
 
         @Test

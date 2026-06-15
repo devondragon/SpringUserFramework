@@ -77,7 +77,7 @@ class DSOAuth2UserServiceRegistrationGuardTest {
                 .withLastName("User")
                 .build();
 
-        when(userRepository.findByEmail("new@gmail.com")).thenReturn(null);
+        when(userRepository.findWithRolesByEmail("new@gmail.com")).thenReturn(null);
         doThrow(new RegistrationDeniedException("Domain not allowed"))
                 .when(userService).enforceRegistrationGuard(eq("new@gmail.com"), eq(RegistrationSource.OAUTH2), anyString());
 
@@ -99,7 +99,7 @@ class DSOAuth2UserServiceRegistrationGuardTest {
                 .withLastName("User")
                 .build();
 
-        when(userRepository.findByEmail("allowed@gmail.com")).thenReturn(null);
+        when(userRepository.findWithRolesByEmail("allowed@gmail.com")).thenReturn(null);
         doNothing().when(userService)
                 .enforceRegistrationGuard(eq("allowed@gmail.com"), eq(RegistrationSource.OAUTH2), anyString());
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -125,7 +125,7 @@ class DSOAuth2UserServiceRegistrationGuardTest {
         existingUser.setEmail("existing@gmail.com");
         existingUser.setProvider(User.Provider.GOOGLE);
 
-        when(userRepository.findByEmail("existing@gmail.com")).thenReturn(existingUser);
+        when(userRepository.findWithRolesByEmail("existing@gmail.com")).thenReturn(existingUser);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         User result = service.handleOAuthLoginSuccess("google", googleUser);

@@ -51,16 +51,21 @@ class UserUpdateIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Clean up
+        // Clean up users; do not delete-and-recreate roles. ROLE_USER and ROLE_ADMIN already exist (created at startup
+        // by RolePrivilegeSetupService) and now carry a UNIQUE constraint on name, so reuse the existing rows via
+        // findByName-or-create rather than re-inserting duplicates.
         userRepository.deleteAll();
-        roleRepository.deleteAll();
 
-        // Create roles
-        userRole = new Role("ROLE_USER", "Basic user role");
-        userRole = roleRepository.save(userRole);
+        userRole = getOrCreateRole("ROLE_USER", "Basic user role");
+        adminRole = getOrCreateRole("ROLE_ADMIN", "Administrator role");
+    }
 
-        adminRole = new Role("ROLE_ADMIN", "Administrator role");
-        adminRole = roleRepository.save(adminRole);
+    private Role getOrCreateRole(final String name, final String description) {
+        final Role existing = roleRepository.findByName(name);
+        if (existing != null) {
+            return existing;
+        }
+        return roleRepository.save(new Role(name, description));
     }
 
     @Test

@@ -45,6 +45,9 @@ class UserEmailServiceTest {
     private PasswordResetTokenRepository passwordTokenRepository;
 
     @Mock
+    private com.digitalsanctuary.spring.user.persistence.repository.UserRepository userRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -62,7 +65,7 @@ class UserEmailServiceTest {
     @BeforeEach
     void setUp() {
         userEmailService = new UserEmailService(mailService, userVerificationService, passwordTokenRepository,
-                eventPublisher, sessionInvalidationService, tokenHasher);
+                userRepository, eventPublisher, sessionInvalidationService, tokenHasher);
         // In production 'self' is the Spring proxy used to apply @Transactional on createPasswordResetTokenForUser.
         // There is no proxy in a unit test, so point it at the instance itself to exercise the real call path.
         ReflectionTestUtils.setField(userEmailService, "self", userEmailService);
@@ -274,6 +277,54 @@ class UserEmailServiceTest {
             assertThatThrownBy(() -> userEmailService.sendRegistrationVerificationEmail(testUser, "javascript:alert('xss')"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid application URL");
+        }
+
+        @Test
+        @DisplayName("sendRegistrationVerificationEmail - by id reloads user and sends to correct recipient with a token")
+        void sendRegistrationVerificationEmail_byId_reloadsUserAndSendsEmail() {
+            // Given - the async listener carries only the user id; the service must reload the entity.
+            when(userRepository.findById(1L)).thenReturn(java.util.Optional.of(testUser));
+
+            // When
+            userEmailService.sendRegistrationVerificationEmail(1L, appUrl);
+
+            // Then - a verification token is created bound to the reloaded user
+            ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
+            verify(userVerificationService).createVerificationTokenForUser(eq(testUser), tokenCaptor.capture());
+            assertThat(tokenCaptor.getValue()).matches("[A-Za-z0-9_-]{43}");
+
+            // And the verification email is sent to the reloaded user's address
+            verify(mailService).sendTemplateMessage(
+                    eq(testUser.getEmail()),
+                    eq("Registration Confirmation"),
+                    any(Map.class),
+                    eq("mail/registration-token.html")
+            );
+        }
+
+        @Test
+        @DisplayName("sendRegistrationVerificationEmail - by id is a no-op when the user no longer exists")
+        void sendRegistrationVerificationEmail_byId_noOpWhenUserMissing() {
+            // Given - the user was deleted before the async dispatch ran
+            when(userRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+
+            // When
+            userEmailService.sendRegistrationVerificationEmail(1L, appUrl);
+
+            // Then - nothing is created or sent
+            verify(userVerificationService, never()).createVerificationTokenForUser(any(), anyString());
+            verify(mailService, never()).sendTemplateMessage(anyString(), anyString(), any(Map.class), anyString());
+        }
+
+        @Test
+        @DisplayName("sendRegistrationVerificationEmail - by id is a no-op for a null id")
+        void sendRegistrationVerificationEmail_byId_noOpForNullId() {
+            // When
+            userEmailService.sendRegistrationVerificationEmail((Long) null, appUrl);
+
+            // Then
+            verify(userRepository, never()).findById(any());
+            verify(mailService, never()).sendTemplateMessage(anyString(), anyString(), any(Map.class), anyString());
         }
 
         @Test

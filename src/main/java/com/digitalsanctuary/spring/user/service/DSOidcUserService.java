@@ -96,7 +96,7 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         // but we normalize again here defensively in case additional sources are added.
         String normalizedEmail = user.getEmail().trim().toLowerCase(Locale.ROOT);
         log.debug("handleOidcLoginSuccess: looking up user with email: {}", normalizedEmail);
-        User existingUser = userRepository.findByEmail(normalizedEmail);
+        User existingUser = userRepository.findWithRolesByEmail(normalizedEmail);
         log.debug("handleOidcLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
             log.debug("handleOidcLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());
@@ -151,7 +151,8 @@ public class DSOidcUserService implements OAuth2UserService<OidcUserRequest, Oid
         // RegistrationListener intentionally skips sending them a verification email; the event still fires.
         // No HttpServletRequest is available here, so locale defaults and appUrl is null (only the verification
         // email, which is skipped for enabled users, would have used appUrl).
-        eventPublisher.publishEvent(new OnRegistrationCompleteEvent(savedUser, Locale.getDefault(), null));
+        eventPublisher.publishEvent(OnRegistrationCompleteEvent.builder().userId(savedUser.getId()).userEmail(savedUser.getEmail())
+                .userEnabled(savedUser.isEnabled()).locale(Locale.getDefault()).appUrl(null).build());
         return savedUser;
     }
 

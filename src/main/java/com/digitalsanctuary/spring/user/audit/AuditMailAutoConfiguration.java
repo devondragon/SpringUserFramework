@@ -87,7 +87,7 @@ public class AuditMailAutoConfiguration {
      * @param mailContentBuilder the mail content builder
      * @return the default {@link MailService}
      */
-    @Bean
+    @Bean("dsMailService")
     @ConditionalOnMissingBean(MailService.class)
     public MailService mailService(ObjectProvider<JavaMailSender> mailSenderProvider, MailContentBuilder mailContentBuilder) {
         return new MailService(mailSenderProvider, mailContentBuilder);

@@ -1,5 +1,6 @@
 package com.digitalsanctuary.spring.user.security;
 
+import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -20,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import com.digitalsanctuary.spring.user.UserConfiguration;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
+import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -165,5 +167,22 @@ public class UserSecurityBeansAutoConfiguration {
     @ConditionalOnMissingBean(AuthenticationEventPublisher.class)
     public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
+    }
+
+    /**
+     * Creates the library's default {@link AppUrlResolver}, which builds the base URL for security-sensitive email links (password reset, email
+     * verification) from the configured canonical URL ({@code user.security.appUrl}) and/or the trusted-host allow-list
+     * ({@code user.security.trustedHosts}), defending against Host-header / X-Forwarded-Host poisoning (CWE-640). Backs off entirely if the consuming
+     * application defines its own {@link AppUrlResolver}.
+     *
+     * @param appUrl the configured canonical base URL, or {@code null} when unset
+     * @param trustedHosts the allow-listed forwarded hosts (empty when unset)
+     * @return the default {@link AppUrlResolver}
+     */
+    @Bean
+    @ConditionalOnMissingBean(AppUrlResolver.class)
+    public AppUrlResolver appUrlResolver(@Value("${user.security.appUrl:#{null}}") String appUrl,
+            @Value("${user.security.trustedHosts:}") List<String> trustedHosts) {
+        return new AppUrlResolver(appUrl, trustedHosts);
     }
 }

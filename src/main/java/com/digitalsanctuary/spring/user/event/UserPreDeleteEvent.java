@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.event;
 
 import org.springframework.context.ApplicationEvent;
-import com.digitalsanctuary.spring.user.persistence.model.User;
 
 /**
  * Event published before a user entity is deleted. This event can be used to perform any necessary actions or checks before the deletion occurs.
@@ -11,42 +10,56 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
  * cascading deletions.
  * </p>
  *
- * @see User
+ * <p>
+ * As of 5.0.0 this event no longer carries a live JPA {@code User} entity. Instead it exposes immutable scalar data
+ * ({@code userId}, {@code userEmail}) captured at publish time. This prevents detached-entity /
+ * {@code LazyInitializationException} hazards when the event is consumed across threads. If a listener needs the full
+ * {@code User}, it should load it by {@code userId} from {@code UserRepository} inside its own transaction.
+ * </p>
  */
 public class UserPreDeleteEvent extends ApplicationEvent {
 
-    /**
-     * The user entity that is about to be deleted.
-     */
-    private final User user;
+    private static final long serialVersionUID = 1L;
 
     /**
-     * Create a new UserDeleteEvent.
+     * The ID of the user that is about to be deleted.
+     */
+    private final Long userId;
+
+    /**
+     * The email of the user that is about to be deleted.
+     */
+    private final String userEmail;
+
+    /**
+     * Create a new UserPreDeleteEvent.
      *
      * @param source The object on which the event initially occurred (never {@code null})
-     * @param user The user entity that is about to be deleted (never {@code null})
+     * @param userId The ID of the user that is about to be deleted (never {@code null})
+     * @param userEmail The email of the user that is about to be deleted
      */
-    public UserPreDeleteEvent(Object source, User user) {
+    public UserPreDeleteEvent(Object source, Long userId, String userEmail) {
         super(source);
-        this.user = user;
+        this.userId = userId;
+        this.userEmail = userEmail;
     }
 
     /**
-     * Get the user entity that is about to be deleted.
+     * Get the ID of the user that is about to be deleted.
      *
-     * @return The user entity (never {@code null})
-     */
-    public User getUser() {
-        return user;
-    }
-
-    /**
-     * Get the ID of the user entity that is about to be deleted.
-     *
-     * @return The ID of the user entity (never {@code null})
+     * @return The ID of the user (never {@code null})
      */
     public Long getUserId() {
-        return user.getId();
+        return userId;
+    }
+
+    /**
+     * Get the email of the user that is about to be deleted.
+     *
+     * @return The email of the user
+     */
+    public String getUserEmail() {
+        return userEmail;
     }
 
 }

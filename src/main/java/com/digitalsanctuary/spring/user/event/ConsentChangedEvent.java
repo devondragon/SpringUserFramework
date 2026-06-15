@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.event;
 import org.springframework.context.ApplicationEvent;
 import com.digitalsanctuary.spring.user.gdpr.ConsentRecord;
 import com.digitalsanctuary.spring.user.gdpr.ConsentType;
-import com.digitalsanctuary.spring.user.persistence.model.User;
 
 /**
  * Event published when a user's consent status changes.
@@ -13,6 +12,12 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
  * Listeners can use this event to trigger additional actions like
  * updating mailing lists, disabling features, or synchronizing with
  * external consent management systems.
+ *
+ * <p>As of 5.0.0 this event no longer carries a live JPA {@code User} entity. Instead it exposes immutable scalar data
+ * ({@code userId}, {@code userEmail}) captured at publish time, alongside the {@link ConsentRecord} (a plain DTO, not a
+ * JPA entity) and the {@link ChangeType}. This prevents detached-entity / {@code LazyInitializationException} hazards
+ * when the event is consumed across threads. If a listener needs the full {@code User}, it should load it by
+ * {@code userId} from {@code UserRepository} inside its own transaction.
  *
  * @see ConsentRecord
  * @see ConsentType
@@ -38,9 +43,14 @@ public class ConsentChangedEvent extends ApplicationEvent {
     }
 
     /**
-     * The user whose consent changed.
+     * The ID of the user whose consent changed.
      */
-    private final User user;
+    private final Long userId;
+
+    /**
+     * The email of the user whose consent changed.
+     */
+    private final String userEmail;
 
     /**
      * The consent record with details of the change.
@@ -56,24 +66,17 @@ public class ConsentChangedEvent extends ApplicationEvent {
      * Creates a new ConsentChangedEvent.
      *
      * @param source the object on which the event initially occurred
-     * @param user the user whose consent changed
+     * @param userId the ID of the user whose consent changed
+     * @param userEmail the email of the user whose consent changed
      * @param consentRecord the consent record with details
      * @param changeType whether consent was granted or withdrawn
      */
-    public ConsentChangedEvent(Object source, User user, ConsentRecord consentRecord, ChangeType changeType) {
+    public ConsentChangedEvent(Object source, Long userId, String userEmail, ConsentRecord consentRecord, ChangeType changeType) {
         super(source);
-        this.user = user;
+        this.userId = userId;
+        this.userEmail = userEmail;
         this.consentRecord = consentRecord;
         this.changeType = changeType;
-    }
-
-    /**
-     * Gets the user whose consent changed.
-     *
-     * @return the user
-     */
-    public User getUser() {
-        return user;
     }
 
     /**
@@ -82,7 +85,16 @@ public class ConsentChangedEvent extends ApplicationEvent {
      * @return the user ID
      */
     public Long getUserId() {
-        return user != null ? user.getId() : null;
+        return userId;
+    }
+
+    /**
+     * Gets the email of the user whose consent changed.
+     *
+     * @return the user email
+     */
+    public String getUserEmail() {
+        return userEmail;
     }
 
     /**

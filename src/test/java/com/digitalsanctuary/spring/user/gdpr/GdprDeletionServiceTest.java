@@ -107,7 +107,8 @@ class GdprDeletionServiceTest {
             // Then
             ArgumentCaptor<UserPreDeleteEvent> eventCaptor = ArgumentCaptor.forClass(UserPreDeleteEvent.class);
             verify(eventPublisher).publishEvent(eventCaptor.capture());
-            assertThat(eventCaptor.getValue().getUser()).isEqualTo(testUser);
+            assertThat(eventCaptor.getValue().getUserId()).isEqualTo(testUser.getId());
+            assertThat(eventCaptor.getValue().getUserEmail()).isEqualTo(testUser.getEmail());
         }
 
         @Test

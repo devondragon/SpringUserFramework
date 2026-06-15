@@ -96,8 +96,6 @@ public class UserServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
-    private AuthorityService authorityService;
-    @Mock
     private PasswordHistoryRepository passwordHistoryRepository;
     @Mock
     private SessionInvalidationService sessionInvalidationService;
@@ -436,8 +434,8 @@ public class UserServiceTest {
             // Then
             verify(eventPublisher).publishEvent(eventCaptor.capture());
             UserPreDeleteEvent publishedEvent = eventCaptor.getValue();
-            assertThat(publishedEvent.getUser()).isEqualTo(testUser);
             assertThat(publishedEvent.getUserId()).isEqualTo(testUser.getId());
+            assertThat(publishedEvent.getUserEmail()).isEqualTo(testUser.getEmail());
         }
     }
 
@@ -647,11 +645,12 @@ public class UserServiceTest {
         @DisplayName("authWithoutPassword - authenticates valid user")
         void authWithoutPassword_authenticatesValidUser() {
             // Given
-            DSUserDetails userDetails = new DSUserDetails(testUser);
             Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+            // Authorities now come from the principal loaded by loadUserByUsername (which resolves roles/privileges
+            // via the entity-graph finder), not from re-deriving them from the possibly-detached incoming user.
+            DSUserDetails userDetails = new DSUserDetails(testUser, authorities);
 
             when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
 
             HttpServletRequest mockRequest = mock(HttpServletRequest.class);
             HttpSession mockSession = mock(HttpSession.class);
@@ -692,11 +691,10 @@ public class UserServiceTest {
         @DisplayName("authWithoutPassword - publishes InteractiveAuthenticationSuccessEvent")
         void shouldPublishInteractiveAuthenticationSuccessEventWhenAuthSucceeds() {
             // Given
-            DSUserDetails userDetails = new DSUserDetails(testUser);
             Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+            DSUserDetails userDetails = new DSUserDetails(testUser, authorities);
 
             when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
 
             HttpServletRequest mockRequest = mock(HttpServletRequest.class);
             HttpSession mockSession = mock(HttpSession.class);
@@ -743,7 +741,6 @@ public class UserServiceTest {
 
             // Then
             verify(dsUserDetailsService, never()).loadUserByUsername(any());
-            verify(authorityService, never()).getAuthoritiesFromUser(any());
             verify(eventPublisher, never()).publishEvent(any());
         }
 
@@ -758,7 +755,6 @@ public class UserServiceTest {
 
             // Then
             verify(dsUserDetailsService, never()).loadUserByUsername(any());
-            verify(authorityService, never()).getAuthoritiesFromUser(any());
             verify(eventPublisher, never()).publishEvent(any());
         }
 
@@ -773,7 +769,6 @@ public class UserServiceTest {
             userService.authWithoutPassword(testUser);
 
             // Then
-            verify(authorityService, never()).getAuthoritiesFromUser(any());
             verify(eventPublisher, never()).publishEvent(any());
         }
 
@@ -781,11 +776,10 @@ public class UserServiceTest {
         @DisplayName("authWithoutPassword - handles no request context")
         void authWithoutPassword_handlesNoRequestContext() {
             // Given
-            DSUserDetails userDetails = new DSUserDetails(testUser);
             Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+            DSUserDetails userDetails = new DSUserDetails(testUser, authorities);
 
             when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
 
             try (MockedStatic<RequestContextHolder> mockedHolder = mockStatic(RequestContextHolder.class);
                     MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(
@@ -810,11 +804,10 @@ public class UserServiceTest {
             // Given a real request/session bound to the RequestContextHolder so that the servlet
             // changeSessionId() contract is exercised faithfully (MockHttpServletRequest rotates the
             // underlying MockHttpSession id while preserving attributes).
-            DSUserDetails userDetails = new DSUserDetails(testUser);
             Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+            DSUserDetails userDetails = new DSUserDetails(testUser, authorities);
 
             when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
-            when(authorityService.getAuthoritiesFromUser(testUser)).thenReturn((Collection) authorities);
 
             MockHttpServletRequest mockRequest = new MockHttpServletRequest();
             // Ensure a pre-auth session exists with a fixed id and a pre-existing attribute

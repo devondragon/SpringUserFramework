@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.util.Calendar;
 import java.util.Date;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -9,12 +10,18 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 /**
  * The PasswordResetToken Entity.
  */
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 @Entity
 public class PasswordResetToken {
 
@@ -24,12 +31,18 @@ public class PasswordResetToken {
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	// Identity-based equality keys on this id only. Two transient (unsaved, id == null) instances compare equal,
+	// so never use unsaved entities as Set/Map keys; add them only after they have been persisted. See EntityEqualityTest.
+	@EqualsAndHashCode.Include
 	private Long id;
 
 	/** The token. */
+	@ToString.Exclude
+	@Column(name = "token", nullable = false, unique = true)
 	private String token;
 
 	/** The user. */
+	@ToString.Exclude
 	@OneToOne(targetEntity = User.class, fetch = FetchType.EAGER)
 	@JoinColumn(nullable = false, name = "user_id")
 	private User user;

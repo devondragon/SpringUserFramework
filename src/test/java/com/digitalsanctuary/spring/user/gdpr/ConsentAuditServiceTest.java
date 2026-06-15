@@ -164,7 +164,8 @@ class ConsentAuditServiceTest {
             verify(eventPublisher).publishEvent(eventCaptor.capture());
 
             ConsentChangedEvent capturedEvent = eventCaptor.getValue();
-            assertThat(capturedEvent.getUser()).isEqualTo(testUser);
+            assertThat(capturedEvent.getUserId()).isEqualTo(testUser.getId());
+            assertThat(capturedEvent.getUserEmail()).isEqualTo(testUser.getEmail());
             assertThat(capturedEvent.getConsentType()).isEqualTo(ConsentType.MARKETING_EMAILS);
             assertThat(capturedEvent.isGranted()).isTrue();
         }

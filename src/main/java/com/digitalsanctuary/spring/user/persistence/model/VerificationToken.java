@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.util.Calendar;
 import java.util.Date;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
@@ -11,12 +12,18 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Transient;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 /**
  * The VerificationToken Entity. Stores Registration Verification Token data.
  */
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString
 @Entity
 public class VerificationToken {
 
@@ -26,12 +33,18 @@ public class VerificationToken {
 	/** The id. */
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
+	// Identity-based equality keys on this id only. Two transient (unsaved, id == null) instances compare equal,
+	// so never use unsaved entities as Set/Map keys; add them only after they have been persisted. See EntityEqualityTest.
+	@EqualsAndHashCode.Include
 	private Long id;
 
 	/** The token. */
+	@ToString.Exclude
+	@Column(name = "token", nullable = false, unique = true)
 	private String token;
 
 	/** The user. */
+	@ToString.Exclude
 	@OneToOne(targetEntity = User.class, fetch = FetchType.EAGER)
 	@JoinColumn(nullable = false, name = "user_id", foreignKey = @ForeignKey(name = "FK_VERIFY_USER"))
 	private User user;
@@ -45,6 +58,7 @@ public class VerificationToken {
 	 * email link can be built) when a service regenerates a token. It is {@code null} on entities
 	 * loaded from the database.
 	 */
+	@ToString.Exclude
 	@Transient
 	private transient String plainToken;
 

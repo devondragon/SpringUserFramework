@@ -22,6 +22,7 @@ import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Service("dsUserEmailService")
 public class UserEmailService {
 
     /** The mail service. */
@@ -53,6 +54,9 @@ public class UserEmailService {
 
     /** The password token repository. */
     private final PasswordResetTokenRepository passwordTokenRepository;
+
+    /** The user repository, used to reload a User by id for async-dispatched registration emails. */
+    private final UserRepository userRepository;
 
     /** The event publisher. */
     private final ApplicationEventPublisher eventPublisher;
@@ -133,6 +137,32 @@ public class UserEmailService {
         Map<String, Object> variables = createEmailVariablesWithValidation(user, appUrl, token, "/user/registrationConfirm?token=");
 
         mailService.sendTemplateMessage(user.getEmail(), "Registration Confirmation", variables, "mail/registration-token.html");
+    }
+
+    /**
+     * Sends the registration verification email for the user with the given id.
+     *
+     * <p>This overload reloads the {@link User} from the repository inside its own transaction. It is used by the
+     * {@code @Async} registration listener, which (as of 5.0.0) receives only the user's id rather than a live JPA
+     * entity, avoiding detached-entity / {@code LazyInitializationException} hazards across threads. If the user no
+     * longer exists (e.g. deleted before the async dispatch ran), the call is a no-op.</p>
+     *
+     * @param userId the id of the user to send the verification email to
+     * @param appUrl the app url (must be a valid HTTP/HTTPS URL)
+     * @throws IllegalArgumentException if appUrl is null, blank, or uses a dangerous scheme
+     */
+    @Transactional
+    public void sendRegistrationVerificationEmail(final Long userId, final String appUrl) {
+        if (userId == null) {
+            log.warn("UserEmailService.sendRegistrationVerificationEmail: null userId; skipping verification email");
+            return;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            log.warn("UserEmailService.sendRegistrationVerificationEmail: user {} no longer exists; skipping verification email", userId);
+            return;
+        }
+        sendRegistrationVerificationEmail(user, appUrl);
     }
 
     /**

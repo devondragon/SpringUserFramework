@@ -78,7 +78,7 @@ class DSUserDetailsServiceTest {
     void loadUserByUsername_withValidEmail_returnsUserDetails() {
         // Given
         String email = "test@example.com";
-        when(userRepository.findByEmail(email)).thenReturn(testUser);
+        when(userRepository.findWithRolesByEmail(email)).thenReturn(testUser);
         when(loginHelperService.userLoginHelper(testUser)).thenReturn(mockUserDetails);
 
         // When
@@ -93,7 +93,7 @@ class DSUserDetailsServiceTest {
                 .containsExactly("ROLE_USER");
 
         // Verify interactions
-        verify(userRepository).findByEmail(email);
+        verify(userRepository).findWithRolesByEmail(email);
         verify(loginHelperService).userLoginHelper(testUser);
     }
 
@@ -102,7 +102,7 @@ class DSUserDetailsServiceTest {
     void loadUserByUsername_withNonExistentEmail_throwsException() {
         // Given
         String email = "nonexistent@example.com";
-        when(userRepository.findByEmail(email)).thenReturn(null);
+        when(userRepository.findWithRolesByEmail(email)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> dsUserDetailsService.loadUserByUsername(email))
@@ -117,14 +117,14 @@ class DSUserDetailsServiceTest {
     @DisplayName("Should handle null email")
     void loadUserByUsername_withNullEmail_throwsException() {
         // Given
-        when(userRepository.findByEmail(null)).thenReturn(null);
+        when(userRepository.findWithRolesByEmail(null)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> dsUserDetailsService.loadUserByUsername(null))
                 .isInstanceOf(UsernameNotFoundException.class)
                 .hasMessage("No user found with email/username: null");
 
-        verify(userRepository).findByEmail(null);
+        verify(userRepository).findWithRolesByEmail(null);
         verify(loginHelperService, never()).userLoginHelper(any());
     }
 
@@ -133,14 +133,14 @@ class DSUserDetailsServiceTest {
     void loadUserByUsername_withEmptyEmail_throwsException() {
         // Given
         String emptyEmail = "";
-        when(userRepository.findByEmail(emptyEmail)).thenReturn(null);
+        when(userRepository.findWithRolesByEmail(emptyEmail)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> dsUserDetailsService.loadUserByUsername(emptyEmail))
                 .isInstanceOf(UsernameNotFoundException.class)
                 .hasMessage("No user found with email/username: ");
 
-        verify(userRepository).findByEmail(emptyEmail);
+        verify(userRepository).findWithRolesByEmail(emptyEmail);
         verify(loginHelperService, never()).userLoginHelper(any());
     }
 
@@ -153,7 +153,7 @@ class DSUserDetailsServiceTest {
                 .build();
         DSUserDetails disabledUserDetails = new DSUserDetails(disabledUser, Collections.emptyList());
         
-        when(userRepository.findByEmail("disabled@example.com")).thenReturn(disabledUser);
+        when(userRepository.findWithRolesByEmail("disabled@example.com")).thenReturn(disabledUser);
         when(loginHelperService.userLoginHelper(disabledUser)).thenReturn(disabledUserDetails);
 
         // When
@@ -175,7 +175,7 @@ class DSUserDetailsServiceTest {
         DSUserDetails lockedUserDetails = new DSUserDetails(lockedUser, 
                 Arrays.asList(new SimpleGrantedAuthority("ROLE_USER")));
         
-        when(userRepository.findByEmail("locked@example.com")).thenReturn(lockedUser);
+        when(userRepository.findWithRolesByEmail("locked@example.com")).thenReturn(lockedUser);
         when(loginHelperService.userLoginHelper(lockedUser)).thenReturn(lockedUserDetails);
 
         // When
@@ -205,7 +205,7 @@ class DSUserDetailsServiceTest {
                     new SimpleGrantedAuthority("ROLE_ADMIN")
                 ));
         
-        when(userRepository.findByEmail("multirole@example.com")).thenReturn(multiRoleUser);
+        when(userRepository.findWithRolesByEmail("multirole@example.com")).thenReturn(multiRoleUser);
         when(loginHelperService.userLoginHelper(multiRoleUser)).thenReturn(multiRoleUserDetails);
 
         // When
@@ -229,7 +229,7 @@ class DSUserDetailsServiceTest {
         DSUserDetails specialEmailUserDetails = new DSUserDetails(userWithSpecialEmail, 
                 Arrays.asList(new SimpleGrantedAuthority("ROLE_USER")));
         
-        when(userRepository.findByEmail(specialEmail)).thenReturn(userWithSpecialEmail);
+        when(userRepository.findWithRolesByEmail(specialEmail)).thenReturn(userWithSpecialEmail);
         when(loginHelperService.userLoginHelper(userWithSpecialEmail)).thenReturn(specialEmailUserDetails);
 
         // When
@@ -257,7 +257,7 @@ class DSUserDetailsServiceTest {
         DSUserDetails userDetails = new DSUserDetails(user, 
                 Arrays.asList(new SimpleGrantedAuthority("ROLE_USER")));
         
-        when(userRepository.findByEmail(email)).thenReturn(user);
+        when(userRepository.findWithRolesByEmail(email)).thenReturn(user);
         when(loginHelperService.userLoginHelper(user)).thenReturn(userDetails);
 
         // When
@@ -284,7 +284,7 @@ class DSUserDetailsServiceTest {
                 .withEmail(email)
                 .build();
         
-        when(userRepository.findByEmail(email)).thenReturn(user);
+        when(userRepository.findWithRolesByEmail(email)).thenReturn(user);
         when(loginHelperService.userLoginHelper(any())).thenReturn(mockUserDetails);
 
         // When

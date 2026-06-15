@@ -6,6 +6,19 @@ This guide covers migrating applications using the Spring User Framework between
 
 - [Migration Guide](#migration-guide)
   - [Table of Contents](#table-of-contents)
+  - [Migrating to 5.0.x](#migrating-to-50x)
+    - [⚠️ ACTION REQUIRED: Reverse-proxy deployments must configure a canonical app URL](#-action-required-reverse-proxy-deployments-must-configure-a-canonical-app-url)
+    - [Database schema: unique token constraint](#database-schema-unique-token-constraint)
+    - [Registration & resend responses are now uniform (anti-enumeration)](#registration--resend-responses-are-now-uniform-anti-enumeration)
+    - [Re-authentication required for credential changes](#re-authentication-required-for-credential-changes)
+    - [Database schema: unique role/privilege names](#database-schema-unique-roleprivilege-names)
+    - [Lazy fetching of roles and privileges](#lazy-fetching-of-roles-and-privileges)
+    - [Entity equals/hashCode now identity-based](#entity-equalshashcode-now-identity-based)
+    - [Events carry ids/DTOs instead of entities](#events-carry-idsdtos-instead-of-entities)
+    - [Validation exception handler is now library-scoped](#validation-exception-handler-is-now-library-scoped)
+    - [Package consolidation](#package-consolidation)
+    - [Message bundle no longer overridden; library beans renamed](#message-bundle-no-longer-overridden-library-beans-renamed)
+    - [Auto-configuration entry point and toggleable cross-cutting features](#auto-configuration-entry-point-and-toggleable-cross-cutting-features)
   - [Migrating to 4.0.x (Spring Boot 4.0)](#migrating-to-40x-spring-boot-40)
     - [Prerequisites](#prerequisites)
     - [Step 1: Update Java Version](#step-1-update-java-version)
@@ -28,6 +41,297 @@ This guide covers migrating applications using the Spring User Framework between
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
   - [Version Compatibility Matrix](#version-compatibility-matrix)
+
+## Migrating to 5.0.x
+
+This section covers migrating from Spring User Framework 4.4.x to 5.0.x. Version 5.0.0 is a **major release** containing breaking changes. Spring Boot compatibility is unchanged from 4.4.x (Spring Boot 4.0 on Java 21+, and Spring Boot 3.5 on Java 17+); the major-version bump reflects this library's own API/contract changes, not a Spring Boot major change.
+
+> **Note on versioning:** This library follows Semantic Versioning for its own API. Its major version is deliberately **not** tied to Spring Boot's major version — a single release line supports more than one Spring Boot major. See the Version Compatibility Matrix for supported Spring Boot versions.
+
+### ⚠️ ACTION REQUIRED: Reverse-proxy deployments must configure a canonical app URL
+
+Password-reset and email-verification links are now built from a configured canonical base URL instead of the inbound request's `Host` / `X-Forwarded-Host` header (CWE-640, host-header / reset poisoning). By default `X-Forwarded-Host` is **ignored** unless the host is explicitly allow-listed.
+
+**If your application runs behind a reverse proxy or load balancer, you must take action or your reset/verification links will break:**
+
+- **Recommended:** set the canonical base URL:
+  ```properties
+  user.security.appUrl=https://app.example.com
+  ```
+  When set, `X-Forwarded-Host` is ignored entirely and all email links use this URL.
+- **Alternative:** allow-list the trusted forwarded host(s):
+  ```properties
+  user.security.trustedHosts=app.example.com,www.example.com
+  ```
+  `X-Forwarded-Host` is then honored only for hosts in this list; all others fall back to the container's own server name.
+
+Local development with no proxy needs no change. `UserUtils.getAppUrl(HttpServletRequest)` is deprecated in favor of `AppUrlResolver`.
+
+### Database schema: unique token constraint
+
+The `token` column on both `password_reset_token` and `verification_token` now carries a **UNIQUE + NOT NULL** constraint. The stored value is always a fixed-length hash (introduced in 4.4.0), so the column length is predictable and the index is safe.
+
+**Applications using `spring.jpa.hibernate.ddl-auto=update` (or `create`/`create-drop`):** Hibernate will add the unique index automatically on startup — no manual action required.
+
+**Applications managing schema manually (Flyway, Liquibase, or `ddl-auto=validate`/`none`):** apply the following DDL before upgrading and before starting the application:
+
+```sql
+-- Ensure no existing null or duplicate token values exist first.
+-- (4.4.0 already enforces one active token per user, so duplicates are unlikely.)
+ALTER TABLE password_reset_token ALTER COLUMN token SET NOT NULL;
+ALTER TABLE verification_token ALTER COLUMN token SET NOT NULL;
+CREATE UNIQUE INDEX ux_password_reset_token_token ON password_reset_token (token);
+CREATE UNIQUE INDEX ux_verification_token_token ON verification_token (token);
+```
+
+> **Note:** The DDL syntax above is standard SQL (compatible with PostgreSQL and MariaDB/MySQL). For MySQL/MariaDB, `ALTER COLUMN token SET NOT NULL` may need to include the full column definition, e.g. `MODIFY COLUMN token VARCHAR(255) NOT NULL`.
+
+If your database contains rows with a `null` token value (possible only if tokens were created before 4.4.0 without the hash path), delete or back-fill those rows before applying the NOT NULL constraint.
+
+### Registration & resend responses are now uniform (anti-enumeration)
+
+The `/user/registration`, `/user/registration/passwordless`, and `/user/resendRegistrationToken` endpoints now return the **same generic, success-shaped HTTP 200 response** regardless of whether the email is already registered or already verified. This prevents attackers from using these endpoints to enumerate which email addresses have accounts and which are verified (CWE-204).
+
+**Old behavior:**
+
+| Endpoint | Case | Old status | Old body message |
+|---|---|---|---|
+| `/user/registration` | New email | 200 | `Registration Successful!` |
+| `/user/registration` | Email already exists | 409 Conflict | `An account already exists for the email address` (code 2) |
+| `/user/registration/passwordless` | New email | 200 | `Registration Successful!` |
+| `/user/registration/passwordless` | Email already exists | 409 Conflict | `An account already exists for the email address` (code 2) |
+| `/user/resendRegistrationToken` | Unverified account | 200 | `Verification Email Resent Successfully!` |
+| `/user/resendRegistrationToken` | Already-verified account | 409 Conflict | `Account is already verified.` (code 1) |
+| `/user/resendRegistrationToken` | Unknown email | 500 Internal Server Error | `System Error!` (code 2) |
+
+**New behavior:**
+
+| Endpoint | All cases | New status | New body message |
+|---|---|---|---|
+| `/user/registration` | New email **or** already exists | 200 | `If your email address is eligible, you will receive a verification email shortly.` (success, code 0) |
+| `/user/registration/passwordless` | New email **or** already exists | 200 | `Registration Successful!` (success, code 0) |
+| `/user/resendRegistrationToken` | Unverified, already-verified, **or** unknown email | 200 | `If your account requires verification, a new verification email has been sent.` (success, code 0) |
+
+Internally the framework still does the correct thing — a brand-new registration creates the account and sends verification, an existing email creates nothing, and resend sends an email only when the account exists and is unverified — and the true outcome is still recorded in the audit log. Only the externally observable response is now uniform.
+
+**Action required:** Clients (web UIs, mobile apps, integrations) must no longer rely on the `409` status (existing/verified account) or the `500` status (unknown email on resend) to detect account existence or verification state. Branch only on the `success` flag for these three endpoints, and present the generic message to end users.
+
+### Re-authentication required for credential changes
+
+Operations that change *how an account authenticates* now require the user to prove knowledge of the current password **when the account has one**. This closes a gap where a session-only actor (e.g. an unattended or hijacked session) could silently alter the account's authentication methods without re-authenticating (CWE-620 / weak re-authentication).
+
+Affected endpoints (all require `user.webauthn.enabled=true` except where noted):
+
+| Endpoint | Method | What changed | How to send the current password |
+|---|---|---|---|
+| `/user/webauthn/password` | `DELETE` | Removing the password (converting to passkey-only) now requires the current password. | JSON body `{"currentPassword": "..."}` |
+| `/user/webauthn/credentials/{id}` | `DELETE` | Deleting a passkey requires the current password **when the account has a password**. | JSON body `{"currentPassword": "..."}` |
+| `/user/webauthn/credentials/{id}/label` | `PUT` | Renaming a passkey requires the current password **when the account has a password**. The existing body gains a `currentPassword` field. | JSON body `{"label": "...", "currentPassword": "..."}` |
+
+**Behavior when the account has a password:**
+- Missing `currentPassword` → `HTTP 400` with message *"Current password is required to change authentication methods."* — nothing is mutated.
+- Incorrect `currentPassword` → `HTTP 400` with message *"Current password is incorrect."* — nothing is mutated.
+- Correct `currentPassword` → the operation proceeds as before.
+
+`/user/updatePassword` is unchanged: it already required and verified `oldPassword`.
+
+**Action required:** Update any client that calls the three endpoints above so that it collects the user's current password and sends it in the request body. `DELETE /user/webauthn/credentials/{id}` and `DELETE /user/webauthn/password`, which previously had no request body, now accept (and for password-holding accounts require) a JSON body carrying `currentPassword`. Existing IDOR/ownership checks and last-credential lockout protection are unchanged.
+
+**Passwordless (passkey-only) accounts — residual risk:** For accounts with no password set, there is no current credential to verify, and this library does not yet implement a WebAuthn step-up assertion (a feasible recent-authentication signal does not currently exist in the framework). As a result:
+- Deleting or renaming a passkey on a passwordless account remains a session-only operation (last-credential lockout protection and ownership checks still apply).
+- Setting an *initial* password via `POST /user/setPassword` on a passwordless account also cannot require a current password (there is none); this endpoint still rejects accounts that already have a password.
+
+This is a deliberate, documented limitation rather than a half-measure: implementing a true WebAuthn step-up assertion would require significant new challenge/response infrastructure. Consuming applications that need stronger guarantees for passwordless accounts can front these endpoints with their own step-up (e.g. require a fresh passkey assertion) before allowing the call. This will be revisited if/when a step-up mechanism is added to the framework.
+
+### Database schema: unique role/privilege names
+
+The `name` column on both the `role` and `privilege` tables now carries a **UNIQUE + NOT NULL** constraint. Role and privilege names were always intended to be unique identifiers (the framework looks them up by name), so this enforces an existing invariant at the schema level. It also makes the startup role/privilege setup safe under concurrent multi-node startup: if two nodes start simultaneously and both try to create the same role/privilege, the unique constraint guarantees only one row is created, and the framework re-reads the winning row instead of failing (first-writer-wins).
+
+**Applications using `spring.jpa.hibernate.ddl-auto=update` (or `create`/`create-drop`):** Hibernate will add the unique index automatically on startup — no manual action required.
+
+**Applications managing schema manually (Flyway, Liquibase, or `ddl-auto=validate`/`none`):** **de-duplicate any existing duplicate role/privilege names first**, then apply the following DDL before upgrading and before starting the application:
+
+```sql
+-- 1. Find duplicates before applying the constraint (must return zero rows):
+SELECT name, COUNT(*) FROM role GROUP BY name HAVING COUNT(*) > 1;
+SELECT name, COUNT(*) FROM privilege GROUP BY name HAVING COUNT(*) > 1;
+-- Resolve any duplicates manually (merge/repoint references, delete extras) before continuing.
+
+-- 2. Apply NOT NULL + UNIQUE:
+ALTER TABLE role ALTER COLUMN name SET NOT NULL;
+ALTER TABLE privilege ALTER COLUMN name SET NOT NULL;
+CREATE UNIQUE INDEX ux_role_name ON role (name);
+CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
+```
+
+> **Note:** The table names above (`role`, `privilege`) and column name (`name`) are Hibernate's defaults for the `Role` and `Privilege` entities (no `@Table` override). If you have customized Hibernate's physical naming strategy, adjust the identifiers accordingly. The DDL syntax is standard SQL (PostgreSQL / MariaDB / MySQL); for MySQL/MariaDB, `ALTER COLUMN name SET NOT NULL` may need the full column definition, e.g. `MODIFY COLUMN name VARCHAR(255) NOT NULL`.
+
+### Lazy fetching of roles and privileges
+
+**What changed:** The `roles` collection on `User` and the `privileges` collection on `Role` were previously `FetchType.EAGER`. They are now `FetchType.LAZY`. The authentication path (`DSUserDetailsService.loadUserByUsername`) now loads the full `User` &rarr; `roles` &rarr; `privileges` graph via a new `@EntityGraph` repository finder, `UserRepository.findWithRolesByEmail(String email)`, which fetches everything in a **single query**.
+
+**Why:** The old two-level eager fetch loaded every role and every privilege on *every* `User` load — even for operations that never touch authorities (token lookups, lockout-counter updates, existence checks) — and caused an N+1 query pattern. Making the collections lazy and loading them explicitly only where they are needed removes that overhead while keeping authentication behavior identical.
+
+**Impact / risk:** Because the collections are now lazy, **any code that accesses `user.getRoles()` (or iterates `role.getPrivileges()`) on a detached entity — i.e. outside an open Hibernate session/transaction — will throw `LazyInitializationException`.** Code that accesses these collections *within* an active transaction (the common case for service methods) is unaffected. The framework's own authentication, OAuth2/OIDC, and GDPR-export paths have been updated to initialize the graph correctly.
+
+**Remediation patterns for consumers** that traverse roles/privileges on a `User` they obtained outside a transaction:
+
+- **Load through the authentication path or the entity-graph finder.** Use `UserRepository.findWithRolesByEmail(email)` (it initializes roles and privileges in one query) instead of the plain `findByEmail(email)` when you need authorities.
+- **Access the collections inside a transaction.** Annotate the method that reads `user.getRoles()` with `@Transactional` so the persistence session is still open when the lazy collection is first touched.
+- **Use a DTO projection.** Map the roles/privileges you need into a DTO while still inside the session, then pass the DTO around the detached boundary.
+- **Initialize before detaching.** If you must hand a `User` to detached code, call `Hibernate.initialize(user.getRolesAsSet())` (and the nested privileges) while the session is open.
+
+The plain `UserRepository.findByEmail(String)` finder is retained unchanged for callers that do not need the authority graph (token lookups, existence checks, lockout counters); it intentionally leaves `roles`/`privileges` uninitialized.
+
+### Entity equals/hashCode now identity-based
+
+**What changed:** The JPA entities `User`, `PasswordResetToken`, `VerificationToken`, `PasswordHistoryEntry`, `WebAuthnCredential`, and `WebAuthnUserEntity` previously used Lombok `@Data`, which generates `equals`/`hashCode` over **all** fields. They now use an identity-based implementation that includes only the primary key (`@EqualsAndHashCode(onlyExplicitlyIncluded = true)` with `@EqualsAndHashCode.Include` on the id), matching the pattern already used by `Role` and `Privilege`. Their `toString` also no longer renders collections, associations, passwords, or token/credential secrets.
+
+Note: `WebAuthnCredential` and `WebAuthnUserEntity` use their **assigned natural String keys** (`credentialId` and `id` respectively, both Base64url-encoded values assigned before persistence) rather than a database-generated surrogate id. Equality is therefore defined by that String key.
+
+**Why:** All-fields `equals`/`hashCode` on JPA entities is unsafe: it changes as mutable fields change (breaking `Set`/`Map` membership), can force lazy collections to load, and a generated `toString` can trigger `LazyInitializationException` or leak secrets (password hashes, raw/hashed token values, key material) into logs. Identity-based equality is the standard JPA recommendation.
+
+**Impact / risk:**
+
+- **Two entities are now equal only when they share a non-null id.** If you compared entities field-by-field (relying on `@Data`'s all-fields equality), that behavior is gone — equality is now purely by primary key.
+- **Standard JPA caveat for transient (unsaved) entities:** two newly-constructed entities that have not yet been persisted both have `id == null` and are therefore **not** considered equal to each other (and an unsaved entity is not equal to its persisted counterpart until the id is assigned). Do not use transient, id-less entities as `Set`/`Map` keys and then expect lookups to match after persistence assigns the id. If you need value-equality for unsaved instances, compare the relevant fields explicitly rather than relying on `equals`.
+- **`toString` output changed:** collections, associations, and secret fields are excluded. Any code (or log assertion) that depended on those values appearing in `toString()` must be updated.
+
+No remediation is required for the common cases (comparing managed/persisted entities by identity, or using them in collections after they have ids). This change only affects code that depended on field-by-field entity equality or on the old `toString` format.
+
+### Events carry ids/DTOs instead of entities
+
+**What changed:** Three application events no longer carry a live JPA `User` entity. They now expose immutable scalar data (ids/emails) captured at publish time, while the entity is still attached to a persistence context:
+
+| Event | Old accessor(s) | New accessor(s) |
+|---|---|---|
+| `OnRegistrationCompleteEvent` | `getUser()` (live `User`) | `getUserId()`, `getUserEmail()`, `isUserEnabled()` — plus the unchanged `getLocale()` / `getAppUrl()` |
+| `UserPreDeleteEvent` | `getUser()` (live `User`); `getUserId()` | `getUserId()` (unchanged), `getUserEmail()` (new); `getUser()` removed |
+| `ConsentChangedEvent` | `getUser()` (live `User`); `getUserId()` | `getUserId()` (unchanged), `getUserEmail()` (new); `getUser()` removed. The `ConsentRecord` (a plain DTO, not a JPA entity) and `ChangeType` are unchanged |
+
+The constructors changed accordingly:
+
+- `OnRegistrationCompleteEvent`: now built from `userId`, `userEmail`, `userEnabled`, `locale`, `appUrl` (the Lombok `@Builder` is retained; the `.user(...)` builder method is gone, replaced by `.userId(...)`, `.userEmail(...)`, `.userEnabled(...)`).
+- `UserPreDeleteEvent(Object source, Long userId, String userEmail)` replaces `UserPreDeleteEvent(Object source, User user)`.
+- `ConsentChangedEvent(Object source, Long userId, String userEmail, ConsentRecord record, ChangeType changeType)` replaces `ConsentChangedEvent(Object source, User user, ConsentRecord record, ChangeType changeType)`.
+
+**Why:** These events are (or can be) consumed by `@Async` listeners that run on a different thread from the publisher. Handing a live JPA entity across that boundary is unsafe: the persistence session that loaded it is typically closed by the time the listener runs, so touching a lazy association (or even a basic field on a proxy) throws `LazyInitializationException`, and the entity may be detached or concurrently mutated. The framework's own `UserDeletedEvent`/`UserDisabledEvent` already followed the id-only pattern; this change brings the remaining events in line.
+
+**Remediation for consumer listeners:**
+
+- If your listener only needed the id or email, switch from `event.getUser().getId()` / `event.getUser().getEmail()` to `event.getUserId()` / `event.getUserEmail()`.
+- If your listener needs the full `User`, **load it by id from `UserRepository` inside your listener's own transaction** (e.g. annotate the listener method `@Transactional`, or call a `@Transactional` service method). Do not retain or pass around the entity beyond that transaction.
+- For `OnRegistrationCompleteEvent` specifically, the framework's built-in `RegistrationListener` now passes `event.getUserId()` to `UserEmailService.sendRegistrationVerificationEmail(Long userId, String appUrl)`, which reloads the `User` in its own transaction before creating the verification token and rendering the email. The verification-email content (recipient, token, confirmation URL, template) is unchanged.
+
+### Validation exception handler is now library-scoped
+
+**What changed:** `GlobalValidationExceptionHandler` (the `@ControllerAdvice` that formats validation errors into a structured JSON 400 body) is now **scoped to the library's own controllers** via `assignableTypes`:
+
+```java
+@ControllerAdvice(assignableTypes = {UserAPI.class, GdprAPI.class, MfaAPI.class, UserActionController.class, UserPageController.class})
+```
+
+Previously it carried a bare `@ControllerAdvice`, which made it apply **application-wide** — including the consuming application's own controllers.
+
+**Why:** A bare `@ControllerAdvice` from a library is global and silently hijacks the consumer's validation handling: any `MethodArgumentNotValidException` (or, in some cases, `ConstraintViolationException`) thrown by *your* controllers was being caught and reformatted into the library's response shape, overriding whatever error contract your application intended. Scoping the advice to the library's own controllers keeps the library out of your controllers' exception handling.
+
+`WebAuthnManagementAPI` is intentionally **not** in this list: it has its own dedicated advice (`WebAuthnManagementAPIAdvice`) that already handles validation. Adding it here would create two advices targeting the same controller with overlapping handlers.
+
+**Also fixed (400 for `@PasswordMatches`):** The handler now collects **global (class-level) binding errors** in addition to field errors. The class-level `@PasswordMatches` constraint on `UserDto` produces a *global* error (not a field error); the previous handler blindly cast every error to `FieldError`, throwing a `ClassCastException` inside the `@ExceptionHandler` and returning an unhelpful HTTP 500. A mismatched password/confirmation on registration now returns a structured **HTTP 400**. A dedicated `@ExceptionHandler(ConstraintViolationException.class)` was also added (for constraints triggered outside method-argument binding, e.g. `@Validated` on method parameters), also returning a structured 400.
+
+**Remediation:** If your application relied on this library formatting validation errors for **your own** controllers, that no longer happens. Provide your own `@ControllerAdvice` (or `@RestControllerAdvice`) to format `MethodArgumentNotValidException` / `ConstraintViolationException` for your controllers. The library's response shape (for reference) is `{ "success": false, "code": 400, "message": "Validation failed", "errors": { <field-or-object>: <message> } }`.
+
+### Package consolidation
+
+The duplicate `com.digitalsanctuary.spring.user.exception` package (singular) has been merged into the canonical `com.digitalsanctuary.spring.user.exceptions` package (plural). The only class that moved is `GlobalValidationExceptionHandler`.
+
+**Impact:** Only affects code that imports `GlobalValidationExceptionHandler` by its fully-qualified name or via an explicit import statement.
+
+**Remediation:** Update any import referencing the old package:
+
+```java
+// Before (5.0.x prior to this change)
+import com.digitalsanctuary.spring.user.exception.GlobalValidationExceptionHandler;
+
+// After
+import com.digitalsanctuary.spring.user.exceptions.GlobalValidationExceptionHandler;
+```
+
+The empty, unused `com.digitalsanctuary.spring.user.api.data` package has also been removed. This package contained only a placeholder `Response.java` with no content and was not referenced anywhere. No remediation required.
+
+### Message bundle no longer overridden; library beans renamed
+
+Two related changes make the library a better citizen inside a consuming application:
+
+**1. The library no longer overrides your `spring.messages.basename`.**
+
+Previously the library shipped a hardcoded `spring.messages.basename=messages/messages,messages/dsspringusermessages` default property. Because this was a library default, it OVERRODE the consuming application's own `spring.messages.basename`, clobbering any custom message bundle configuration.
+
+The library now registers its own bundle (`messages/dsspringusermessages`) **additively** via a Spring Boot `EnvironmentPostProcessor` (`MessageSourceEnvironmentPostProcessor`). It reads your existing `spring.messages.basename` (or Spring Boot's conventional default of `messages` if you have not set one) and appends the library bundle to the end of the list, de-duplicated. The library bundle is placed last so YOUR message keys win on collisions.
+
+**Impact:** None for most consumers — your message bundle is now preserved automatically.
+
+**Remediation:** If you had previously worked around the old behavior by manually merging the library basename into your own `spring.messages.basename` (e.g. setting `spring.messages.basename=messages,messages/dsspringusermessages` yourself), you can simplify back to just your own value (e.g. `spring.messages.basename=messages`); the library appends its bundle for you. Leaving the explicit merge in place is harmless — it is de-duplicated.
+
+**2. Library bean names are now namespaced with a `ds` prefix.**
+
+High-collision library beans now have explicit, namespaced bean names so they no longer conflict with a consumer bean of the same default name:
+
+| Class | Old default bean name | New bean name |
+|---|---|---|
+| `UserService` | `userService` | `dsUserService` |
+| `MailService` | `mailService` | `dsMailService` |
+| `UserEmailService` | `userEmailService` | `dsUserEmailService` |
+| `DSUserDetailsService` | `dSUserDetailsService` | `dsUserDetailsService` |
+| `LoginAttemptService` | `loginAttemptService` | `dsLoginAttemptService` |
+| `SessionInvalidationService` | `sessionInvalidationService` | `dsSessionInvalidationService` |
+| `PasswordPolicyService` | `passwordPolicyService` | `dsPasswordPolicyService` |
+| `AuthorityService` | `authorityService` | `dsAuthorityService` |
+| `RolePrivilegeSetupService` | `rolePrivilegeSetupService` | `dsRolePrivilegeSetupService` |
+| `MailContentBuilder` | `mailContentBuilder` | `dsMailContentBuilder` |
+| `UserAPI` | `userAPI` | `dsUserAPI` |
+| `GdprAPI` | `gdprAPI` | `dsGdprAPI` |
+| `MfaAPI` | `mfaAPI` | `dsMfaAPI` |
+| `WebAuthnManagementAPI` | `webAuthnManagementAPI` | `dsWebAuthnManagementAPI` |
+| `UserActionController` | `userActionController` | `dsUserActionController` |
+| `UserPageController` | `userPageController` | `dsUserPageController` |
+
+**Impact:** Only affects code that references these beans **by name** rather than by type. By-type injection (the common case) is unaffected.
+
+**Remediation:** Update any by-name reference — `@Qualifier("userService")`, `@Resource(name = "userService")`, `@DependsOn("userService")`, or `applicationContext.getBean("userService", ...)` — to the new `ds`-prefixed name (e.g. `@Qualifier("dsUserService")`). Injection by type (e.g. `@Autowired UserService userService;`) requires no change.
+
+### Auto-configuration entry point and toggleable cross-cutting features
+
+The library's entry point, `UserConfiguration`, is now a proper Spring Boot `@AutoConfiguration` instead of a plain `@Configuration`. It is still registered in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`, so it continues to load automatically — but it now runs in the auto-configuration phase (after your application's own beans), which is the correct lifecycle for a library entry point.
+
+**Impact:** None for normal usage. The library still discovers and registers all of its components, and all existing behavior is preserved.
+
+**Remediation:** Only required in the uncommon case that you imported the entry point yourself. If you have `@Import(UserConfiguration.class)` anywhere, or you deliberately arranged for your application's own `@ComponentScan` to pick up `com.digitalsanctuary.spring.user`, remove that — the library configures itself via auto-configuration and doing it twice is unnecessary.
+
+**New opt-out toggles for cross-cutting features.** The library enables four cross-cutting Spring features. Each is now gated behind its own property, all defaulting to `true`, so **no action is needed** to keep current behavior:
+
+| Property (default `true`) | Enables |
+|---|---|
+| `user.async.enabled` | `@EnableAsync` |
+| `user.retry.enabled` | `@EnableRetry` |
+| `user.scheduling.enabled` | `@EnableScheduling` |
+| `user.method-security.enabled` | `@EnableMethodSecurity` |
+
+**Use case:** If your application already enables one of these globally (for example you have your own `@EnableScheduling` or a global `@EnableMethodSecurity` with custom settings), you can disable the library's copy to avoid double-activation conflicts:
+
+```yaml
+user:
+  scheduling:
+    enabled: false   # you run your own @EnableScheduling
+  method-security:
+    enabled: false   # you run your own @EnableMethodSecurity
+```
+
+Leave them unset (or `true`) to keep the library managing these for you, exactly as before.
+
+> **Note on async/retry interaction:** These toggles are independent. If you disable `user.async.enabled=false` while retry remains enabled (the default), any `@Retryable` methods in the library will still be registered for retry — but if those methods were previously executing on an async thread pool, they will now run synchronously on the caller's thread. In practice the library's `@Retryable` methods are not themselves `@Async`, so the common case is unaffected; however, consumers that wrap library calls in their own async boundaries should verify the combined behavior when selectively disabling these features.
+
+<!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)
 

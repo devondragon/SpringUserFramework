@@ -21,9 +21,10 @@ DROP TABLE IF EXISTS `password_reset_token`;
 CREATE TABLE `password_reset_token` (
   `id` BIGINT(20) NOT NULL,
   `expiry_date` DATETIME(6) DEFAULT NULL,
-  `token` VARCHAR(255) DEFAULT NULL,
+  `token` VARCHAR(255) NOT NULL,
   `user_id` BIGINT(20) NOT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_password_reset_token_token` (`token`),
   KEY `FKns9q9f0f318uaoxiqn6lka9ux` (`user_id`),
   CONSTRAINT `FKns9q9f0f318uaoxiqn6lka9ux` FOREIGN KEY (`user_id`) REFERENCES `user_account` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -32,16 +33,18 @@ DROP TABLE IF EXISTS `privilege`;
 CREATE TABLE `privilege` (
   `id` BIGINT(20) NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
-  `name` VARCHAR(255) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  `name` VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_privilege_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 DROP TABLE IF EXISTS `role`;
 CREATE TABLE `role` (
   `id` BIGINT(20) NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
-  `name` VARCHAR(255) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  `name` VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_role_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 DROP TABLE IF EXISTS `roles_privileges`;
@@ -86,9 +89,10 @@ DROP TABLE IF EXISTS `verification_token`;
 CREATE TABLE `verification_token` (
   `id` BIGINT(20) NOT NULL,
   `expiry_date` DATETIME(6) DEFAULT NULL,
-  `token` VARCHAR(255) DEFAULT NULL,
+  `token` VARCHAR(255) NOT NULL,
   `user_id` BIGINT(20) NOT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_verification_token_token` (`token`),
   KEY `FK_VERIFY_USER` (`user_id`),
   CONSTRAINT `FK_VERIFY_USER` FOREIGN KEY (`user_id`) REFERENCES `user_account` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

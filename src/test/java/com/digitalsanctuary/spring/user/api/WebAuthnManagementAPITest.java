@@ -27,6 +27,7 @@ import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
@@ -47,6 +48,9 @@ class WebAuthnManagementAPITest {
 
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
+
+	@Mock
+	private LoginAttemptService loginAttemptService;
 
 	@Mock
 	private UserDetails userDetails;
@@ -161,10 +165,12 @@ class WebAuthnManagementAPITest {
 	class RenameCredentialTests {
 
 		@Test
-		@DisplayName("should rename credential successfully")
-		void shouldRenameSuccessfully() {
+		@DisplayName("should rename credential successfully when account is passwordless")
+		void shouldRenameSuccessfullyWhenAccountPasswordless() {
 			// Given
-			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop");
+			testUser.setPassword(null);
+			when(userService.hasPassword(testUser)).thenReturn(false);
+			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", null);
 
 			// When
 			ResponseEntity<GenericResponse> response = api.renameCredential("cred-1", request, userDetails);
@@ -176,10 +182,84 @@ class WebAuthnManagementAPITest {
 		}
 
 		@Test
+		@DisplayName("should rename credential successfully when correct current password provided")
+		void shouldRenameSuccessfullyWhenCorrectCurrentPassword() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "currentPass")).thenReturn(true);
+			WebAuthnManagementAPI.RenameCredentialRequest request =
+					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "currentPass");
+
+			// When
+			ResponseEntity<GenericResponse> response = api.renameCredential("cred-1", request, userDetails);
+
+			// Then
+			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+			verify(credentialManagementService).renameCredential("cred-1", "Work Laptop", testUser);
+			// Successful re-authentication resets the failed-attempt counter, matching login semantics.
+			verify(loginAttemptService).loginSucceeded(testUser.getEmail());
+			verify(loginAttemptService, never()).loginFailed(testUser.getEmail());
+		}
+
+		@Test
+		@DisplayName("should reject rename and report failed attempt when account is locked")
+		void shouldRejectRenameWhenAccountLocked() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(loginAttemptService.isLocked(testUser.getEmail())).thenReturn(true);
+			WebAuthnManagementAPI.RenameCredentialRequest request =
+					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "currentPass");
+
+			// When & Then - locked accounts are rejected before the password is even checked.
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("locked");
+			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
+			verify(userService, never()).checkIfValidOldPassword(any(), any());
+		}
+
+		@Test
+		@DisplayName("should reject rename when account has password and current password missing")
+		void shouldRejectRenameWhenCurrentPasswordMissing() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", null);
+
+			// When & Then
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Current password is required");
+			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
+			// A missing field is a client error, not a password guess, so it must not count toward lockout.
+			verify(loginAttemptService, never()).loginFailed(any());
+		}
+
+		@Test
+		@DisplayName("should reject rename when account has password and current password incorrect")
+		void shouldRejectRenameWhenCurrentPasswordIncorrect() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "wrongPass")).thenReturn(false);
+			WebAuthnManagementAPI.RenameCredentialRequest request =
+					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "wrongPass");
+
+			// When & Then
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Current password is incorrect");
+			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
+			// A wrong password is reported to the lockout service so repeated guesses eventually lock the account.
+			verify(loginAttemptService).loginFailed(testUser.getEmail());
+		}
+
+		@Test
 		@DisplayName("should throw when rename fails")
 		void shouldThrowOnFailure() {
 			// Given
-			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name");
+			testUser.setPassword(null);
+			when(userService.hasPassword(testUser)).thenReturn(false);
+			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name", null);
 			doThrow(new WebAuthnException("Credential not found or access denied")).when(credentialManagementService)
 					.renameCredential(eq("cred-999"), eq("New Name"), any(User.class));
 
@@ -192,7 +272,7 @@ class WebAuthnManagementAPITest {
 		@DisplayName("should throw not found when user not found")
 		void shouldThrowNotFoundWhenUserNotFound() {
 			// Given
-			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name");
+			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("New Name", null);
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
 			// When
@@ -207,10 +287,14 @@ class WebAuthnManagementAPITest {
 	class DeleteCredentialTests {
 
 		@Test
-		@DisplayName("should delete credential successfully")
-		void shouldDeleteSuccessfully() {
+		@DisplayName("should delete credential successfully when account is passwordless")
+		void shouldDeleteSuccessfullyWhenAccountPasswordless() {
+			// Given
+			testUser.setPassword(null);
+			when(userService.hasPassword(testUser)).thenReturn(false);
+
 			// When
-			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", userDetails);
+			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", null, userDetails);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -219,14 +303,61 @@ class WebAuthnManagementAPITest {
 		}
 
 		@Test
+		@DisplayName("should delete credential successfully when correct current password provided")
+		void shouldDeleteSuccessfullyWhenCorrectCurrentPassword() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "currentPass")).thenReturn(true);
+			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("currentPass");
+
+			// When
+			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", request, userDetails);
+
+			// Then
+			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+			verify(credentialManagementService).deleteCredential("cred-1", testUser);
+		}
+
+		@Test
+		@DisplayName("should reject delete when account has password and current password missing")
+		void shouldRejectDeleteWhenCurrentPasswordMissing() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+
+			// When & Then
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Current password is required");
+			verify(credentialManagementService, never()).deleteCredential(any(), any());
+		}
+
+		@Test
+		@DisplayName("should reject delete when account has password and current password incorrect")
+		void shouldRejectDeleteWhenCurrentPasswordIncorrect() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "wrongPass")).thenReturn(false);
+			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("wrongPass");
+
+			// When & Then
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Current password is incorrect");
+			verify(credentialManagementService, never()).deleteCredential(any(), any());
+		}
+
+		@Test
 		@DisplayName("should throw when delete fails")
 		void shouldThrowOnFailure() {
 			// Given
+			testUser.setPassword(null);
+			when(userService.hasPassword(testUser)).thenReturn(false);
 			doThrow(new WebAuthnException("Cannot delete last passkey")).when(credentialManagementService).deleteCredential(eq("cred-1"),
 					any(User.class));
 
 			// When
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("Cannot delete last passkey");
 		}
 
@@ -237,7 +368,7 @@ class WebAuthnManagementAPITest {
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
 			// When
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", userDetails))
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails))
 					.isInstanceOf(WebAuthnUserNotFoundException.class).hasMessageContaining("User not found");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
 		}
@@ -256,16 +387,18 @@ class WebAuthnManagementAPITest {
 		}
 
 		@Test
-		@DisplayName("should remove password when user has passkeys")
-		void shouldRemovePasswordWhenUserHasPasskeys() {
+		@DisplayName("should remove password when user has passkeys and correct current password")
+		void shouldRemovePasswordWhenUserHasPasskeysAndCorrectCurrentPassword() {
 			// Given
 			HttpServletRequest mockRequest = createMockRequest();
 			testUser.setPassword("encodedPassword");
 			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "currentPass")).thenReturn(true);
 			when(credentialManagementService.hasCredentials(testUser)).thenReturn(true);
+			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("currentPass");
 
 			// When
-			ResponseEntity<GenericResponse> response = api.removePassword(userDetails, mockRequest);
+			ResponseEntity<GenericResponse> response = api.removePassword(request, userDetails, mockRequest);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -275,16 +408,50 @@ class WebAuthnManagementAPITest {
 		}
 
 		@Test
+		@DisplayName("should reject removal when current password missing")
+		void shouldRejectRemovalWhenCurrentPasswordMissing() {
+			// Given
+			HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+
+			// When & Then
+			assertThatThrownBy(() -> api.removePassword(null, userDetails, mockRequest))
+					.isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Current password is required");
+			verify(userService, never()).removeUserPassword(any());
+		}
+
+		@Test
+		@DisplayName("should reject removal when current password incorrect")
+		void shouldRejectRemovalWhenCurrentPasswordIncorrect() {
+			// Given
+			HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "wrongPass")).thenReturn(false);
+			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("wrongPass");
+
+			// When & Then
+			assertThatThrownBy(() -> api.removePassword(request, userDetails, mockRequest))
+					.isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("Current password is incorrect");
+			verify(userService, never()).removeUserPassword(any());
+		}
+
+		@Test
 		@DisplayName("should reject removal when no passkeys")
 		void shouldRejectRemovalWhenNoPasskeys() {
 			// Given
 			HttpServletRequest mockRequest = mock(HttpServletRequest.class);
 			testUser.setPassword("encodedPassword");
 			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(userService.checkIfValidOldPassword(testUser, "currentPass")).thenReturn(true);
 			when(credentialManagementService.hasCredentials(testUser)).thenReturn(false);
+			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("currentPass");
 
 			// When & Then
-			assertThatThrownBy(() -> api.removePassword(userDetails, mockRequest))
+			assertThatThrownBy(() -> api.removePassword(request, userDetails, mockRequest))
 					.isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("register a passkey first");
 			verify(userService, never()).removeUserPassword(any());
@@ -297,9 +464,10 @@ class WebAuthnManagementAPITest {
 			HttpServletRequest mockRequest = mock(HttpServletRequest.class);
 			testUser.setPassword(null);
 			when(userService.hasPassword(testUser)).thenReturn(false);
+			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("anything");
 
 			// When & Then
-			assertThatThrownBy(() -> api.removePassword(userDetails, mockRequest))
+			assertThatThrownBy(() -> api.removePassword(request, userDetails, mockRequest))
 					.isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("does not have a password");
 			verify(userService, never()).removeUserPassword(any());

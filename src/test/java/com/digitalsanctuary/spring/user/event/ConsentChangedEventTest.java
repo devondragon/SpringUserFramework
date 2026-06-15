@@ -37,10 +37,11 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent event = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.GRANTED);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.GRANTED);
 
         // Then
-        assertThat(event.getUser()).isEqualTo(testUser);
+        assertThat(event.getUserId()).isEqualTo(testUser.getId());
+        assertThat(event.getUserEmail()).isEqualTo(testUser.getEmail());
         assertThat(event.getConsentRecord()).isEqualTo(record);
         assertThat(event.getSource()).isEqualTo(eventSource);
     }
@@ -55,7 +56,7 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent event = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.GRANTED);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.GRANTED);
 
         // Then
         assertThat(event.getUserId()).isEqualTo(1L);
@@ -71,7 +72,7 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent event = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.WITHDRAWN);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.WITHDRAWN);
 
         // Then
         assertThat(event.getConsentType()).isEqualTo(ConsentType.ANALYTICS);
@@ -87,7 +88,7 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent event = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.GRANTED);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.GRANTED);
 
         // Then
         assertThat(event.isGranted()).isTrue();
@@ -104,7 +105,7 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent event = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.WITHDRAWN);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.WITHDRAWN);
 
         // Then
         assertThat(event.isWithdrawn()).isTrue();
@@ -121,9 +122,9 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent grantedEvent = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.GRANTED);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.GRANTED);
         ConsentChangedEvent withdrawnEvent = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.WITHDRAWN);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.WITHDRAWN);
 
         // Then
         assertThat(grantedEvent.getChangeType()).isEqualTo(ConsentChangedEvent.ChangeType.GRANTED);
@@ -141,7 +142,7 @@ class ConsentChangedEventTest {
 
         // When
         ConsentChangedEvent event = new ConsentChangedEvent(
-                eventSource, testUser, record, ConsentChangedEvent.ChangeType.GRANTED);
+                eventSource, testUser.getId(), testUser.getEmail(), record, ConsentChangedEvent.ChangeType.GRANTED);
 
         // Then
         long afterCreation = System.currentTimeMillis();

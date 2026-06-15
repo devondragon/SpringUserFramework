@@ -50,7 +50,13 @@ public final class UserUtils {
 	 *
 	 * @param request The HttpServletRequest object.
 	 * @return The application URL as a String.
+	 * @deprecated This method trusts {@code X-Forwarded-Host} unconditionally, which makes security-sensitive email links (password reset, email
+	 *             verification) vulnerable to Host-header / X-Forwarded-Host poisoning (CWE-640). Use
+	 *             {@link com.digitalsanctuary.spring.user.util.AppUrlResolver#resolveAppUrl(HttpServletRequest)} instead, which builds the base URL from
+	 *             a configured canonical URL ({@code user.security.appUrl}) and/or a trusted-host allow-list ({@code user.security.trustedHosts}).
+	 *             Scheduled for removal in a future release.
 	 */
+	@Deprecated(forRemoval = true)
 	public static String getAppUrl(HttpServletRequest request) {
 		// Check for forwarded protocol
 		String scheme = request.getHeader("X-Forwarded-Proto");
