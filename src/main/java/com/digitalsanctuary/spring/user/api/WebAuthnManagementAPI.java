@@ -19,6 +19,7 @@ import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
@@ -74,6 +75,7 @@ public class WebAuthnManagementAPI {
 	private final WebAuthnCredentialManagementService credentialManagementService;
 	private final UserService userService;
 	private final ApplicationEventPublisher eventPublisher;
+	private final LoginAttemptService loginAttemptService;
 
 	/**
 	 * Get user's registered passkeys.
@@ -232,21 +234,36 @@ public class WebAuthnManagementAPI {
 	 * a no-op — see the residual-risk note in MIGRATION.md.
 	 * </p>
 	 *
+	 * <p>
+	 * Because this verifies the current password, it is an authentication surface and participates in the same
+	 * brute-force lockout as the login path: a locked account is rejected up front, each wrong password is reported to
+	 * {@link LoginAttemptService#loginFailed(String)} (which locks the account once the threshold is reached), and a
+	 * correct password resets the failed-attempt counter via {@link LoginAttemptService#loginSucceeded(String)}. This
+	 * stops a session-holding actor from making unlimited password guesses here.
+	 * </p>
+	 *
 	 * @param user the authenticated user
 	 * @param currentPassword the current password supplied by the client (may be {@code null})
-	 * @throws WebAuthnException if the account has a password and the supplied current password is missing or incorrect
+	 * @throws WebAuthnException if the account is locked, or has a password and the supplied current password is missing or incorrect
 	 */
 	private void requireCurrentPasswordIfSet(User user, String currentPassword) {
 		if (!userService.hasPassword(user)) {
 			// Passwordless (passkey-only) account: no current credential exists to verify. See MIGRATION.md residual-risk note.
 			return;
 		}
+		if (loginAttemptService.isLocked(user.getEmail())) {
+			throw new WebAuthnException("Account is locked due to too many failed attempts. Please try again later.");
+		}
 		if (currentPassword == null || currentPassword.isBlank()) {
+			// A missing field is a client error, not a password guess, so it does not count toward lockout.
 			throw new WebAuthnException("Current password is required to change authentication methods.");
 		}
 		if (!userService.checkIfValidOldPassword(user, currentPassword)) {
+			loginAttemptService.loginFailed(user.getEmail());
 			throw new WebAuthnException("Current password is incorrect.");
 		}
+		// Successful re-authentication clears the failed-attempt counter, matching login semantics.
+		loginAttemptService.loginSucceeded(user.getEmail());
 	}
 
 	/**

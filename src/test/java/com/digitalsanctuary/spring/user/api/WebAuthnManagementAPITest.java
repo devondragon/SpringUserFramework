@@ -27,6 +27,7 @@ import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
@@ -47,6 +48,9 @@ class WebAuthnManagementAPITest {
 
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
+
+	@Mock
+	private LoginAttemptService loginAttemptService;
 
 	@Mock
 	private UserDetails userDetails;
@@ -193,6 +197,26 @@ class WebAuthnManagementAPITest {
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 			verify(credentialManagementService).renameCredential("cred-1", "Work Laptop", testUser);
+			// Successful re-authentication resets the failed-attempt counter, matching login semantics.
+			verify(loginAttemptService).loginSucceeded(testUser.getEmail());
+			verify(loginAttemptService, never()).loginFailed(testUser.getEmail());
+		}
+
+		@Test
+		@DisplayName("should reject rename and report failed attempt when account is locked")
+		void shouldRejectRenameWhenAccountLocked() {
+			// Given
+			testUser.setPassword("encodedPassword");
+			when(userService.hasPassword(testUser)).thenReturn(true);
+			when(loginAttemptService.isLocked(testUser.getEmail())).thenReturn(true);
+			WebAuthnManagementAPI.RenameCredentialRequest request =
+					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "currentPass");
+
+			// When & Then - locked accounts are rejected before the password is even checked.
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+					.hasMessageContaining("locked");
+			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
+			verify(userService, never()).checkIfValidOldPassword(any(), any());
 		}
 
 		@Test
@@ -207,6 +231,8 @@ class WebAuthnManagementAPITest {
 			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("Current password is required");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
+			// A missing field is a client error, not a password guess, so it must not count toward lockout.
+			verify(loginAttemptService, never()).loginFailed(any());
 		}
 
 		@Test
@@ -223,6 +249,8 @@ class WebAuthnManagementAPITest {
 			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("Current password is incorrect");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
+			// A wrong password is reported to the lockout service so repeated guesses eventually lock the account.
+			verify(loginAttemptService).loginFailed(testUser.getEmail());
 		}
 
 		@Test
