@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -49,6 +50,7 @@ public class Role implements Serializable {
 	private Set<Privilege> privileges = new HashSet<>();
 
 	/** The name. */
+	@Column(unique = true, nullable = false)
 	private String name;
 
 	private String description;

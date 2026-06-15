@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.io.Serializable;
 import java.util.Collection;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,6 +33,7 @@ public class Privilege implements Serializable {
 	private Long id;
 
 	/** The name. */
+	@Column(unique = true, nullable = false)
 	private String name;
 
 	/** The description of the role. */

@@ -10,10 +10,12 @@
 ### Fixes
 - Registration and resend-verification endpoints no longer reveal whether an email is registered or already verified (account-enumeration hardening).
 - Credential-altering operations (remove password, delete/rename passkey) now require the current password when the account has one, preventing a session-only actor from changing authentication methods.
+- Role/privilege startup setup is now idempotent and safe under concurrent multi-node startup (handles unique-constraint races by re-reading the existing row).
 
 ### Breaking Changes
 - Reset/verification email links no longer trust `X-Forwarded-Host` by default. Deployments behind a reverse proxy must set `user.security.appUrl` or `user.security.trustedHosts` (see MIGRATION.md). `UserUtils.getAppUrl(HttpServletRequest)` is deprecated for removal.
 - Added a UNIQUE, NOT NULL constraint on the `token` column of `password_reset_token` and `verification_token`. This is a schema/DDL change — see MIGRATION.md.
+- Added UNIQUE, NOT NULL constraints on `role.name` and `privilege.name` (schema/DDL change). See MIGRATION.md.
 - The registration and resend-verification endpoints now always return HTTP 200 with a uniform generic body. Previously an existing email returned 409 on registration, and resend returned 409 (already verified) or 500 (unknown email). Clients that branched on those status codes or messages must update — the response is now intentionally uniform.
 - `removePassword` and passkey delete/rename now require a `currentPassword` for password-holding accounts; requests omitting it are rejected. Update clients to send the current password. See MIGRATION.md.
 

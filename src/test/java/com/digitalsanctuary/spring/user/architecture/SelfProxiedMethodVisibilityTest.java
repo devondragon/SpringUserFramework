@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import com.digitalsanctuary.spring.user.gdpr.GdprDeletionService;
+import com.digitalsanctuary.spring.user.roles.RolePrivilegeSetupService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
 
@@ -35,9 +36,9 @@ import com.digitalsanctuary.spring.user.service.UserService;
  * </p>
  *
  * <p>
- * Note: this rule is intentionally scoped to the specific methods invoked via {@code self}. Other package-private
- * {@code @Transactional} helpers (e.g. {@code RolePrivilegeSetupService.getOrCreateRole}) are called via {@code this}
- * from within an already-transactional method and run in the caller's transaction, so they do not need to be proxied.
+ * Note: this rule is intentionally scoped to the specific methods invoked via {@code self}. The
+ * {@code RolePrivilegeSetupService.insert*}/{@code updateRolePrivileges} methods use the same {@code @Lazy self}
+ * pattern (to obtain a {@code REQUIRES_NEW} boundary per insert during startup), so they are included below.
  * </p>
  */
 @DisplayName("Self-proxied (@Lazy self) transactional methods must be proxyable (public/protected)")
@@ -52,7 +53,10 @@ class SelfProxiedMethodVisibilityTest {
                 Arguments.of(UserService.class, "persistChangedPassword"),
                 Arguments.of(UserService.class, "persistInitialPassword"),
                 Arguments.of(GdprDeletionService.class, "executeUserDeletion"),
-                Arguments.of(UserEmailService.class, "createPasswordResetTokenForUser"));
+                Arguments.of(UserEmailService.class, "createPasswordResetTokenForUser"),
+                Arguments.of(RolePrivilegeSetupService.class, "insertPrivilege"),
+                Arguments.of(RolePrivilegeSetupService.class, "insertRole"),
+                Arguments.of(RolePrivilegeSetupService.class, "updateRolePrivileges"));
     }
 
     @ParameterizedTest(name = "{0}#{1} is public or protected")

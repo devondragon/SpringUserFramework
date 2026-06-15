@@ -127,6 +127,29 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 This is a deliberate, documented limitation rather than a half-measure: implementing a true WebAuthn step-up assertion would require significant new challenge/response infrastructure. Consuming applications that need stronger guarantees for passwordless accounts can front these endpoints with their own step-up (e.g. require a fresh passkey assertion) before allowing the call. This will be revisited if/when a step-up mechanism is added to the framework.
 
+### Database schema: unique role/privilege names
+
+The `name` column on both the `role` and `privilege` tables now carries a **UNIQUE + NOT NULL** constraint. Role and privilege names were always intended to be unique identifiers (the framework looks them up by name), so this enforces an existing invariant at the schema level. It also makes the startup role/privilege setup safe under concurrent multi-node startup: if two nodes start simultaneously and both try to create the same role/privilege, the unique constraint guarantees only one row is created, and the framework re-reads the winning row instead of failing (first-writer-wins).
+
+**Applications using `spring.jpa.hibernate.ddl-auto=update` (or `create`/`create-drop`):** Hibernate will add the unique index automatically on startup — no manual action required.
+
+**Applications managing schema manually (Flyway, Liquibase, or `ddl-auto=validate`/`none`):** **de-duplicate any existing duplicate role/privilege names first**, then apply the following DDL before upgrading and before starting the application:
+
+```sql
+-- 1. Find duplicates before applying the constraint (must return zero rows):
+SELECT name, COUNT(*) FROM role GROUP BY name HAVING COUNT(*) > 1;
+SELECT name, COUNT(*) FROM privilege GROUP BY name HAVING COUNT(*) > 1;
+-- Resolve any duplicates manually (merge/repoint references, delete extras) before continuing.
+
+-- 2. Apply NOT NULL + UNIQUE:
+ALTER TABLE role ALTER COLUMN name SET NOT NULL;
+ALTER TABLE privilege ALTER COLUMN name SET NOT NULL;
+CREATE UNIQUE INDEX ux_role_name ON role (name);
+CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
+```
+
+> **Note:** The table names above (`role`, `privilege`) and column name (`name`) are Hibernate's defaults for the `Role` and `Privilege` entities (no `@Table` override). If you have customized Hibernate's physical naming strategy, adjust the identifiers accordingly. The DDL syntax is standard SQL (PostgreSQL / MariaDB / MySQL); for MySQL/MariaDB, `ALTER COLUMN name SET NOT NULL` may need the full column definition, e.g. `MODIFY COLUMN name VARCHAR(255) NOT NULL`.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)
