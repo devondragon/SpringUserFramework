@@ -31,6 +31,9 @@
 - The library no longer sets `spring.messages.basename` (which previously overrode the consuming app's message bundle); it now registers its own `messages/dsspringusermessages` bundle additively via an EnvironmentPostProcessor. Library bean names are now namespaced (dsUserService, dsUserAPI, dsMailService, etc.); code referencing these beans by their old default names (e.g. @Qualifier("userService")) must update.
 - `UserConfiguration` is now an `@AutoConfiguration` instead of a regular `@Configuration`. It loads in the auto-configuration phase (after consumer beans) and remains registered in `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`. This is transparent for normal usage, but any consumer that imported `UserConfiguration` directly (e.g. via `@Import(UserConfiguration.class)`) or relied on it being picked up by their own application's `@ComponentScan` should remove that — the library configures itself via auto-configuration. The cross-cutting enablers (`@EnableAsync`/`@EnableRetry`/`@EnableScheduling`/`@EnableMethodSecurity`) now live in nested gated configurations toggleable via `user.async.enabled`/`user.retry.enabled`/`user.scheduling.enabled`/`user.method-security.enabled` (all default true, so behavior is unchanged unless explicitly disabled).
 
+### Dependencies
+- Built and tested against Spring Boot 4.1.0 (up from 4.0.6). Starters remain `compileOnly`, so consuming applications still supply their own Spring Boot version; the library is now verified against the 4.1.x line. (dependabot #317)
+
 ### Notes
 - Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.
 
