@@ -1,3 +1,120 @@
+## [4.4.0] - 2026-06-15
+### Features
+- Token security hardened: verification and password-reset tokens are now hashed at rest (HMAC-SHA-256 when user.security.tokenHashSecret is set; plain SHA-256 otherwise). Dual-read ensures pre-upgrade plaintext tokens still work until expiry. Only one active token per user is kept; generators delete any previous token before issuing a new one. New properties:
+  - user.security.tokenHashSecret
+  - user.security.passwordResetTokenValidityMinutes
+  - user.registration.verificationTokenValidityMinutes
+- Session UX and security during password changes:
+  - New default behavior preserves the current session and regenerates its ID after a self‑service password change (or removing a password), invalidating only other sessions. Toggle with user.session.invalidation.keep-current-session-on-password-change (default true). Token-based resets still invalidate all sessions.
+- Extensibility and override model:
+  - Security core beans (PasswordEncoder, SessionRegistry, RoleHierarchy, DaoAuthenticationProvider) moved to a dedicated auto-configuration with @ConditionalOnMissingBean so consumers can override them safely.
+  - AuditLogWriter and MailService moved to an auto-configuration and guarded by @ConditionalOnMissingBean; MailService created via a bean (still lifecycle-managed), allowing full replacement.
+  - SecurityFilterChain is now contributed via auto-configuration and ordered at low precedence; it coexists with additional, differently named consumer chains. Full replacement requires defining a bean named securityFilterChain.
+- MFA improvements:
+  - Factor merging enabled using a public-API BeanPostProcessor that sets mfaEnabled=true on authentication-processing filters when user.mfa.enabled=true. This fixes the “second factor replaces first” issue by merging factor authorities across steps.
+  - When MFA is enabled, the configured factor entry-point URIs (passwordEntryPointUri and webauthnEntryPointUri) are auto-unprotected to prevent redirect loops.
+- WebAuthn integration polish:
+  - Success handler now converts the principal to DSUserDetails and publishes a second InteractiveAuthenticationSuccessEvent with the converted auth so profile listeners run for passkey logins too.
+- Audit logging improvements:
+  - Optional file rotation (maxFileSizeMb, maxFiles) and explicit durability tradeoffs documented; configurable flushOnWrite and flushRate; bounded query memory (ring buffer limited by user.audit.maxQueryResults).
+  - Log writer sanitizes CR/LF and pipe characters in all fields to prevent log forging and parsing issues.
+- Mail delivery hardening:
+  - Dedicated bounded executor (dsMailExecutor) for @Async mail to avoid starving the shared pool during SMTP stalls; configurable override by bean name.
+  - Mail is now genuinely optional: when no JavaMailSender is available, a single startup warning is logged and send operations are safely no‑ops (email-dependent features degrade gracefully).
+- Session clustering: User, Role, Privilege are now Serializable, enabling distributed/persistent sessions (e.g., Spring Session).
+
+### Fixes
+- Token replay under concurrency:
+  - Verification and password reset flows now use conditional DELETE-by-token as the atomic single-use guard. Exactly one concurrent caller can consume a token; losers see invalid/expired results. Expired tokens are also cleaned up on validate.
+- GDPR deletion atomicity and event timing:
+  - The deletion runs inside a real @Transactional boundary (self-proxied call) and publishes UserDeletedEvent only after commit via TransactionSynchronization.afterCommit. Failures during contributor cleanup roll back the entire operation and publish no event.
+- Audit safety and visibility:
+  - Sanitize audit fields (strip CR/LF and ‘|’); corrected comments and defaults. Rotation defaults disabled to avoid hiding older events from readers until multi-file reading is implemented.
+- Security filter-chain coexistence:
+  - Library filter chain no longer disappears when a consumer adds a second chain. The back-off is now by bean name (securityFilterChain), allowing additional chains to coexist. Regression tests added.
+- OAuth2/OIDC hardening:
+  - Enforce account status uniformly: locked/disabled accounts are rejected on OAuth2/OIDC/WebAuthn paths (not just form login).
+  - Validate email_verified on Google, OIDC, and Facebook (both email_verified and verified claims); explicitly false rejects; absent claims are trusted.
+  - Failure handler no longer logs PII or raw messages; stores only a generic safe message in session; maps email_not_verified to a specific generic message; uses getSession(false) so scanners cannot force session creation.
+- Session security:
+  - SessionRegistry is now wired into the filter chain; session invalidation and concurrent session counting work as intended.
+  - Programmatic login rotates the session ID to prevent fixation; logout now uses LogoutSuccessService so a Logout audit event is published.
+- Registration robustness:
+  - Duplicate registration is serialized using SERIALIZABLE isolation and unique email constraint; race losers receive a UserAlreadyExistException instead of raw DB errors.
+  - Internal persist* methods now protected to ensure Spring proxies can override them across packages in Spring Framework 7 (fixes NPEs due to package-private methods not being proxied).
+- Brute-force lockout correctness under load:
+  - Failed attempts increment is now an atomic DB UPDATE; prevents race conditions allowing attackers to avoid lockout.
+- Thymeleaf templates and mail defaults:
+  - Removed test-only CSRF exemption from default properties; user.mail.fromAddress now defaults to blank with a startup warning if a sender exists but no from address is set.
+- Passay upgrade compatibility:
+  - PasswordPolicyService adjusted for Passay 2.0 API and package changes.
+- Authorities correctness:
+  - Granted authorities now include role names (e.g., ROLE_ADMIN) in addition to privilege names; hasRole() checks now work correctly.
+
+### Breaking Changes
+- SecurityFilterChain override model:
+  - Changing the back-off to bean-name based means additional consumer chains will now coexist with the library chain. To fully replace the library chain, define a bean named securityFilterChain. Existing apps that relied on any chain suppressing the library chain may now see both chains active; adjust bean naming or reproduce desired rules as needed.
+- UserEmailService constructor signature:
+  - Now requires a TokenHasher. If you subclass UserEmailService, update your constructor to accept and pass the TokenHasher to super().
+- Passay upgrade to 2.0.0:
+  - Package relocations (rules under org.passay.rule, character data under org.passay.data), PasswordValidator API changes. If you depend on Passay directly, update imports and ensure you don’t downgrade passay via your BOM.
+- Transactional behavior of user registration/password changes:
+  - Password hashing now happens outside DB transactions; DB writes run in short, separate transactions. As a result, registerNewUserAccount, changeUserPassword, and setInitialPassword no longer enlist in caller transactions. Outer transaction rollbacks won’t roll back the registration/password change; adjust flows if you previously depended on the old semantics.
+- Default session handling on password change:
+  - New default preserves/regenerates current session and invalidates others. Set user.session.invalidation.keep-current-session-on-password-change=false to restore prior “invalidate everything” behavior.
+
+### Refactoring
+- Moved MFA factor-merging BeanPostProcessor into a small, dependency-free MfaFilterMergingConfiguration to avoid early instantiation side-effects; extensive Javadoc added warning that enabling MFA flips mfaEnabled for all AbstractAuthenticationProcessingFilter beans (including consumer-defined filters).
+- Moved unconditional security beans (methodSecurityExpressionHandler, HttpSessionEventPublisher, AuthenticationEventPublisher) into an auto-configuration and guarded with @ConditionalOnMissingBean for safe consumer override; relocated @EnableWebSecurity to the filter-chain auto-configuration.
+
+### Documentation
+- MIGRATION.md updated:
+  - Name-based SecurityFilterChain replacement guidance.
+  - Passay 2.0 migration notes.
+  - UserEmailService TokenHasher change.
+  - New session handling default and toggle.
+  - Notes on hashing outside transactions and implications.
+- CONFIG.md expanded:
+  - Audit durability, flush rates, rotation settings, bounded query scope.
+  - Mail executor details and override by bean name.
+  - JPA auditing opt-out (user.jpa.auditing.enabled) to avoid hijacking consumer auditing setup.
+- PROFILE.md updated with warnings that @Scope is not inherited and to use the provided @SessionScopedProfile meta-annotation.
+
+### Testing
+- Concurrency and DB-integration:
+  - Token replay guard proven on PostgreSQL and MariaDB Testcontainers with two racing threads; exactly one consumption succeeds and token is removed.
+  - Duplicate registration serialization verified on PostgreSQL and MariaDB Testcontainers; one success, one UserAlreadyExistException, never two rows.
+- GDPR deletion:
+  - After-commit behavior verified: event delivered only after deletion commits; rollback path publishes no event and keeps user.
+- Web security:
+  - Authorization matrix tests for defaultAction=deny/allow and fail-closed on invalid values.
+  - CSRF filter behavior verified (protected URIs require token; exemptions work).
+  - Session invalidation integration test ensures SessionRegistry is populated after real login.
+  - Logout audit integration test asserts LogoutSuccessService is wired and publishes a Logout audit event.
+- OAuth2/OIDC and WebAuthn:
+  - Failure handler sanitized behavior covered (generic messages, email_not_verified mapping, no forced session).
+  - Account-status enforcement tests for OAuth2/OIDC/WebAuthn paths.
+  - WebAuthn success publishes converted InteractiveAuthenticationSuccessEvent.
+- User API (re-enabled and modernized):
+  - JSON-based flows tested for registration, reset-password request, authenticated password update, and savePassword (reset completion), including expired-token and reused-token paths. Uses an isolated H2 DB lest committed rows race with other suites.
+- Miscellaneous:
+  - DSUserDetails serialization round-trip test ensures session-stored principal is serializable.
+  - Role/privilege authority tests verify role names are included and deduplicated.
+  - WebAuthn ownership negative tests: a user cannot delete/rename another user’s credential via IDOR.
+  - Numerous unit tests added for SessionInvalidationService, TokenHasher, CompositeRegistrationGuard fail-fast/null behavior, Mail executor wiring, etc.
+  - H2 test DB isolation across contexts: each Spring context uses jdbc:h2:mem:testdb-${random.uuid} to prevent parallel context lock contention; restored ambient test profile for legacy @SpringBootTest contexts that rely on it.
+
+### Other Changes
+- CI pipeline:
+  - Build matrix updated to Java 21 + 25; setup actions bumped to latest majors; CodeQL Action v4; Gradle actions v6; Node 24.
+- Dependencies:
+  - Spring Boot 4.0.6; Gradle wrapper 9.5.x; Thymeleaf extras springsecurity6 3.1.5; Lombok 1.18.46; Testcontainers 2.0.5; ArchUnit 1.4.2.
+- Defaults cleanup:
+  - Removed test-only CSRF exemption and test@test.com from shipping defaults; added startup warnings when mail is enabled without from address.
+- Minor:
+  - AuthorityService now includes role authorities and maintains privilege authorities.
+  - Various internal cleanups and comments; additional-spring-configuration-metadata.json entries added for new properties.
+
 ## [4.3.2] - 2026-03-28
 ### Features
 - HTMX-aware AuthenticationEntryPoint for session expiry handling
