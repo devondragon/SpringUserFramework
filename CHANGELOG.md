@@ -1,3 +1,125 @@
+## [5.0.0] - 2026-06-15
+### Features
+- Canonical app URL resolution for security emails
+  - Introduced AppUrlResolver and new properties user.security.appUrl and user.security.trustedHosts.
+  - Password reset and email verification links are now built from the configured canonical URL. If unset, X-Forwarded-Host is honored only when the first value in the header is on the trusted allow-list; otherwise the server name is used.
+  - Forwarded port handling derives the port from X-Forwarded-Port or, if absent, from the forwarded scheme to avoid leaking internal ports. Default ports (80/443) are omitted. Trailing slashes in configured URLs are stripped to prevent double slashes in links.
+  - Provided a default AppUrlResolver bean (customizable by consumers).
+
+- Auto-configuration entry point and toggleable cross-cutting features
+  - UserConfiguration is now a proper @AutoConfiguration.
+  - Added independent opt-out toggles (default true): user.async.enabled, user.retry.enabled, user.scheduling.enabled, user.method-security.enabled.
+
+- Performance: authority loading without N+1
+  - Switched User.roles and Role.privileges to LAZY and added UserRepository.findWithRolesByEmail with @EntityGraph to fetch roles and privileges in a single query on the authentication path (DSUserDetailsService, OAuth2/OIDC paths).
+  - Adjusted dependent services (e.g., UserService authWithoutPassword) to avoid touching lazy collections outside a session.
+
+### Fixes
+- Anti-enumeration hardening for registration flows
+  - /user/registration and /user/registration/passwordless now always return the same generic 200 success-shaped body for both new and already-registered emails.
+  - /user/resendRegistrationToken always returns a uniform 200 response, regardless of unknown email or already-verified accounts.
+  - Added audit events (Registration/PasswordlessRegistration “Failure”) for guard denials and duplicate-email attempts; no registration event is published in duplicate cases.
+
+- Require current password for sensitive WebAuthn operations
+  - Credential-altering operations (remove password, delete/rename passkey) now require currentPassword when the account has a password set; requests missing/incorrect passwords are rejected with 400.
+  - Integrated with lockout: locked accounts are rejected, wrong passwords are reported to LoginAttemptService (count toward lockout), and success resets the counter.
+  - For passwordless accounts, currentPassword is not required (documented residual risk remains unchanged).
+
+- Hardened forwarded header handling in AppUrlResolver (CWE-640)
+  - Parses multi-valued X-Forwarded-Host (uses first value), validates X-Forwarded-Proto to http/https only, and sanitizes attacker-controlled values before logging.
+
+- Validation error handling improvements
+  - GlobalValidationExceptionHandler now:
+    - Scopes to library controllers only (doesn’t override consumer apps’ error handling).
+    - Returns 400 for class-level constraints (e.g., @PasswordMatches) and handles ConstraintViolationException with a structured body.
+  
+- Role/privilege setup robustness
+  - Startup setup is idempotent and concurrency-safe for multi-node startup:
+    - Unique constraints added to role.name and privilege.name.
+    - Insertions run in REQUIRES_NEW, catch unique violations, and re-read existing rows (first-writer-wins).
+    - Null/blank privilege names from configuration are now guarded and filtered with warnings.
+
+- Message bundle registration no longer overrides consumers
+  - Replaced hard-coded spring.messages.basename with a MessageSource EnvironmentPostProcessor that appends the library bundle (messages/dsspringusermessages) additively and de-duplicates entries. Consumer keys win on collisions.
+
+- Minor stability and correctness
+  - Stripped trailing slash from configured appUrl to honor “no trailing slash” contract.
+  - Marked RolePrivilegeSetupService.alreadySetup volatile to ensure visibility across threads.
+
+### Breaking Changes
+- Security email host resolution
+  - Reset/verification links no longer trust X-Forwarded-Host by default. Configure user.security.appUrl (recommended) or user.security.trustedHosts; otherwise links may target the internal host.
+
+- HTTP/response contract changes (anti-enumeration)
+  - /user/registration and /user/registration/passwordless for existing emails return a generic 200 success body (previously 409).
+  - /user/resendRegistrationToken now always returns a generic 200 success body (previously 409 for already-verified or 500 for unknown email).
+  - Clients must stop branching on the old 409/500 codes.
+
+- Re-authentication requirement for credential changes
+  - DELETE /user/webauthn/password now accepts a JSON body {"currentPassword": "..."} and requires it for password-holding accounts.
+  - DELETE /user/webauthn/credentials/{id} and PUT /user/webauthn/credentials/{id}/label require currentPassword in the body when the account has a password.
+  - Update clients to supply currentPassword where applicable.
+
+- Database schema changes
+  - Added UNIQUE + NOT NULL on password_reset_token.token and verification_token.token.
+  - Added UNIQUE + NOT NULL on role.name and privilege.name.
+  - Consumers managing schema manually must apply DDL and reconcile duplicates/nulls ahead of time.
+
+- Bean namespacing to avoid collisions
+  - Many library beans now use explicit ds*-prefixed names (e.g., dsUserService, dsMailService, dsUserEmailService, dsUserDetailsService, dsLoginAttemptService, dsSessionInvalidationService, dsPasswordPolicyService, dsAuthorityService, dsRolePrivilegeSetupService, dsMailContentBuilder, dsUserAPI, dsGdprAPI, dsMfaAPI, dsWebAuthnManagementAPI, dsUserActionController, dsUserPageController). By-type injection is unaffected; update any by-name @Qualifier/@Resource/@DependsOn references.
+
+- Configuration model
+  - UserConfiguration is now @AutoConfiguration and should not be directly @Import-ed or picked up by consumer @ComponentScan. Use the new opt-out properties for cross-cutting features as needed.
+
+- Event payloads no longer carry entities
+  - OnRegistrationCompleteEvent, UserPreDeleteEvent, and ConsentChangedEvent now carry ids/scalars (userId, userEmail, etc.) instead of live JPA User entities. Update listeners to use the new accessors and load entities as needed within a transaction.
+
+- Entity equals/hashCode semantics
+  - User, PasswordResetToken, VerificationToken, PasswordHistoryEntry, WebAuthnCredential, and WebAuthnUserEntity now use identity-based (id-only) equality (WebAuthnCredential/WebAuthnUserEntity use their assigned String keys).
+  - toString excludes collections/associations and secrets (passwords, tokens, keys).
+  - Avoid using unsaved (id == null) entities as Set/Map keys.
+
+- Package consolidation
+  - GlobalValidationExceptionHandler moved from com.digitalsanctuary.spring.user.exception to com.digitalsanctuary.spring.user.exceptions.
+
+### Refactoring
+- Event data model refactor to id/DTO-based payloads to eliminate detached-entity hazards in async listeners. Adjusted RegistrationListener and UserEmailService to reload User by id.
+- Replaced @Data on entities with explicit id-only equals/hashCode and safer toString (no secret leakage).
+- Moved EnvironmentPostProcessor registration from spring.factories to the modern .imports file.
+- Continued bean namespacing (ds* names) across remaining high-collision services and helpers.
+
+### Documentation
+- Migration Guide (MIGRATION.md) expanded for 5.0.x:
+  - Reverse-proxy configuration (ACTION REQUIRED).
+  - Schema migrations for token and role/privilege uniqueness.
+  - Anti-enumeration response changes (including passwordless registration).
+  - Re-authentication requirements for credential changes.
+  - Lazy-loading guidance and remediation patterns.
+  - Entity id-based equality caveats.
+  - Event payload changes.
+  - Validation advice scope change.
+  - Package consolidation.
+  - Bean name namespaces.
+  - Auto-configuration toggles.
+- CHANGELOG.md updated with all of the above and clarified scope of security hardening.
+- README dependency instructions updated to 4.4.0 for the stable line.
+
+### Testing
+- Added comprehensive tests:
+  - AppUrlResolver: trusted hosts, multi-valued forwarded headers, proto validation, port derivation, IPv6, context path, trailing slash behavior.
+  - WebAuthnManagementAPI: currentPassword requirement, lockout integration, success/denial paths; integration tests for delete/rename flows and error messaging.
+  - Registration anti-enumeration and guard behavior: uniform responses, event/audit expectations for both form and passwordless endpoints.
+  - MessageSourceEnvironmentPostProcessor: additive basename merge and message resolution across consumer and library bundles.
+  - Validation advice scope and behavior: ensures only library controllers are targeted; asserts 400 handling for class-level constraints.
+  - Role/Privilege setup: concurrency/idempotency behavior and uniqueness enforcement; guards for null/blank privilege names.
+  - Repository entity-graph: verifies single-query fetch of roles/privileges, no LazyInitializationException after detach, bounded query count.
+  - Entity equality/toString: id-only equality contract, exclusion of secrets from toString.
+  - GDPR export: reload with entity-graph to output role names safely.
+
+### Other Changes
+- Dependencies: built and verified against Spring Boot 4.1.0; starters remain compileOnly for consumers to control their Boot version.
+- Versioning: started 5.0.0 development line; seeded CHANGELOG/MIGRATION with prominent reverse-proxy notice.
+
 ## [5.0.0] - Unreleased
 
 > **Major release.** Contains breaking changes (Java API, HTTP/response contracts, database schema, required configuration, and bean/auto-configuration structure). Read `MIGRATION.md` ("Migrating to 5.0.x") before upgrading.
