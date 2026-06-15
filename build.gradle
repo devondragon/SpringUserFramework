@@ -97,7 +97,7 @@ dependencies {
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.2'
     testImplementation 'org.assertj:assertj-core:3.27.7'
     testImplementation 'io.rest-assured:rest-assured:6.0.0'
-    testImplementation 'com.icegreen:greenmail:2.1.8'
+    testImplementation 'com.icegreen:greenmail:2.1.9'
     testImplementation 'org.awaitility:awaitility:4.3.0'
 }
 
