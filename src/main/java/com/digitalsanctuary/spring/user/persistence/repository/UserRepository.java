@@ -34,6 +34,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	 * {@link #findByEmail(String)} remains for callers (token lookups, existence checks, lockout counters) that do not
 	 * need the authority graph.</p>
 	 *
+	 * <p>Implementation note: the two-level graph is a single JOIN FETCH, so the result set is a Cartesian product of
+	 * roles &times; privileges (Hibernate de-duplicates via the {@code Set} mappings). This is fine for the small,
+	 * bounded role/privilege graphs of a single user; it is not intended for bulk loading many users at once.</p>
+	 *
 	 * @param email the email
 	 * @return the user with roles and privileges initialized, or {@code null} if none found
 	 */

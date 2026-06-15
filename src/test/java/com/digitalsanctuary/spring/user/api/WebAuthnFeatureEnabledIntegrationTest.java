@@ -150,7 +150,7 @@ class WebAuthnFeatureEnabledIntegrationTest {
 	void shouldRejectDeleteWhenCurrentPasswordIncorrectForPasswordAccount() throws Exception {
 		String payload = "{\"currentPassword\":\"wrongPassword!\"}";
 		mockMvc.perform(delete("/user/webauthn/credentials/cred-1").with(user(TEST_EMAIL).roles("USER")).with(csrf())
-				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest())
+				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.message", containsString("Current password is incorrect")));
 
 		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1")).isPresent();
@@ -174,7 +174,7 @@ class WebAuthnFeatureEnabledIntegrationTest {
 	void shouldRejectRenameWhenCurrentPasswordIncorrectForPasswordAccount() throws Exception {
 		String payload = "{\"label\":\"New Label\",\"currentPassword\":\"wrongPassword!\"}";
 		mockMvc.perform(put("/user/webauthn/credentials/cred-1/label").with(user(TEST_EMAIL).roles("USER")).with(csrf())
-				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest())
+				.contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.message", containsString("Current password is incorrect")));
 
 		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1"))

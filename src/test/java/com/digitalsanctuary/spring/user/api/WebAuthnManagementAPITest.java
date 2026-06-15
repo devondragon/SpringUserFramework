@@ -24,7 +24,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnAccountLockedException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
@@ -213,7 +215,7 @@ class WebAuthnManagementAPITest {
 					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "currentPass");
 
 			// When & Then - locked accounts are rejected before the password is even checked.
-			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnAccountLockedException.class)
 					.hasMessageContaining("locked");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 			verify(userService, never()).checkIfValidOldPassword(any(), any());
@@ -246,7 +248,7 @@ class WebAuthnManagementAPITest {
 					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "wrongPass");
 
 			// When & Then
-			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnReauthenticationException.class)
 					.hasMessageContaining("Current password is incorrect");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 			// A wrong password is reported to the lockout service so repeated guesses eventually lock the account.
@@ -342,7 +344,7 @@ class WebAuthnManagementAPITest {
 			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("wrongPass");
 
 			// When & Then
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnReauthenticationException.class)
 					.hasMessageContaining("Current password is incorrect");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
 		}
@@ -434,7 +436,7 @@ class WebAuthnManagementAPITest {
 
 			// When & Then
 			assertThatThrownBy(() -> api.removePassword(request, userDetails, mockRequest))
-					.isInstanceOf(WebAuthnException.class)
+					.isInstanceOf(WebAuthnReauthenticationException.class)
 					.hasMessageContaining("Current password is incorrect");
 			verify(userService, never()).removeUserPassword(any());
 		}

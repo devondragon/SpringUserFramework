@@ -16,7 +16,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnAccountLockedException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
@@ -228,10 +230,12 @@ public class WebAuthnManagementAPI {
 	 *
 	 * <p>
 	 * If the account has a password, the supplied {@code currentPassword} must be present and valid (verified via
-	 * {@link UserService#checkIfValidOldPassword(User, String)}); otherwise a {@link WebAuthnException} (HTTP 400) is
-	 * thrown <em>before</em> any mutation, preventing a session-only actor from changing the account's authentication
-	 * methods. If the account is passwordless (passkey-only) there is no current credential to verify, so this check is
-	 * a no-op — see the residual-risk note in MIGRATION.md.
+	 * {@link UserService#checkIfValidOldPassword(User, String)}) <em>before</em> any mutation, preventing a session-only
+	 * actor from changing the account's authentication methods. The failure modes map to distinct HTTP statuses so
+	 * clients can tell them apart: a missing/blank field &rarr; {@link WebAuthnException} (HTTP 400), an incorrect
+	 * password &rarr; {@link WebAuthnReauthenticationException} (HTTP 401), and a locked account &rarr;
+	 * {@link WebAuthnAccountLockedException} (HTTP 423). If the account is passwordless (passkey-only) there is no current
+	 * credential to verify, so this check is a no-op — see the residual-risk note in MIGRATION.md.
 	 * </p>
 	 *
 	 * <p>
@@ -244,7 +248,9 @@ public class WebAuthnManagementAPI {
 	 *
 	 * @param user the authenticated user
 	 * @param currentPassword the current password supplied by the client (may be {@code null})
-	 * @throws WebAuthnException if the account is locked, or has a password and the supplied current password is missing or incorrect
+	 * @throws WebAuthnAccountLockedException if the account is locked (HTTP 423)
+	 * @throws WebAuthnReauthenticationException if the account has a password and the supplied current password is incorrect (HTTP 401)
+	 * @throws WebAuthnException if the account has a password and the current password is missing/blank (HTTP 400)
 	 */
 	private void requireCurrentPasswordIfSet(User user, String currentPassword) {
 		if (!userService.hasPassword(user)) {
@@ -252,15 +258,17 @@ public class WebAuthnManagementAPI {
 			return;
 		}
 		if (loginAttemptService.isLocked(user.getEmail())) {
-			throw new WebAuthnException("Account is locked due to too many failed attempts. Please try again later.");
+			// Locked account -> HTTP 423, distinct from a wrong password (401) or a missing field (400).
+			throw new WebAuthnAccountLockedException("Account is locked due to too many failed attempts. Please try again later.");
 		}
 		if (currentPassword == null || currentPassword.isBlank()) {
-			// A missing field is a client error, not a password guess, so it does not count toward lockout.
+			// A missing field is a client error (HTTP 400), not a password guess, so it does not count toward lockout.
 			throw new WebAuthnException("Current password is required to change authentication methods.");
 		}
 		if (!userService.checkIfValidOldPassword(user, currentPassword)) {
 			loginAttemptService.loginFailed(user.getEmail());
-			throw new WebAuthnException("Current password is incorrect.");
+			// A wrong password is an authentication failure -> HTTP 401.
+			throw new WebAuthnReauthenticationException("Current password is incorrect.");
 		}
 		// Successful re-authentication clears the failed-attempt counter, matching login semantics.
 		loginAttemptService.loginSucceeded(user.getEmail());
