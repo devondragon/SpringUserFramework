@@ -128,10 +128,13 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 | `/user/webauthn/credentials/{id}` | `DELETE` | Deleting a passkey requires the current password **when the account has a password**. | JSON body `{"currentPassword": "..."}` |
 | `/user/webauthn/credentials/{id}/label` | `PUT` | Renaming a passkey requires the current password **when the account has a password**. The existing body gains a `currentPassword` field. | JSON body `{"label": "...", "currentPassword": "..."}` |
 
-**Behavior when the account has a password:**
-- Missing `currentPassword` → `HTTP 400` with message *"Current password is required to change authentication methods."* — nothing is mutated.
-- Incorrect `currentPassword` → `HTTP 400` with message *"Current password is incorrect."* — nothing is mutated.
+**Behavior when the account has a password** (status codes refined in **5.0.1** — see note below):
+- Missing/blank `currentPassword` → `HTTP 400 Bad Request`, message *"Current password is required to change authentication methods."* — nothing is mutated.
+- Incorrect `currentPassword` → `HTTP 401 Unauthorized`, message *"Current password is incorrect."* — nothing is mutated.
+- Account locked (too many failed attempts) → `HTTP 423 Locked`, message *"Account is locked due to too many failed attempts…"* — nothing is mutated.
 - Correct `currentPassword` → the operation proceeds as before.
+
+> **5.0.0 → 5.0.1 note:** In 5.0.0 all three failure cases returned `HTTP 400`. As of 5.0.1 they return distinct statuses (400 missing / 401 incorrect / 423 locked) so clients can tell them apart. If you wrote a client against 5.0.0 that treats any `4xx` as "re-auth failed", no change is needed; only update it if you branched specifically on `400`.
 
 `/user/updatePassword` is unchanged: it already required and verified `oldPassword`.
 

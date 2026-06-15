@@ -42,6 +42,7 @@ public class PasswordResetToken {
 	private String token;
 
 	/** The user. */
+	// EAGER so getUser() works on a detached token; note the loaded User's roles are still LAZY — use UserRepository.findWithRolesByEmail if you need authorities.
 	@ToString.Exclude
 	@OneToOne(targetEntity = User.class, fetch = FetchType.EAGER)
 	@JoinColumn(nullable = false, name = "user_id")

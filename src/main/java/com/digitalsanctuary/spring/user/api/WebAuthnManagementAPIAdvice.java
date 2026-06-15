@@ -6,7 +6,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnAccountLockedException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -24,6 +26,18 @@ public class WebAuthnManagementAPIAdvice {
 	public ResponseEntity<GenericResponse> handleUserNotFound(WebAuthnUserNotFoundException ex) {
 		log.warn("WebAuthn user not found: {}", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new GenericResponse(ex.getMessage()));
+	}
+
+	@ExceptionHandler(WebAuthnAccountLockedException.class)
+	public ResponseEntity<GenericResponse> handleAccountLocked(WebAuthnAccountLockedException ex) {
+		log.warn("WebAuthn account locked: {}", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.LOCKED).body(new GenericResponse(ex.getMessage()));
+	}
+
+	@ExceptionHandler(WebAuthnReauthenticationException.class)
+	public ResponseEntity<GenericResponse> handleReauthenticationFailure(WebAuthnReauthenticationException ex) {
+		log.warn("WebAuthn re-authentication failure: {}", ex.getMessage());
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new GenericResponse(ex.getMessage()));
 	}
 
 	@ExceptionHandler(WebAuthnException.class)
