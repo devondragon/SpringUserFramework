@@ -90,7 +90,7 @@ public class DSOAuth2UserService implements OAuth2UserService<OAuth2UserRequest,
                     "Unable to retrieve email address from " + registrationId + ". Please ensure you have granted email permissions.");
         }
         log.debug("handleOAuthLoginSuccess: looking up user with email: {}", user.getEmail());
-        User existingUser = userRepository.findByEmail(user.getEmail().toLowerCase());
+        User existingUser = userRepository.findWithRolesByEmail(user.getEmail().toLowerCase());
         log.debug("handleOAuthLoginSuccess: existingUser: {}", existingUser);
         if (existingUser != null && registrationId != null) {
             log.debug("handleOAuthLoginSuccess: existingUser.getProvider(): {}", existingUser.getProvider());

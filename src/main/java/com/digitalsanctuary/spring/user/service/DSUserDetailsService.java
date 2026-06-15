@@ -42,7 +42,9 @@ public class DSUserDetailsService implements UserDetailsService {
 	@Override
 	public DSUserDetails loadUserByUsername(final String email) throws UsernameNotFoundException {
 		log.debug("DSUserDetailsService.loadUserByUsername: called with username: {}", email);
-		User dbUser = userRepository.findByEmail(email);
+		// Use the entity-graph finder so roles and privileges are initialized in a single query before the
+		// principal is detached, allowing AuthorityService to build authorities without a LazyInitializationException.
+		User dbUser = userRepository.findWithRolesByEmail(email);
 		if (dbUser == null) {
 			throw new UsernameNotFoundException("No user found with email/username: " + email);
 		}

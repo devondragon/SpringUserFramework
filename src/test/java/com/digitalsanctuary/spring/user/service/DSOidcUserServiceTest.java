@@ -89,7 +89,7 @@ class DSOidcUserServiceTest {
                 .withPreferredUsername("jdoe")
                 .build();
             
-            when(userRepository.findByEmail("john.doe@company.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("john.doe@company.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
                 User savedUser = invocation.getArgument(0);
                 savedUser.setId(123L);
@@ -160,7 +160,7 @@ class DSOidcUserServiceTest {
             existingUser.setProvider(User.Provider.KEYCLOAK);
             existingUser.setEnabled(true);
             
-            when(userRepository.findByEmail("existing@keycloak.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("existing@keycloak.com")).thenReturn(existingUser);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -184,7 +184,7 @@ class DSOidcUserServiceTest {
                 .withoutUserInfoClaim("family_name")
                 .build();
             
-            when(userRepository.findByEmail("minimal@keycloak.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("minimal@keycloak.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -233,7 +233,7 @@ class DSOidcUserServiceTest {
                 .withUserInfoClaim("email_verified", true)
                 .build();
 
-            when(userRepository.findByEmail("verified@keycloak.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("verified@keycloak.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -253,7 +253,7 @@ class DSOidcUserServiceTest {
                 .withoutUserInfoClaim("email_verified")
                 .build();
 
-            when(userRepository.findByEmail("noclaim@keycloak.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("noclaim@keycloak.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -298,7 +298,7 @@ class DSOidcUserServiceTest {
             existingUser.setEmail("conflict@example.com");
             existingUser.setProvider(User.Provider.GOOGLE);
             
-            when(userRepository.findByEmail("conflict@example.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("conflict@example.com")).thenReturn(existingUser);
 
             // When/Then
             assertThatThrownBy(() -> service.handleOidcLoginSuccess("keycloak", keycloakUser))
@@ -318,7 +318,7 @@ class DSOidcUserServiceTest {
             existingUser.setEmail("local@example.com");
             existingUser.setProvider(User.Provider.LOCAL);
             
-            when(userRepository.findByEmail("local@example.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("local@example.com")).thenReturn(existingUser);
 
             // When/Then
             assertThatThrownBy(() -> service.handleOidcLoginSuccess("keycloak", keycloakUser))
@@ -339,7 +339,7 @@ class DSOidcUserServiceTest {
             existingUser.setProvider(User.Provider.KEYCLOAK);
             existingUser.setFirstName("Existing");
             
-            when(userRepository.findByEmail("same@keycloak.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("same@keycloak.com")).thenReturn(existingUser);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When - Should not throw exception
@@ -394,7 +394,7 @@ class DSOidcUserServiceTest {
                 .withEmail("error@keycloak.com")
                 .build();
             
-            when(userRepository.findByEmail("error@keycloak.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("error@keycloak.com")).thenReturn(null);
             when(userRepository.save(any(User.class)))
                 .thenThrow(new RuntimeException("Database connection failed"));
 
@@ -438,7 +438,7 @@ class DSOidcUserServiceTest {
             spyService.defaultOidcUserService = mock(OidcUserService.class);
             when(spyService.defaultOidcUserService.loadUser(userRequest)).thenReturn(keycloakUser);
             
-            when(userRepository.findByEmail("loadtest@keycloak.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("loadtest@keycloak.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
                 User user = invocation.getArgument(0);
                 user.setId(999L);

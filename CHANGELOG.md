@@ -12,7 +12,11 @@
 - Credential-altering operations (remove password, delete/rename passkey) now require the current password when the account has one, preventing a session-only actor from changing authentication methods.
 - Role/privilege startup setup is now idempotent and safe under concurrent multi-node startup (handles unique-constraint races by re-reading the existing row).
 
+### Performance
+- `User` &rarr; `roles` and `Role` &rarr; `privileges` are now LAZY-fetched; the authentication path loads them via `@EntityGraph` in a single query (`UserRepository.findWithRolesByEmail`), removing the previous two-level eager fetch and the associated N+1 problem while keeping authority resolution correct.
+
 ### Breaking Changes
+- Role and privilege collections on `User`/`Role` are now LAZY. Consumer code that accesses `user.getRoles()` or `role.getPrivileges()` outside an open transaction/session may now throw `LazyInitializationException`. Load via the authentication path / an `@EntityGraph` query (e.g. `UserRepository.findWithRolesByEmail`), or access the collections within a transaction. See MIGRATION.md.
 - Reset/verification email links no longer trust `X-Forwarded-Host` by default. Deployments behind a reverse proxy must set `user.security.appUrl` or `user.security.trustedHosts` (see MIGRATION.md). `UserUtils.getAppUrl(HttpServletRequest)` is deprecated for removal.
 - Added a UNIQUE, NOT NULL constraint on the `token` column of `password_reset_token` and `verification_token`. This is a schema/DDL change — see MIGRATION.md.
 - Added UNIQUE, NOT NULL constraints on `role.name` and `privilege.name` (schema/DDL change). See MIGRATION.md.

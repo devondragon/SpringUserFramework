@@ -18,6 +18,7 @@ import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,7 @@ public class GdprExportService {
     private final AuditLogQueryService auditLogQueryService;
     private final VerificationTokenRepository verificationTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final UserRepository userRepository;
     private final List<GdprDataContributor> dataContributors;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -104,7 +106,11 @@ public class GdprExportService {
      * Builds the user data section.
      */
     private GdprExportDTO.UserData buildUserData(User user) {
-        List<String> roleNames = user.getRoles().stream()
+        // Roles are now LAZY-fetched and this export runs outside an open persistence session (by design, to avoid
+        // holding a transaction open during slow I/O). Reload the user through the entity-graph finder so roles are
+        // initialized in a single query, avoiding a LazyInitializationException on the detached principal.
+        User userWithRoles = user.getEmail() != null ? userRepository.findWithRolesByEmail(user.getEmail()) : null;
+        List<String> roleNames = (userWithRoles != null ? userWithRoles.getRoles() : List.<Role>of()).stream()
                 .map(Role::getName)
                 .collect(Collectors.toList());
 

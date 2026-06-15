@@ -231,8 +231,6 @@ public class UserService {
 	/** The user verification service. */
 	public final UserVerificationService userVerificationService;
 
-	private final AuthorityService authorityService;
-
 	/** The user details service. */
 	private final DSUserDetailsService dsUserDetailsService;
 
@@ -1036,8 +1034,10 @@ public class UserService {
 			return;
 		}
 
-		// Generate authorities from user roles and privileges
-		Collection<? extends GrantedAuthority> authorities = authorityService.getAuthoritiesFromUser(user);
+		// Reuse the authorities already resolved by loadUserByUsername (which loads roles and privileges via the
+		// entity-graph finder). The incoming `user` may be detached, so deriving authorities from it directly could
+		// trigger a LazyInitializationException now that roles/privileges are lazily fetched.
+		Collection<? extends GrantedAuthority> authorities = userDetails.getAuthorities();
 
 		// Authenticate user
 		authenticateUser(userDetails, authorities);

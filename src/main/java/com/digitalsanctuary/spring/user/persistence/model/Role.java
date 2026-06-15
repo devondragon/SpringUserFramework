@@ -44,7 +44,8 @@ public class Role implements Serializable {
 	private Set<User> users = new HashSet<>();
 
 	/** The privileges. */
-	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.EAGER)
+	@ToString.Exclude
+	@ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
 	@JoinTable(name = "roles_privileges", joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"),
 			inverseJoinColumns = @JoinColumn(name = "privilege_id", referencedColumnName = "id"))
 	private Set<Privilege> privileges = new HashSet<>();

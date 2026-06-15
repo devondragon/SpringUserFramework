@@ -133,7 +133,7 @@ class TokenHashingSecurityTest {
 
         @BeforeEach
         void initService() {
-            userService = new UserService(null, null, passwordTokenRepository, null, null, null, null, null, null, null,
+            userService = new UserService(null, null, passwordTokenRepository, null, null, null, null, null, null,
                     null, null, null, tokenHasher, null);
         }
 

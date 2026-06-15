@@ -150,6 +150,23 @@ CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
 
 > **Note:** The table names above (`role`, `privilege`) and column name (`name`) are Hibernate's defaults for the `Role` and `Privilege` entities (no `@Table` override). If you have customized Hibernate's physical naming strategy, adjust the identifiers accordingly. The DDL syntax is standard SQL (PostgreSQL / MariaDB / MySQL); for MySQL/MariaDB, `ALTER COLUMN name SET NOT NULL` may need the full column definition, e.g. `MODIFY COLUMN name VARCHAR(255) NOT NULL`.
 
+### Lazy fetching of roles and privileges
+
+**What changed:** The `roles` collection on `User` and the `privileges` collection on `Role` were previously `FetchType.EAGER`. They are now `FetchType.LAZY`. The authentication path (`DSUserDetailsService.loadUserByUsername`) now loads the full `User` &rarr; `roles` &rarr; `privileges` graph via a new `@EntityGraph` repository finder, `UserRepository.findWithRolesByEmail(String email)`, which fetches everything in a **single query**.
+
+**Why:** The old two-level eager fetch loaded every role and every privilege on *every* `User` load — even for operations that never touch authorities (token lookups, lockout-counter updates, existence checks) — and caused an N+1 query pattern. Making the collections lazy and loading them explicitly only where they are needed removes that overhead while keeping authentication behavior identical.
+
+**Impact / risk:** Because the collections are now lazy, **any code that accesses `user.getRoles()` (or iterates `role.getPrivileges()`) on a detached entity — i.e. outside an open Hibernate session/transaction — will throw `LazyInitializationException`.** Code that accesses these collections *within* an active transaction (the common case for service methods) is unaffected. The framework's own authentication, OAuth2/OIDC, and GDPR-export paths have been updated to initialize the graph correctly.
+
+**Remediation patterns for consumers** that traverse roles/privileges on a `User` they obtained outside a transaction:
+
+- **Load through the authentication path or the entity-graph finder.** Use `UserRepository.findWithRolesByEmail(email)` (it initializes roles and privileges in one query) instead of the plain `findByEmail(email)` when you need authorities.
+- **Access the collections inside a transaction.** Annotate the method that reads `user.getRoles()` with `@Transactional` so the persistence session is still open when the lazy collection is first touched.
+- **Use a DTO projection.** Map the roles/privileges you need into a DTO while still inside the session, then pass the DTO around the detached boundary.
+- **Initialize before detaching.** If you must hand a `User` to detached code, call `Hibernate.initialize(user.getRolesAsSet())` (and the nested privileges) while the session is open.
+
+The plain `UserRepository.findByEmail(String)` finder is retained unchanged for callers that do not need the authority graph (token lookups, existence checks, lockout counters); it intentionally leaves `roles`/`privileges` uninitialized.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

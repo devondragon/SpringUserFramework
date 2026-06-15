@@ -90,7 +90,7 @@ class DSOAuth2UserServiceTest {
                 .withLastName("Doe")
                 .build();
             
-            when(userRepository.findByEmail("john.doe@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("john.doe@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
                 User savedUser = invocation.getArgument(0);
                 savedUser.setId(123L);
@@ -143,7 +143,7 @@ class DSOAuth2UserServiceTest {
             existingUser.setProvider(User.Provider.GOOGLE);
             existingUser.setEnabled(true);
             
-            when(userRepository.findByEmail("existing@gmail.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("existing@gmail.com")).thenReturn(existingUser);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -169,7 +169,7 @@ class DSOAuth2UserServiceTest {
                 .withoutAttribute("family_name")
                 .build();
             
-            when(userRepository.findByEmail("nolastname@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("nolastname@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -191,14 +191,14 @@ class DSOAuth2UserServiceTest {
                 .withEmail("John.Doe@GMAIL.COM")
                 .build();
             
-            when(userRepository.findByEmail("john.doe@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("john.doe@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
             service.handleOAuthLoginSuccess("google", googleUser);
 
             // Then
-            verify(userRepository).findByEmail("john.doe@gmail.com"); // Lowercase lookup
+            verify(userRepository).findWithRolesByEmail("john.doe@gmail.com"); // Lowercase lookup
         }
     }
 
@@ -215,7 +215,7 @@ class DSOAuth2UserServiceTest {
                 .withAttribute("email_verified", Boolean.TRUE)
                 .build();
 
-            when(userRepository.findByEmail("verified@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("verified@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -235,7 +235,7 @@ class DSOAuth2UserServiceTest {
                 .withAttribute("email_verified", "true")
                 .build();
 
-            when(userRepository.findByEmail("verified-str@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("verified-str@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -255,7 +255,7 @@ class DSOAuth2UserServiceTest {
                 .withoutAttribute("email_verified")
                 .build();
 
-            when(userRepository.findByEmail("noclaim@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("noclaim@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -314,7 +314,7 @@ class DSOAuth2UserServiceTest {
                 .withFullName("Jane Marie Smith")
                 .build();
             
-            when(userRepository.findByEmail("jane.smith@facebook.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("jane.smith@facebook.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -363,7 +363,7 @@ class DSOAuth2UserServiceTest {
                 .withoutAttribute("name")
                 .build();
             
-            when(userRepository.findByEmail("noname@facebook.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("noname@facebook.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
@@ -393,7 +393,7 @@ class DSOAuth2UserServiceTest {
             existingUser.setEmail("conflict@example.com");
             existingUser.setProvider(User.Provider.FACEBOOK);
             
-            when(userRepository.findByEmail("conflict@example.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("conflict@example.com")).thenReturn(existingUser);
 
             // When/Then
             assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
@@ -413,7 +413,7 @@ class DSOAuth2UserServiceTest {
             existingUser.setEmail("local@example.com");
             existingUser.setProvider(User.Provider.LOCAL);
             
-            when(userRepository.findByEmail("local@example.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("local@example.com")).thenReturn(existingUser);
 
             // When/Then
             assertThatThrownBy(() -> service.handleOAuthLoginSuccess("google", googleUser))
@@ -434,7 +434,7 @@ class DSOAuth2UserServiceTest {
             existingUser.setProvider(User.Provider.GOOGLE);
             existingUser.setFirstName("Existing");
             
-            when(userRepository.findByEmail("same@gmail.com")).thenReturn(existingUser);
+            when(userRepository.findWithRolesByEmail("same@gmail.com")).thenReturn(existingUser);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When - Should not throw exception
@@ -525,7 +525,7 @@ class DSOAuth2UserServiceTest {
             
             DSUserDetails mockUserDetails = mock(DSUserDetails.class);
             when(loginHelperService.userLoginHelper(any(User.class), ArgumentMatchers.<Map<String, Object>>any())).thenReturn(mockUserDetails);
-            when(userRepository.findByEmail("loadtest@gmail.com")).thenReturn(null);
+            when(userRepository.findWithRolesByEmail("loadtest@gmail.com")).thenReturn(null);
             when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             // When
