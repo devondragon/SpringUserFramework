@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
+## [5.0.1] - Unreleased
+### Changed
+- Reverted `Role.privileges` to `FetchType.EAGER` (it was changed to `LAZY` in 5.0.0). The 5.0.0 change made `role.getPrivileges()` throw `LazyInitializationException` when accessed outside an open transaction/session — a surprising footgun for consumers — in exchange for a negligible gain, since privileges are small, static reference data with no bulk-load path. `User.roles` remains `LAZY` (that is where the real N+1 win is), and the authentication path still loads the full `User → roles → privileges` graph in one query via `UserRepository.findWithRolesByEmail`. This is a **non-breaking relaxation**: code written against 5.0.0 continues to work unchanged. See `MIGRATION.md` ("Lazy fetching of roles and privileges").
+
 ## [5.0.0] - 2026-06-15
 
 > **Major release — contains breaking changes** across the Java API, HTTP/response contracts, database schema, required configuration, and bean/auto-configuration structure. Read [`MIGRATION.md`](MIGRATION.md) ("Migrating to 5.0.x") before upgrading.

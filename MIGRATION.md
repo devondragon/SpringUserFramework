@@ -168,20 +168,22 @@ CREATE UNIQUE INDEX ux_privilege_name ON privilege (name);
 
 ### Lazy fetching of roles and privileges
 
-**What changed:** The `roles` collection on `User` and the `privileges` collection on `Role` were previously `FetchType.EAGER`. They are now `FetchType.LAZY`. The authentication path (`DSUserDetailsService.loadUserByUsername`) now loads the full `User` &rarr; `roles` &rarr; `privileges` graph via a new `@EntityGraph` repository finder, `UserRepository.findWithRolesByEmail(String email)`, which fetches everything in a **single query**.
+**What changed:** The `roles` collection on `User` was previously `FetchType.EAGER` and is now `FetchType.LAZY`. The authentication path (`DSUserDetailsService.loadUserByUsername`) loads the full `User` &rarr; `roles` &rarr; `privileges` graph via a new `@EntityGraph` repository finder, `UserRepository.findWithRolesByEmail(String email)`, which fetches everything in a **single query**.
 
-**Why:** The old two-level eager fetch loaded every role and every privilege on *every* `User` load — even for operations that never touch authorities (token lookups, lockout-counter updates, existence checks) — and caused an N+1 query pattern. Making the collections lazy and loading them explicitly only where they are needed removes that overhead while keeping authentication behavior identical.
+> **Note (5.0.0 → 5.0.1):** `Role.privileges` was also switched to `LAZY` in 5.0.0, but that was reverted to `EAGER` in **5.0.1** because it made `role.getPrivileges()` throw outside a transaction for marginal benefit. If you are on 5.0.1 or later, only `User.roles` is lazy — `role.getPrivileges()` is safe everywhere. The guidance below is written for 5.0.1+; on 5.0.0 specifically, the privilege caveats also apply.
 
-**Impact / risk:** Because the collections are now lazy, **any code that accesses `user.getRoles()` (or iterates `role.getPrivileges()`) on a detached entity — i.e. outside an open Hibernate session/transaction — will throw `LazyInitializationException`.** Code that accesses these collections *within* an active transaction (the common case for service methods) is unaffected. The framework's own authentication, OAuth2/OIDC, and GDPR-export paths have been updated to initialize the graph correctly.
+**Why:** The old eager fetch loaded every role (and, transitively, every privilege) on *every* `User` load — even for operations that never touch authorities (token lookups, lockout-counter updates, existence checks) — and caused an N+1 query pattern across user loads. Making `User.roles` lazy and loading it explicitly only where it is needed removes that overhead while keeping authentication behavior identical. `Role.privileges` stays eager because privileges are small, static reference data and there is no path that bulk-loads `Role`s.
 
-**Remediation patterns for consumers** that traverse roles/privileges on a `User` they obtained outside a transaction:
+**Impact / risk:** Because `User.roles` is now lazy, **any code that accesses `user.getRoles()` on a detached entity — i.e. outside an open Hibernate session/transaction — will throw `LazyInitializationException`.** Code that accesses it *within* an active transaction (the common case for service methods) is unaffected. Once the roles collection is loaded, `role.getPrivileges()` works regardless of transaction state (privileges are eager, as of 5.0.1). The framework's own authentication, OAuth2/OIDC, and GDPR-export paths have been updated to initialize the graph correctly.
+
+**Remediation patterns for consumers** that traverse a user's roles on a `User` they obtained outside a transaction:
 
 - **Load through the authentication path or the entity-graph finder.** Use `UserRepository.findWithRolesByEmail(email)` (it initializes roles and privileges in one query) instead of the plain `findByEmail(email)` when you need authorities.
 - **Access the collections inside a transaction.** Annotate the method that reads `user.getRoles()` with `@Transactional` so the persistence session is still open when the lazy collection is first touched.
 - **Use a DTO projection.** Map the roles/privileges you need into a DTO while still inside the session, then pass the DTO around the detached boundary.
-- **Initialize before detaching.** If you must hand a `User` to detached code, call `Hibernate.initialize(user.getRolesAsSet())` (and the nested privileges) while the session is open.
+- **Initialize before detaching.** If you must hand a `User` to detached code, call `Hibernate.initialize(user.getRolesAsSet())` while the session is open (privileges come along eagerly once the roles are loaded).
 
-The plain `UserRepository.findByEmail(String)` finder is retained unchanged for callers that do not need the authority graph (token lookups, existence checks, lockout counters); it intentionally leaves `roles`/`privileges` uninitialized.
+The plain `UserRepository.findByEmail(String)` finder is retained unchanged for callers that do not need the authority graph (token lookups, existence checks, lockout counters); it intentionally leaves the user's `roles` collection uninitialized.
 
 ### Entity equals/hashCode now identity-based
 

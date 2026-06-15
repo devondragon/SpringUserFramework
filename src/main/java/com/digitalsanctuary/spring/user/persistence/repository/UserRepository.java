@@ -25,12 +25,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	 * Find by email, eagerly loading the user's roles and each role's privileges in a single query via an entity graph.
 	 *
 	 * <p>This is the finder used on the authentication path (see {@code DSUserDetailsService}). Because {@code User.roles}
-	 * and {@code Role.privileges} are now {@link jakarta.persistence.FetchType#LAZY}, callers that must traverse
-	 * roles/privileges after the persistence session closes (e.g. building Spring Security authorities for a detached
-	 * principal) must load the user through this method. The {@code @EntityGraph} ensures the full
-	 * User &rarr; roles &rarr; privileges graph is initialized in one round trip, avoiding both the N+1 problem and a
-	 * {@code LazyInitializationException}. The plain {@link #findByEmail(String)} remains for callers (token lookups,
-	 * existence checks, lockout counters) that do not need the authority graph.</p>
+	 * is {@link jakarta.persistence.FetchType#LAZY}, callers that must traverse a user's roles (and their privileges)
+	 * after the persistence session closes (e.g. building Spring Security authorities for a detached principal) must load
+	 * the user through this method. ({@code Role.privileges} is {@code EAGER}, but the plain finder never loads the
+	 * roles collection itself.) The {@code @EntityGraph} ensures the full User &rarr; roles &rarr; privileges graph is
+	 * initialized in one round trip, avoiding both the N+1 problem and a {@code LazyInitializationException}. The plain
+	 * {@link #findByEmail(String)} remains for callers (token lookups, existence checks, lockout counters) that do not
+	 * need the authority graph.</p>
 	 *
 	 * @param email the email
 	 * @return the user with roles and privileges initialized, or {@code null} if none found
