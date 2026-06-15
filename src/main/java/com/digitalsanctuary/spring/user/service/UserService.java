@@ -509,7 +509,7 @@ public class UserService {
 			// Publish the UserPreDeleteEvent before deleting the user
 			// This allows any listeners to perform actions before the user is deleted
 			log.debug("Publishing UserPreDeleteEvent");
-			eventPublisher.publishEvent(new UserPreDeleteEvent(this, user));
+			eventPublisher.publishEvent(new UserPreDeleteEvent(this, userId, userEmail));
 
 			// Clean up any Tokens associated with this user
 			final VerificationToken verificationToken = tokenRepository.findByUser(user);

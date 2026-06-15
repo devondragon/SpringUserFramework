@@ -116,8 +116,8 @@ class DSOidcUserServiceTest {
             org.mockito.ArgumentCaptor<OnRegistrationCompleteEvent> regCaptor =
                     org.mockito.ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
             verify(eventPublisher).publishEvent(regCaptor.capture());
-            assertThat(regCaptor.getValue().getUser().getEmail()).isEqualTo("john.doe@company.com");
-            assertThat(regCaptor.getValue().getUser().isEnabled()).isTrue();
+            assertThat(regCaptor.getValue().getUserEmail()).isEqualTo("john.doe@company.com");
+            assertThat(regCaptor.getValue().isUserEnabled()).isTrue();
         }
 
         @Test

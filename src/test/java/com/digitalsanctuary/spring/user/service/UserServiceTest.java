@@ -434,8 +434,8 @@ public class UserServiceTest {
             // Then
             verify(eventPublisher).publishEvent(eventCaptor.capture());
             UserPreDeleteEvent publishedEvent = eventCaptor.getValue();
-            assertThat(publishedEvent.getUser()).isEqualTo(testUser);
             assertThat(publishedEvent.getUserId()).isEqualTo(testUser.getId());
+            assertThat(publishedEvent.getUserEmail()).isEqualTo(testUser.getEmail());
         }
     }
 

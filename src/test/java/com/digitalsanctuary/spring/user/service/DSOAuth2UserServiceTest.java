@@ -121,8 +121,8 @@ class DSOAuth2UserServiceTest {
             // can observe OAuth2 registrations the same way they observe form registrations.
             ArgumentCaptor<OnRegistrationCompleteEvent> regCaptor = ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
             verify(eventPublisher).publishEvent(regCaptor.capture());
-            assertThat(regCaptor.getValue().getUser().getEmail()).isEqualTo("john.doe@gmail.com");
-            assertThat(regCaptor.getValue().getUser().isEnabled()).isTrue();
+            assertThat(regCaptor.getValue().getUserEmail()).isEqualTo("john.doe@gmail.com");
+            assertThat(regCaptor.getValue().isUserEnabled()).isTrue();
         }
 
         @Test

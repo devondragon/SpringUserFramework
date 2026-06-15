@@ -53,7 +53,7 @@ class WebAuthnPreDeleteEventListenerTest {
 
 			when(userEntityRepository.findByUserId(testUser.getId())).thenReturn(Optional.of(userEntity));
 
-			UserPreDeleteEvent event = new UserPreDeleteEvent(this, testUser);
+			UserPreDeleteEvent event = new UserPreDeleteEvent(this, testUser.getId(), testUser.getEmail());
 
 			// When
 			listener.onUserPreDelete(event);
@@ -69,7 +69,7 @@ class WebAuthnPreDeleteEventListenerTest {
 			// Given
 			when(userEntityRepository.findByUserId(testUser.getId())).thenReturn(Optional.empty());
 
-			UserPreDeleteEvent event = new UserPreDeleteEvent(this, testUser);
+			UserPreDeleteEvent event = new UserPreDeleteEvent(this, testUser.getId(), testUser.getEmail());
 
 			// When
 			listener.onUserPreDelete(event);

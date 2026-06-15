@@ -71,6 +71,8 @@ class TokenHashingSecurityTest {
         @Mock
         private PasswordResetTokenRepository passwordTokenRepository;
         @Mock
+        private com.digitalsanctuary.spring.user.persistence.repository.UserRepository userRepository;
+        @Mock
         private ApplicationEventPublisher eventPublisher;
         @Mock
         private SessionInvalidationService sessionInvalidationService;
@@ -80,7 +82,7 @@ class TokenHashingSecurityTest {
         @BeforeEach
         void initService() {
             userEmailService = new UserEmailService(mailService, userVerificationService, passwordTokenRepository,
-                    eventPublisher, sessionInvalidationService, tokenHasher);
+                    userRepository, eventPublisher, sessionInvalidationService, tokenHasher);
         }
 
         @Test

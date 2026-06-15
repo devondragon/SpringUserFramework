@@ -175,7 +175,8 @@ public class UserAPIUnitTest {
             ArgumentCaptor<OnRegistrationCompleteEvent> registrationCaptor = ArgumentCaptor.forClass(OnRegistrationCompleteEvent.class);
             verify(eventPublisher).publishEvent(registrationCaptor.capture());
             OnRegistrationCompleteEvent registrationEvent = registrationCaptor.getValue();
-            assertThat(registrationEvent.getUser()).isEqualTo(newUser);
+            assertThat(registrationEvent.getUserEmail()).isEqualTo(newUser.getEmail());
+            assertThat(registrationEvent.isUserEnabled()).isEqualTo(newUser.isEnabled());
             
             ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
             verify(eventPublisher).publishEvent(auditCaptor.capture());
@@ -331,7 +332,7 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.messages[0]")
                             .value("If your account requires verification, a new verification email has been sent."));
 
-            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(), anyString());
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
         }
 
         @Test
@@ -351,7 +352,7 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.messages[0]")
                             .value("If your account requires verification, a new verification email has been sent."));
 
-            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(), anyString());
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
         }
     }
 

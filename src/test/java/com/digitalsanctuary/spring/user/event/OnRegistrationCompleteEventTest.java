@@ -2,9 +2,6 @@ package com.digitalsanctuary.spring.user.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,19 +11,15 @@ import java.util.Locale;
 @DisplayName("OnRegistrationCompleteEvent Tests")
 class OnRegistrationCompleteEventTest {
 
-    private User testUser;
+    private Long userId;
+    private String userEmail;
     private String appUrl;
     private Locale locale;
 
     @BeforeEach
     void setUp() {
-        testUser = UserTestDataBuilder.aUser()
-                .withId(1L)
-                .withEmail("test@example.com")
-                .withFirstName("Test")
-                .withLastName("User")
-                .enabled()
-                .build();
+        userId = 1L;
+        userEmail = "test@example.com";
         appUrl = "https://example.com";
         locale = Locale.ENGLISH;
     }
@@ -36,29 +29,35 @@ class OnRegistrationCompleteEventTest {
     void eventCreation_withBuilder() {
         // When
         OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
+                .userEnabled(true)
                 .locale(locale)
                 .appUrl(appUrl)
                 .build();
 
         // Then
-        assertThat(event.getUser()).isEqualTo(testUser);
+        assertThat(event.getUserId()).isEqualTo(userId);
+        assertThat(event.getUserEmail()).isEqualTo(userEmail);
+        assertThat(event.isUserEnabled()).isTrue();
         assertThat(event.getLocale()).isEqualTo(locale);
         assertThat(event.getAppUrl()).isEqualTo(appUrl);
-        assertThat(event.getSource()).isEqualTo(testUser);
+        assertThat(event.getSource()).isEqualTo(userId);
     }
 
     @Test
     @DisplayName("Event creation with constructor")
     void eventCreation_withConstructor() {
         // When
-        OnRegistrationCompleteEvent event = new OnRegistrationCompleteEvent(testUser, locale, appUrl);
+        OnRegistrationCompleteEvent event = new OnRegistrationCompleteEvent(userId, userEmail, false, locale, appUrl);
 
         // Then
-        assertThat(event.getUser()).isEqualTo(testUser);
+        assertThat(event.getUserId()).isEqualTo(userId);
+        assertThat(event.getUserEmail()).isEqualTo(userEmail);
+        assertThat(event.isUserEnabled()).isFalse();
         assertThat(event.getLocale()).isEqualTo(locale);
         assertThat(event.getAppUrl()).isEqualTo(appUrl);
-        assertThat(event.getSource()).isEqualTo(testUser);
+        assertThat(event.getSource()).isEqualTo(userId);
     }
 
     @Test
@@ -66,14 +65,16 @@ class OnRegistrationCompleteEventTest {
     void event_withNullAppUrl() {
         // When
         OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
+                .userEnabled(false)
                 .locale(locale)
                 .appUrl(null)
                 .build();
 
         // Then
         assertThat(event.getAppUrl()).isNull();
-        assertThat(event.getUser()).isEqualTo(testUser);
+        assertThat(event.getUserId()).isEqualTo(userId);
         assertThat(event.getLocale()).isEqualTo(locale);
     }
 
@@ -85,7 +86,8 @@ class OnRegistrationCompleteEventTest {
 
         // When
         OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
                 .locale(frenchLocale)
                 .appUrl(appUrl)
                 .build();
@@ -98,30 +100,28 @@ class OnRegistrationCompleteEventTest {
     @Test
     @DisplayName("Event equality includes all fields")
     void eventEquality_includesAllFields() {
-        // Given
-        User anotherUser = UserTestDataBuilder.aUser()
-                .withId(2L)
-                .withEmail("another@example.com")
-                .build();
-
         // When
         OnRegistrationCompleteEvent event1 = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
                 .locale(locale)
                 .appUrl(appUrl)
                 .build();
         OnRegistrationCompleteEvent event2 = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
                 .locale(locale)
                 .appUrl(appUrl)
                 .build();
         OnRegistrationCompleteEvent event3 = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
                 .locale(Locale.FRENCH)
                 .appUrl("https://different.com")
                 .build();
         OnRegistrationCompleteEvent event4 = OnRegistrationCompleteEvent.builder()
-                .user(anotherUser)
+                .userId(2L)
+                .userEmail("another@example.com")
                 .locale(locale)
                 .appUrl(appUrl)
                 .build();
@@ -137,7 +137,8 @@ class OnRegistrationCompleteEventTest {
     void event_toStringIncludesRelevantInfo() {
         // When
         OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                .user(testUser)
+                .userId(userId)
+                .userEmail(userEmail)
                 .locale(locale)
                 .appUrl(appUrl)
                 .build();

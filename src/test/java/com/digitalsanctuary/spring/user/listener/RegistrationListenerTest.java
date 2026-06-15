@@ -3,9 +3,7 @@ package com.digitalsanctuary.spring.user.listener;
 import static org.mockito.Mockito.*;
 
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
-import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
-import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,23 +27,25 @@ class RegistrationListenerTest {
     @InjectMocks
     private RegistrationListener registrationListener;
 
-    private User testUser;
+    private static final Long USER_ID = 1L;
+    private static final String USER_EMAIL = "test@example.com";
     private String appUrl;
     private Locale locale;
 
     @BeforeEach
     void setUp() {
-        // Default the shared fixture to a DISABLED (not-yet-verified) user so the "send verification email"
-        // tests exercise the email-sending path. The skip-for-enabled-users behavior is covered separately.
-        testUser = UserTestDataBuilder.aUser()
-                .withId(1L)
-                .withEmail("test@example.com")
-                .withFirstName("Test")
-                .withLastName("User")
-                .disabled()
-                .build();
         appUrl = "https://example.com";
         locale = Locale.ENGLISH;
+    }
+
+    private OnRegistrationCompleteEvent eventFor(Long userId, String userEmail, boolean enabled, String url) {
+        return OnRegistrationCompleteEvent.builder()
+                .userId(userId)
+                .userEmail(userEmail)
+                .userEnabled(enabled)
+                .locale(locale)
+                .appUrl(url)
+                .build();
     }
 
     @Nested
@@ -55,24 +55,16 @@ class RegistrationListenerTest {
         @Test
         @DisplayName("onApplicationEvent - sends verification email when enabled and user is not yet verified")
         void onApplicationEvent_sendsVerificationEmailWhenEnabled() {
-            // Given - a DISABLED (not yet verified) user, as produced by the form-registration path when
+            // Given - a not-yet-verified (disabled) user, as produced by the form-registration path when
             // email verification is required.
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
-            User unverifiedUser = UserTestDataBuilder.aUser()
-                    .withEmail("unverified@example.com")
-                    .disabled()
-                    .build();
-            OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                    .user(unverifiedUser)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
+            OnRegistrationCompleteEvent event = eventFor(2L, "unverified@example.com", false, appUrl);
 
             // When
             registrationListener.onApplicationEvent(event);
 
-            // Then
-            verify(userEmailService).sendRegistrationVerificationEmail(unverifiedUser, appUrl);
+            // Then - the listener passes the user id; the email service reloads the entity in its own transaction.
+            verify(userEmailService).sendRegistrationVerificationEmail(2L, appUrl);
         }
 
         @Test
@@ -81,21 +73,13 @@ class RegistrationListenerTest {
             // Given - sending is enabled, but the user is already enabled (e.g. a first-time OAuth2/OIDC
             // registration where the provider has already verified the email). They must NOT receive an email.
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
-            User enabledUser = UserTestDataBuilder.aUser()
-                    .withEmail("oauth@example.com")
-                    .enabled()
-                    .build();
-            OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                    .user(enabledUser)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
+            OnRegistrationCompleteEvent event = eventFor(3L, "oauth@example.com", true, appUrl);
 
             // When
             registrationListener.onApplicationEvent(event);
 
             // Then
-            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(), any());
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(anyLong(), any());
         }
 
         @Test
@@ -103,35 +87,27 @@ class RegistrationListenerTest {
         void onApplicationEvent_doesNotSendEmailWhenDisabled() {
             // Given
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", false);
-            OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                    .user(testUser)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
+            OnRegistrationCompleteEvent event = eventFor(USER_ID, USER_EMAIL, false, appUrl);
 
             // When
             registrationListener.onApplicationEvent(event);
 
             // Then
-            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(), any());
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(anyLong(), any());
         }
 
         @Test
-        @DisplayName("onApplicationEvent - handles null app URL")
+        @DisplayName("onApplicationEvent - passes null app URL through to email service")
         void onApplicationEvent_handlesNullAppUrl() {
             // Given
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
-            OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                    .user(testUser)
-                    .locale(locale)
-                    .appUrl(null)
-                    .build();
+            OnRegistrationCompleteEvent event = eventFor(USER_ID, USER_EMAIL, false, null);
 
             // When
             registrationListener.onApplicationEvent(event);
 
             // Then
-            verify(userEmailService).sendRegistrationVerificationEmail(testUser, null);
+            verify(userEmailService).sendRegistrationVerificationEmail(USER_ID, null);
         }
 
         @Test
@@ -139,10 +115,11 @@ class RegistrationListenerTest {
         void onApplicationEvent_handlesDifferentLocales() {
             // Given
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
-            Locale frenchLocale = Locale.FRENCH;
             OnRegistrationCompleteEvent event = OnRegistrationCompleteEvent.builder()
-                    .user(testUser)
-                    .locale(frenchLocale)
+                    .userId(USER_ID)
+                    .userEmail(USER_EMAIL)
+                    .userEnabled(false)
+                    .locale(Locale.FRENCH)
                     .appUrl(appUrl)
                     .build();
 
@@ -150,7 +127,7 @@ class RegistrationListenerTest {
             registrationListener.onApplicationEvent(event);
 
             // Then
-            verify(userEmailService).sendRegistrationVerificationEmail(testUser, appUrl);
+            verify(userEmailService).sendRegistrationVerificationEmail(USER_ID, appUrl);
         }
     }
 
@@ -163,65 +140,35 @@ class RegistrationListenerTest {
         void multipleRegistrationEvents_handledIndependently() {
             // Given
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
-            User user1 = UserTestDataBuilder.aUser()
-                    .withEmail("user1@example.com")
-                    .build();
-            User user2 = UserTestDataBuilder.aUser()
-                    .withEmail("user2@example.com")
-                    .build();
-
-            OnRegistrationCompleteEvent event1 = OnRegistrationCompleteEvent.builder()
-                    .user(user1)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
-            OnRegistrationCompleteEvent event2 = OnRegistrationCompleteEvent.builder()
-                    .user(user2)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
+            OnRegistrationCompleteEvent event1 = eventFor(11L, "user1@example.com", false, appUrl);
+            OnRegistrationCompleteEvent event2 = eventFor(12L, "user2@example.com", false, appUrl);
 
             // When
             registrationListener.onApplicationEvent(event1);
             registrationListener.onApplicationEvent(event2);
 
             // Then
-            verify(userEmailService).sendRegistrationVerificationEmail(user1, appUrl);
-            verify(userEmailService).sendRegistrationVerificationEmail(user2, appUrl);
+            verify(userEmailService).sendRegistrationVerificationEmail(11L, appUrl);
+            verify(userEmailService).sendRegistrationVerificationEmail(12L, appUrl);
         }
 
         @Test
         @DisplayName("Configuration change affects subsequent events")
         void configurationChange_affectsSubsequentEvents() {
             // Given
-            User user1 = UserTestDataBuilder.aUser()
-                    .withEmail("user1@example.com")
-                    .build();
-            User user2 = UserTestDataBuilder.aUser()
-                    .withEmail("user2@example.com")
-                    .build();
-
-            OnRegistrationCompleteEvent event1 = OnRegistrationCompleteEvent.builder()
-                    .user(user1)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
-            OnRegistrationCompleteEvent event2 = OnRegistrationCompleteEvent.builder()
-                    .user(user2)
-                    .locale(locale)
-                    .appUrl(appUrl)
-                    .build();
+            OnRegistrationCompleteEvent event1 = eventFor(11L, "user1@example.com", false, appUrl);
+            OnRegistrationCompleteEvent event2 = eventFor(12L, "user2@example.com", false, appUrl);
 
             // When
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", true);
             registrationListener.onApplicationEvent(event1);
-            
+
             ReflectionTestUtils.setField(registrationListener, "sendRegistrationVerificationEmail", false);
             registrationListener.onApplicationEvent(event2);
 
             // Then
-            verify(userEmailService).sendRegistrationVerificationEmail(user1, appUrl);
-            verify(userEmailService, never()).sendRegistrationVerificationEmail(user2, appUrl);
+            verify(userEmailService).sendRegistrationVerificationEmail(11L, appUrl);
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(12L, appUrl);
         }
     }
 }

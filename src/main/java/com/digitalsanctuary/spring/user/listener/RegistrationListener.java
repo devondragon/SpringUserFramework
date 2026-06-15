@@ -47,9 +47,9 @@ public class RegistrationListener {
 		// ENABLED). Form registrations that require verification are created DISABLED, so they still receive
 		// the email. This lets OAuth/OIDC services publish OnRegistrationCompleteEvent so consumers can
 		// observe social registrations uniformly, without sending those users a pointless verification email.
-		if (event.getUser() != null && event.getUser().isEnabled()) {
+		if (event.isUserEnabled()) {
 			log.debug("RegistrationListener.onApplicationEvent: user {} is already enabled; skipping verification email",
-					event.getUser().getEmail());
+					event.getUserId());
 			return;
 		}
 		if (sendRegistrationVerificationEmail) {
@@ -62,10 +62,16 @@ public class RegistrationListener {
 	 *
 	 * Create a Verification token for the user, and send the email out.
 	 *
+	 * <p>
+	 * The event carries only the user's id (not a live entity), so the email service reloads the {@link com.digitalsanctuary.spring.user.persistence.model.User}
+	 * by id inside its own transaction. This avoids detached-entity / {@code LazyInitializationException} hazards on the
+	 * async listener thread.
+	 * </p>
+	 *
 	 * @param event the event
 	 */
 	private void sendRegistrationVerificationEmail(final OnRegistrationCompleteEvent event) {
-		userEmailService.sendRegistrationVerificationEmail(event.getUser(), event.getAppUrl());
+		userEmailService.sendRegistrationVerificationEmail(event.getUserId(), event.getAppUrl());
 	}
 
 }

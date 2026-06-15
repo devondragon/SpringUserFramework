@@ -183,6 +183,30 @@ Note: `WebAuthnCredential` and `WebAuthnUserEntity` use their **assigned natural
 
 No remediation is required for the common cases (comparing managed/persisted entities by identity, or using them in collections after they have ids). This change only affects code that depended on field-by-field entity equality or on the old `toString` format.
 
+### Events carry ids/DTOs instead of entities
+
+**What changed:** Three application events no longer carry a live JPA `User` entity. They now expose immutable scalar data (ids/emails) captured at publish time, while the entity is still attached to a persistence context:
+
+| Event | Old accessor(s) | New accessor(s) |
+|---|---|---|
+| `OnRegistrationCompleteEvent` | `getUser()` (live `User`) | `getUserId()`, `getUserEmail()`, `isUserEnabled()` — plus the unchanged `getLocale()` / `getAppUrl()` |
+| `UserPreDeleteEvent` | `getUser()` (live `User`); `getUserId()` | `getUserId()` (unchanged), `getUserEmail()` (new); `getUser()` removed |
+| `ConsentChangedEvent` | `getUser()` (live `User`); `getUserId()` | `getUserId()` (unchanged), `getUserEmail()` (new); `getUser()` removed. The `ConsentRecord` (a plain DTO, not a JPA entity) and `ChangeType` are unchanged |
+
+The constructors changed accordingly:
+
+- `OnRegistrationCompleteEvent`: now built from `userId`, `userEmail`, `userEnabled`, `locale`, `appUrl` (the Lombok `@Builder` is retained; the `.user(...)` builder method is gone, replaced by `.userId(...)`, `.userEmail(...)`, `.userEnabled(...)`).
+- `UserPreDeleteEvent(Object source, Long userId, String userEmail)` replaces `UserPreDeleteEvent(Object source, User user)`.
+- `ConsentChangedEvent(Object source, Long userId, String userEmail, ConsentRecord record, ChangeType changeType)` replaces `ConsentChangedEvent(Object source, User user, ConsentRecord record, ChangeType changeType)`.
+
+**Why:** These events are (or can be) consumed by `@Async` listeners that run on a different thread from the publisher. Handing a live JPA entity across that boundary is unsafe: the persistence session that loaded it is typically closed by the time the listener runs, so touching a lazy association (or even a basic field on a proxy) throws `LazyInitializationException`, and the entity may be detached or concurrently mutated. The framework's own `UserDeletedEvent`/`UserDisabledEvent` already followed the id-only pattern; this change brings the remaining events in line.
+
+**Remediation for consumer listeners:**
+
+- If your listener only needed the id or email, switch from `event.getUser().getId()` / `event.getUser().getEmail()` to `event.getUserId()` / `event.getUserEmail()`.
+- If your listener needs the full `User`, **load it by id from `UserRepository` inside your listener's own transaction** (e.g. annotate the listener method `@Transactional`, or call a `@Transactional` service method). Do not retain or pass around the entity beyond that transaction.
+- For `OnRegistrationCompleteEvent` specifically, the framework's built-in `RegistrationListener` now passes `event.getUserId()` to `UserEmailService.sendRegistrationVerificationEmail(Long userId, String appUrl)`, which reloads the `User` in its own transaction before creating the verification token and rendering the email. The verification-email content (recipient, token, confirmation URL, template) is unchanged.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

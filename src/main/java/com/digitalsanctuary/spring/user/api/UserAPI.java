@@ -590,7 +590,9 @@ public class UserAPI {
 	 */
 	private void publishRegistrationEvent(User user, HttpServletRequest request) {
 		String appUrl = appUrlResolver.resolveAppUrl(request);
-		eventPublisher.publishEvent(new OnRegistrationCompleteEvent(user, request.getLocale(), appUrl));
+		// Capture immutable scalars from the still-attached entity so the @Async listener never touches a detached User.
+		eventPublisher.publishEvent(OnRegistrationCompleteEvent.builder().userId(user.getId()).userEmail(user.getEmail())
+				.userEnabled(user.isEnabled()).locale(request.getLocale()).appUrl(appUrl).build());
 	}
 
 	/**

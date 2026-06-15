@@ -2,9 +2,6 @@ package com.digitalsanctuary.spring.user.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.digitalsanctuary.spring.user.persistence.model.User;
-import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,29 +9,26 @@ import org.junit.jupiter.api.Test;
 @DisplayName("UserPreDeleteEvent Tests")
 class UserPreDeleteEventTest {
 
-    private User testUser;
+    private Long userId;
+    private String userEmail;
     private Object eventSource;
 
     @BeforeEach
     void setUp() {
-        testUser = UserTestDataBuilder.aUser()
-                .withId(1L)
-                .withEmail("test@example.com")
-                .withFirstName("Test")
-                .withLastName("User")
-                .enabled()
-                .build();
+        userId = 1L;
+        userEmail = "test@example.com";
         eventSource = this;
     }
 
     @Test
-    @DisplayName("Event creation stores user and source")
-    void eventCreation_storesUserAndSource() {
+    @DisplayName("Event creation stores user data and source")
+    void eventCreation_storesUserDataAndSource() {
         // When
-        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, testUser);
+        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, userId, userEmail);
 
         // Then
-        assertThat(event.getUser()).isEqualTo(testUser);
+        assertThat(event.getUserId()).isEqualTo(userId);
+        assertThat(event.getUserEmail()).isEqualTo(userEmail);
         assertThat(event.getSource()).isEqualTo(eventSource);
     }
 
@@ -42,7 +36,7 @@ class UserPreDeleteEventTest {
     @DisplayName("getUserId returns user's ID")
     void getUserId_returnsUserId() {
         // When
-        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, testUser);
+        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, userId, userEmail);
 
         // Then
         assertThat(event.getUserId()).isEqualTo(1L);
@@ -56,50 +50,38 @@ class UserPreDeleteEventTest {
         Object source2 = "Different Source";
 
         // When
-        UserPreDeleteEvent event1 = new UserPreDeleteEvent(source1, testUser);
-        UserPreDeleteEvent event2 = new UserPreDeleteEvent(source2, testUser);
+        UserPreDeleteEvent event1 = new UserPreDeleteEvent(source1, userId, userEmail);
+        UserPreDeleteEvent event2 = new UserPreDeleteEvent(source2, userId, userEmail);
 
         // Then
         assertThat(event1.getSource()).isEqualTo(source1);
         assertThat(event2.getSource()).isEqualTo(source2);
-        assertThat(event1.getUser()).isEqualTo(event2.getUser());
+        assertThat(event1.getUserId()).isEqualTo(event2.getUserId());
     }
 
     @Test
     @DisplayName("Event preserves user information")
     void event_preservesUserInformation() {
         // When
-        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, testUser);
+        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, userId, userEmail);
 
         // Then
-        User eventUser = event.getUser();
-        assertThat(eventUser.getEmail()).isEqualTo("test@example.com");
-        assertThat(eventUser.getFirstName()).isEqualTo("Test");
-        assertThat(eventUser.getLastName()).isEqualTo("User");
-        assertThat(eventUser.isEnabled()).isTrue();
+        assertThat(event.getUserId()).isEqualTo(1L);
+        assertThat(event.getUserEmail()).isEqualTo("test@example.com");
     }
 
     @Test
     @DisplayName("Multiple events for different users")
     void multipleEvents_forDifferentUsers() {
-        // Given
-        User user1 = UserTestDataBuilder.aUser()
-                .withId(1L)
-                .withEmail("user1@example.com")
-                .build();
-        User user2 = UserTestDataBuilder.aUser()
-                .withId(2L)
-                .withEmail("user2@example.com")
-                .build();
-
         // When
-        UserPreDeleteEvent event1 = new UserPreDeleteEvent(eventSource, user1);
-        UserPreDeleteEvent event2 = new UserPreDeleteEvent(eventSource, user2);
+        UserPreDeleteEvent event1 = new UserPreDeleteEvent(eventSource, 1L, "user1@example.com");
+        UserPreDeleteEvent event2 = new UserPreDeleteEvent(eventSource, 2L, "user2@example.com");
 
         // Then
-        assertThat(event1.getUser()).isNotEqualTo(event2.getUser());
         assertThat(event1.getUserId()).isEqualTo(1L);
         assertThat(event2.getUserId()).isEqualTo(2L);
+        assertThat(event1.getUserEmail()).isEqualTo("user1@example.com");
+        assertThat(event2.getUserEmail()).isEqualTo("user2@example.com");
     }
 
     @Test
@@ -109,7 +91,7 @@ class UserPreDeleteEventTest {
         long beforeCreation = System.currentTimeMillis();
 
         // When
-        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, testUser);
+        UserPreDeleteEvent event = new UserPreDeleteEvent(eventSource, userId, userEmail);
 
         // Then
         long afterCreation = System.currentTimeMillis();
