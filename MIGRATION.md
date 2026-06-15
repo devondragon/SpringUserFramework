@@ -207,6 +207,24 @@ The constructors changed accordingly:
 - If your listener needs the full `User`, **load it by id from `UserRepository` inside your listener's own transaction** (e.g. annotate the listener method `@Transactional`, or call a `@Transactional` service method). Do not retain or pass around the entity beyond that transaction.
 - For `OnRegistrationCompleteEvent` specifically, the framework's built-in `RegistrationListener` now passes `event.getUserId()` to `UserEmailService.sendRegistrationVerificationEmail(Long userId, String appUrl)`, which reloads the `User` in its own transaction before creating the verification token and rendering the email. The verification-email content (recipient, token, confirmation URL, template) is unchanged.
 
+### Validation exception handler is now library-scoped
+
+**What changed:** `GlobalValidationExceptionHandler` (the `@ControllerAdvice` that formats validation errors into a structured JSON 400 body) is now **scoped to the library's own controllers** via `assignableTypes`:
+
+```java
+@ControllerAdvice(assignableTypes = {UserAPI.class, GdprAPI.class, MfaAPI.class, UserActionController.class, UserPageController.class})
+```
+
+Previously it carried a bare `@ControllerAdvice`, which made it apply **application-wide** — including the consuming application's own controllers.
+
+**Why:** A bare `@ControllerAdvice` from a library is global and silently hijacks the consumer's validation handling: any `MethodArgumentNotValidException` (or, in some cases, `ConstraintViolationException`) thrown by *your* controllers was being caught and reformatted into the library's response shape, overriding whatever error contract your application intended. Scoping the advice to the library's own controllers keeps the library out of your controllers' exception handling.
+
+`WebAuthnManagementAPI` is intentionally **not** in this list: it has its own dedicated advice (`WebAuthnManagementAPIAdvice`) that already handles validation. Adding it here would create two advices targeting the same controller with overlapping handlers.
+
+**Also fixed (400 for `@PasswordMatches`):** The handler now collects **global (class-level) binding errors** in addition to field errors. The class-level `@PasswordMatches` constraint on `UserDto` produces a *global* error (not a field error); the previous handler blindly cast every error to `FieldError`, throwing a `ClassCastException` inside the `@ExceptionHandler` and returning an unhelpful HTTP 500. A mismatched password/confirmation on registration now returns a structured **HTTP 400**. A dedicated `@ExceptionHandler(ConstraintViolationException.class)` was also added (for constraints triggered outside method-argument binding, e.g. `@Validated` on method parameters), also returning a structured 400.
+
+**Remediation:** If your application relied on this library formatting validation errors for **your own** controllers, that no longer happens. Provide your own `@ControllerAdvice` (or `@RestControllerAdvice`) to format `MethodArgumentNotValidException` / `ConstraintViolationException` for your controllers. The library's response shape (for reference) is `{ "success": false, "code": 400, "message": "Validation failed", "errors": { <field-or-object>: <message> } }`.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

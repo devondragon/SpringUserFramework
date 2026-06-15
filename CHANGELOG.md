@@ -11,6 +11,7 @@
 - Registration and resend-verification endpoints no longer reveal whether an email is registered or already verified (account-enumeration hardening).
 - Credential-altering operations (remove password, delete/rename passkey) now require the current password when the account has one, preventing a session-only actor from changing authentication methods.
 - Role/privilege startup setup is now idempotent and safe under concurrent multi-node startup (handles unique-constraint races by re-reading the existing row).
+- The library's validation @ControllerAdvice now returns HTTP 400 (not 500) for the class-level @PasswordMatches constraint, surfacing global validation errors.
 
 ### Performance
 - `User` &rarr; `roles` and `Role` &rarr; `privileges` are now LAZY-fetched; the authentication path loads them via `@EntityGraph` in a single query (`UserRepository.findWithRolesByEmail`), removing the previous two-level eager fetch and the associated N+1 problem while keeping authority resolution correct.
@@ -24,6 +25,7 @@
 - `removePassword` and passkey delete/rename now require a `currentPassword` for password-holding accounts; requests omitting it are rejected. Update clients to send the current password. See MIGRATION.md.
 - JPA entities (`User`, `PasswordResetToken`, `VerificationToken`, `PasswordHistoryEntry`, `WebAuthnCredential`, `WebAuthnUserEntity`) now use identity-based (id-only) `equals`/`hashCode` instead of Lombok `@Data`'s all-fields equality. Code relying on field-by-field entity equality, or using transient (unsaved, id=null) entities as `Set`/`Map` keys, may behave differently. `toString` no longer includes collections or secrets. See MIGRATION.md.
 - Application events (`OnRegistrationCompleteEvent`, `UserPreDeleteEvent`, `ConsentChangedEvent`) no longer carry live JPA `User` entities; they now expose immutable ids/scalars (e.g. `userId`, `userEmail`). Custom listeners calling `event.getUser()` must switch to the new accessors. This prevents detached-entity/`LazyInitializationException` hazards in `@Async` listeners. See MIGRATION.md.
+- GlobalValidationExceptionHandler is now scoped to the library's own controllers (assignableTypes) instead of applying application-wide. Consuming apps that relied on the library formatting validation errors for THEIR controllers must provide their own @ControllerAdvice.
 
 ### Notes
 - Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.

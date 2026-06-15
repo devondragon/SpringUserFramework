@@ -254,6 +254,32 @@ class UserApiTest {
                             .content(json(new UserDto())))
                     .andExpect(status().isBadRequest());
         }
+
+        @Test
+        @DisplayName("Should return 400 with a structured error body when password and matchingPassword mismatch (class-level @PasswordMatches)")
+        void shouldReturnBadRequestWhenPasswordsDoNotMatch() throws Exception {
+            // The class-level @PasswordMatches constraint produces a GLOBAL (not field) binding error.
+            // The library's validation advice must surface this as a structured 400 - not a 500.
+            UserDto mismatched = new UserDto();
+            mismatched.setFirstName("Api");
+            mismatched.setLastName("Tester");
+            mismatched.setEmail(testEmail);
+            mismatched.setPassword(VALID_PASSWORD);
+            mismatched.setMatchingPassword(NEW_VALID_PASSWORD);
+
+            mockMvc.perform(post(URL + "/registration")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(mismatched)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.code").value(400))
+                    .andExpect(jsonPath("$.message").value("Validation failed"))
+                    .andExpect(jsonPath("$.errors").isNotEmpty());
+
+            // The mismatched registration must not have created an account.
+            assertThat(userService.findUserByEmail(testEmail)).isNull();
+        }
     }
 
     @Nested
