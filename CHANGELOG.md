@@ -1,3 +1,18 @@
+## [5.0.0] - Unreleased
+
+> **Major release.** Contains breaking changes (Java API, HTTP/response contracts, database schema, required configuration, and bean/auto-configuration structure). Read `MIGRATION.md` ("Migrating to 5.0.x") before upgrading.
+>
+> **⚠️ ACTION REQUIRED if you run behind a reverse proxy:** password-reset and email-verification links are now built from a configured canonical URL and ignore `X-Forwarded-Host` unless it is explicitly allow-listed. Set `user.security.appUrl` (recommended) or `user.security.trustedHosts`, or your reset/verification links will point at the wrong host. See `MIGRATION.md`.
+
+### Features
+
+### Fixes
+
+### Breaking Changes
+
+### Notes
+- Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.
+
 ## [4.4.0] - 2026-06-15
 ### Features
 - Token security hardened: verification and password-reset tokens are now hashed at rest (HMAC-SHA-256 when user.security.tokenHashSecret is set; plain SHA-256 otherwise). Dual-read ensures pre-upgrade plaintext tokens still work until expiry. Only one active token per user is kept; generators delete any previous token before issuing a new one. New properties:

@@ -29,6 +29,33 @@ This guide covers migrating applications using the Spring User Framework between
     - [Common Issues](#common-issues)
   - [Version Compatibility Matrix](#version-compatibility-matrix)
 
+## Migrating to 5.0.x
+
+This section covers migrating from Spring User Framework 4.4.x to 5.0.x. Version 5.0.0 is a **major release** containing breaking changes. Spring Boot compatibility is unchanged from 4.4.x (Spring Boot 4.0 on Java 21+, and Spring Boot 3.5 on Java 17+); the major-version bump reflects this library's own API/contract changes, not a Spring Boot major change.
+
+> **Note on versioning:** This library follows Semantic Versioning for its own API. Its major version is deliberately **not** tied to Spring Boot's major version — a single release line supports more than one Spring Boot major. See the Version Compatibility Matrix for supported Spring Boot versions.
+
+### ⚠️ ACTION REQUIRED: Reverse-proxy deployments must configure a canonical app URL
+
+Password-reset and email-verification links are now built from a configured canonical base URL instead of the inbound request's `Host` / `X-Forwarded-Host` header (CWE-640, host-header / reset poisoning). By default `X-Forwarded-Host` is **ignored** unless the host is explicitly allow-listed.
+
+**If your application runs behind a reverse proxy or load balancer, you must take action or your reset/verification links will break:**
+
+- **Recommended:** set the canonical base URL:
+  ```properties
+  user.security.appUrl=https://app.example.com
+  ```
+  When set, `X-Forwarded-Host` is ignored entirely and all email links use this URL.
+- **Alternative:** allow-list the trusted forwarded host(s):
+  ```properties
+  user.security.trustedHosts=app.example.com,www.example.com
+  ```
+  `X-Forwarded-Host` is then honored only for hosts in this list; all others fall back to the container's own server name.
+
+Local development with no proxy needs no change. `UserUtils.getAppUrl(HttpServletRequest)` is deprecated in favor of `AppUrlResolver`.
+
+<!-- Additional 5.0.x migration notes are appended below as tasks land. -->
+
 ## Migrating to 4.0.x (Spring Boot 4.0)
 
 This section covers migrating from Spring User Framework 3.x (Spring Boot 3.x) to 4.x (Spring Boot 4.0).
