@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Service("dsAuthorityService")
 @Transactional
 public class AuthorityService {
 

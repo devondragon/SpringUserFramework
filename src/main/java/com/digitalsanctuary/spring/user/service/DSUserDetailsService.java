@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Service("dsUserDetailsService")
 @Transactional
 public class DSUserDetailsService implements UserDetailsService {
 

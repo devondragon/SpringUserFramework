@@ -38,12 +38,12 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Getter
-@Component
+@Component("dsRolePrivilegeSetupService")
 public class RolePrivilegeSetupService implements ApplicationListener<ContextRefreshedEvent> {
 
-    /** The already setup flag. */
+    /** The already setup flag. {@code volatile} so the guard is visible across threads under concurrent context refresh (e.g. parallel test execution). */
     @Setter
-    private boolean alreadySetup = false;
+    private volatile boolean alreadySetup = false;
 
     /** The roles and privileges configuration. */
     private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;

@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Service("dsLoginAttemptService")
 @Data
 public class LoginAttemptService {
 

@@ -54,7 +54,7 @@ import java.util.Optional;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Service("dsPasswordPolicyService")
 public class PasswordPolicyService {
 
     @Value("${user.security.password.enabled}")

@@ -43,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Service
+@Service("dsUserEmailService")
 public class UserEmailService {
 
     /** The mail service. */
