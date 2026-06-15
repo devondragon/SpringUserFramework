@@ -140,6 +140,7 @@ public class UserAPI {
 			return buildSuccessResponse(REGISTRATION_GENERIC_MESSAGE, nextURL);
 		} catch (RegistrationDeniedException ex) {
 			log.info("Registration denied for email: {} source: FORM reason: {}", userDto.getEmail(), ex.getReason());
+			logAuditEvent("Registration", "Failure", "Registration Denied: " + ex.getReason(), null, request);
 			return buildErrorResponse(ex.getReason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 		} catch (UserAlreadyExistException ex) {
 			// Anti-enumeration: the email is already registered, so we create NOTHING and publish no
@@ -460,11 +461,23 @@ public class UserAPI {
 			return buildSuccessResponse("Registration Successful!", nextURL);
 		} catch (RegistrationDeniedException ex) {
 			log.info("Registration denied for email: {} source: PASSWORDLESS reason: {}", dto.getEmail(), ex.getReason());
+			logAuditEvent("PasswordlessRegistration", "Failure", "Registration Denied: " + ex.getReason(), null, request);
 			return buildErrorResponse(ex.getReason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 		} catch (UserAlreadyExistException ex) {
+			// Anti-enumeration: the email is already registered, so we create NOTHING and publish no
+			// registration event, but we return exactly the same generic 200 response a brand-new
+			// passwordless registration would produce. The true reason is recorded server-side via the
+			// audit event. This mirrors the form-registration path and prevents this endpoint from being
+			// used to enumerate which email addresses are already registered (previously returned 409).
+			//
+			// Returning registrationPendingURI here mirrors what a genuine new (unverified) registration
+			// returns in the default verification-enabled config, making both cases indistinguishable to
+			// the caller. In verification-disabled / auto-login mode a real new registration additionally
+			// establishes a session — that is an inherent, accepted difference that cannot be avoided
+			// without skipping auto-login for legitimate new users.
 			log.warn("User already exists with email: {}", dto.getEmail());
 			logAuditEvent("PasswordlessRegistration", "Failure", "User Already Exists", null, request);
-			return buildErrorResponse("An account already exists for the email address", 2, HttpStatus.CONFLICT);
+			return buildSuccessResponse("Registration Successful!", registrationPendingURI);
 		} catch (Exception ex) {
 			log.error("Unexpected error during passwordless registration.", ex);
 			logAuditEvent("PasswordlessRegistration", "Failure", ex.getMessage(), null, request);

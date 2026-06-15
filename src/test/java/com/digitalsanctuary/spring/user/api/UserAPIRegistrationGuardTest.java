@@ -2,6 +2,8 @@ package com.digitalsanctuary.spring.user.api;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -28,6 +30,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
+import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
+import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
@@ -193,6 +197,34 @@ class UserAPIRegistrationGuardTest {
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));
+        }
+
+        @Test
+        @DisplayName("Should return uniform success response for existing email (anti-enumeration, no 409)")
+        void shouldReturnUniformResponseForExistingEmail() throws Exception {
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setEmail("existing@example.com");
+            dto.setFirstName("Test");
+            dto.setLastName("User");
+
+            when(webAuthnCredentialManagementServiceProvider.getIfAvailable()).thenReturn(webAuthnService);
+            // The email is already registered: the service signals it via UserAlreadyExistException.
+            when(userService.registerPasswordlessAccount(any(PasswordlessRegistrationDto.class)))
+                    .thenThrow(new UserAlreadyExistException("User already exists"));
+
+            // Response is indistinguishable from a brand-new passwordless registration: HTTP 200,
+            // success-shaped body, redirect to the pending URI. No longer a 409 that would enumerate.
+            mockMvc.perform(post("/user/registration/passwordless")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto))
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andExpect(jsonPath("$.redirectUrl").value("/user/registration-pending.html"));
+
+            // No new account is created: no registration event is published.
+            verify(eventPublisher, never()).publishEvent(any(OnRegistrationCompleteEvent.class));
         }
     }
 }
