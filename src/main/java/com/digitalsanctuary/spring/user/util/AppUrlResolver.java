@@ -52,13 +52,17 @@ public class AppUrlResolver {
             return configuredAppUrl;
         }
 
-        String fwdHost = request.getHeader("X-Forwarded-Host");
+        // X-Forwarded-Host may be a comma-separated list when the request traverses multiple proxies
+        // (RFC 7230); the client-facing host is the first value. Match the allow-list against that value
+        // only, otherwise legitimate multi-proxy chains (e.g. ALB + nginx) never match and silently fall
+        // back to the container's server name.
+        String fwdHost = firstHeaderValue(request.getHeader("X-Forwarded-Host"));
         boolean useForwarded = fwdHost != null && !fwdHost.isEmpty() && trustedHosts.contains(stripPort(fwdHost));
         if (fwdHost != null && !fwdHost.isEmpty() && !useForwarded) {
-            log.warn("AppUrlResolver: ignoring untrusted X-Forwarded-Host '{}' (not in user.security.trustedHosts)", fwdHost);
+            log.warn("AppUrlResolver: ignoring untrusted X-Forwarded-Host '{}' (not in user.security.trustedHosts)", sanitizeForLog(fwdHost));
         }
 
-        String scheme = useForwarded ? headerOr(request, "X-Forwarded-Proto", request.getScheme()) : request.getScheme();
+        String scheme = useForwarded ? forwardedScheme(request) : request.getScheme();
         String host = useForwarded ? stripPort(fwdHost) : request.getServerName();
         int port = useForwarded ? forwardedPort(request, scheme) : request.getServerPort();
 
@@ -75,12 +79,12 @@ public class AppUrlResolver {
     }
 
     private static int forwardedPort(HttpServletRequest request, String forwardedScheme) {
-        String portHeader = request.getHeader("X-Forwarded-Port");
+        String portHeader = firstHeaderValue(request.getHeader("X-Forwarded-Port"));
         if (portHeader != null && !portHeader.isBlank()) {
             try {
                 return Integer.parseInt(portHeader.trim());
             } catch (NumberFormatException e) {
-                log.warn("AppUrlResolver: ignoring non-numeric X-Forwarded-Port '{}'", portHeader);
+                log.warn("AppUrlResolver: ignoring non-numeric X-Forwarded-Port '{}'", sanitizeForLog(portHeader));
             }
         }
         // No usable X-Forwarded-Port: derive the port from the forwarded scheme so we don't leak the
@@ -88,14 +92,45 @@ public class AppUrlResolver {
         return "https".equalsIgnoreCase(forwardedScheme) ? DEFAULT_HTTPS_PORT : DEFAULT_HTTP_PORT;
     }
 
+    /**
+     * Resolves the forwarded scheme from {@code X-Forwarded-Proto}, accepting only {@code http} or {@code https}. A trusted proxy is expected to send a
+     * sane value, but a misconfigured or compromised one sending e.g. {@code javascript} must never be allowed to flow into a security-sensitive email
+     * link, so any unrecognized value falls back to the container's own scheme.
+     */
+    private static String forwardedScheme(HttpServletRequest request) {
+        String proto = firstHeaderValue(request.getHeader("X-Forwarded-Proto"));
+        if (proto == null || proto.isEmpty()) {
+            return request.getScheme();
+        }
+        if ("http".equalsIgnoreCase(proto) || "https".equalsIgnoreCase(proto)) {
+            return proto;
+        }
+        log.warn("AppUrlResolver: ignoring invalid X-Forwarded-Proto '{}', falling back to request scheme", sanitizeForLog(proto));
+        return request.getScheme();
+    }
+
+    /**
+     * Returns the first value of a possibly comma-separated forwarded header (RFC 7230), trimmed. Returns {@code null} for a null input.
+     */
+    private static String firstHeaderValue(String headerValue) {
+        if (headerValue == null) {
+            return null;
+        }
+        int comma = headerValue.indexOf(',');
+        String first = comma >= 0 ? headerValue.substring(0, comma) : headerValue;
+        return first.trim();
+    }
+
+    /**
+     * Neutralizes CR/LF/tab in attacker-controlled header values before logging to prevent log-injection / forging.
+     */
+    private static String sanitizeForLog(String value) {
+        return value == null ? null : value.replaceAll("[\r\n\t]", "_");
+    }
+
     private static boolean isDefaultPort(String scheme, int port) {
         return ("http".equalsIgnoreCase(scheme) && port == DEFAULT_HTTP_PORT)
                 || ("https".equalsIgnoreCase(scheme) && port == DEFAULT_HTTPS_PORT);
-    }
-
-    private static String headerOr(HttpServletRequest req, String header, String fallback) {
-        String v = req.getHeader(header);
-        return (v == null || v.isEmpty()) ? fallback : v;
     }
 
     private static String stripPort(String host) {

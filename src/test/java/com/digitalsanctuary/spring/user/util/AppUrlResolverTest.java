@@ -97,6 +97,38 @@ class AppUrlResolverTest {
     }
 
     @Test
+    void matchesFirstValueOfMultiValuedForwardedHostAgainstAllowList() {
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("trusted.example.com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("http");
+        req.setServerName("internal");
+        req.setServerPort(8080);
+        req.addHeader("X-Forwarded-Proto", "https");
+        // Multi-proxy chain (RFC 7230): X-Forwarded-Host is a comma-separated list whose FIRST value is the
+        // client-facing host. The allow-list must match that first value, not the whole compound string.
+        req.addHeader("X-Forwarded-Host", "trusted.example.com, internal.proxy");
+        req.addHeader("X-Forwarded-Port", "443");
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://trusted.example.com");
+    }
+
+    @Test
+    void ignoresInvalidForwardedProtoAndFallsBackToContainerScheme() {
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("trusted.example.com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("internal");
+        req.setServerPort(443);
+        // A trusted but misconfigured/compromised proxy must never inject a non-http(s) scheme into a
+        // security email link: an invalid X-Forwarded-Proto is ignored and the request scheme is used.
+        req.addHeader("X-Forwarded-Proto", "javascript");
+        req.addHeader("X-Forwarded-Host", "trusted.example.com");
+        req.addHeader("X-Forwarded-Port", "443");
+        String resolved = resolver.resolveAppUrl(req);
+        assertThat(resolved).isEqualTo("https://trusted.example.com");
+        assertThat(resolved).doesNotContain("javascript");
+    }
+
+    @Test
     void ignoresUntrustedForwardedHostAndUsesContainerServerName() {
         AppUrlResolver resolver = new AppUrlResolver(null, List.of("trusted.example.com"));
         MockHttpServletRequest req = new MockHttpServletRequest();
