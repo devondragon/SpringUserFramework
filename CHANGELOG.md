@@ -4,7 +4,10 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [5.0.1] - Unreleased
 ### Changed
-- Reverted `Role.privileges` to `FetchType.EAGER` (it was changed to `LAZY` in 5.0.0). The 5.0.0 change made `role.getPrivileges()` throw `LazyInitializationException` when accessed outside an open transaction/session — a surprising footgun for consumers — in exchange for a negligible gain, since privileges are small, static reference data with no bulk-load path. `User.roles` remains `LAZY` (that is where the real N+1 win is), and the authentication path still loads the full `User → roles → privileges` graph in one query via `UserRepository.findWithRolesByEmail`. This is a **non-breaking relaxation**: code written against 5.0.0 continues to work unchanged. See `MIGRATION.md` ("Lazy fetching of roles and privileges").
+- Reverted `Role.privileges` to `FetchType.EAGER` (it was changed to `LAZY` in 5.0.0). The 5.0.0 change made `role.getPrivileges()` throw `LazyInitializationException` when accessed outside an open transaction/session — a surprising footgun for consumers — in exchange for a negligible gain, since privileges are small, static reference data with no bulk-load path. `User.roles` remains `LAZY` (that is where the real N+1 win is), and the authentication path still loads the full `User → roles → privileges` graph in a single round trip via `UserRepository.findWithRolesByEmail`. This is a **non-breaking relaxation**: code written against 5.0.0 continues to work unchanged. See `MIGRATION.md` ("Lazy fetching of roles and privileges").
+
+### Fixed
+- `user.security.trustedHosts` matching is now case-insensitive (RFC 4343). A mixed-case configured entry or forwarded host (e.g. `App.Example.Com`) now matches `app.example.com`; previously a case mismatch caused the resolver to ignore a legitimately trusted `X-Forwarded-Host` and fall back to the container's server name on the CWE-640 path.
 
 ## [5.0.0] - 2026-06-15
 
