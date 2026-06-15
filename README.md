@@ -2,7 +2,7 @@
 
 [![Maven Central](https://img.shields.io/maven-central/v/com.digitalsanctuary/ds-spring-user-framework.svg)](https://central.sonatype.com/artifact/com.digitalsanctuary/ds-spring-user-framework)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Spring Boot 4](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen)](https://spring.io/projects/spring-boot)
+[![Spring Boot 4](https://img.shields.io/badge/Spring%20Boot-4.0%20|%204.1-brightgreen)](https://spring.io/projects/spring-boot)
 [![Spring Boot 3](https://img.shields.io/badge/Spring%20Boot-3.5-blue)](https://spring.io/projects/spring-boot)
 [![Java Version](https://img.shields.io/badge/Java-17%20|%2021%20|%2025-brightgreen)](https://www.oracle.com/java/technologies/downloads/)
 
@@ -120,25 +120,27 @@ Choose the version that matches your Spring Boot version:
 
 | Spring Boot Version | Framework Version | Java Version | Spring Security |
 | ------------------- | ----------------- | ------------ | --------------- |
-| 4.0.x               | 4.0.x             | 21+          | 7.x             |
+| 4.0.x – 4.1.x       | 5.0.x             | 21+          | 7.x             |
 | 3.5.x               | 3.5.x             | 17+          | 6.x             |
 
-### Spring Boot 4.0 (Latest)
+> **Versioning note:** This library follows Semantic Versioning for its **own** API; its major version is intentionally **not** aligned with Spring Boot's major version. The 5.0.x line is built and verified against **Spring Boot 4.1.0** and also runs on 4.0.x — all Spring Boot starters are `compileOnly`, so your application picks the exact Spring Boot patch version. `5.0.0` is a **breaking release** over `4.4.x`; read the **[Migration Guide](MIGRATION.md)** ("Migrating to 5.0.x") before upgrading — note especially the reverse-proxy `user.security.appUrl` requirement.
 
-Spring Boot 4.0 brings significant changes including Spring Security 7 and requires Java 21.
+### Spring Boot 4.0 / 4.1 (Latest)
+
+Spring Boot 4.x brings significant changes including Spring Security 7 and requires Java 21. The 5.0.x line is built and verified against Spring Boot 4.1.0 and is compatible with 4.0.x.
 
 **Maven:**
 ```xml
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>4.4.0</version>
+    <version>5.0.0</version>
 </dependency>
 ```
 
 **Gradle:**
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:4.4.0'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:5.0.0'
 ```
 
 #### Spring Boot 4.0 Key Changes
@@ -162,7 +164,7 @@ testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 ```
 
-**Upgrading from 3.x?** See the [Migration Guide](MIGRATION.md) for detailed upgrade instructions.
+**Upgrading from 3.x, or from 4.4.x?** See the [Migration Guide](MIGRATION.md) for detailed upgrade instructions. The `4.4.x` → `5.0.0` jump is a breaking release (security, schema, API, and auto-configuration changes) — review "Migrating to 5.0.x" before upgrading.
 
 ### Spring Boot 3.5 (Stable)
 
@@ -207,9 +209,9 @@ Follow these steps to get up and running with the Spring User Framework in your 
 
 1. **Add the main framework dependency** (see [Installation](#installation) for version selection):
 
-   **Spring Boot 4.0 (Java 21+):**
+   **Spring Boot 4.0 / 4.1 (Java 21+):**
    ```groovy
-   implementation 'com.digitalsanctuary:ds-spring-user-framework:4.4.0'
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:5.0.0'
    ```
 
    **Spring Boot 3.5 (Java 17+):**
@@ -246,7 +248,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
    <dependency>
        <groupId>org.springframework.retry</groupId>
        <artifactId>spring-retry</artifactId>
-       <version>2.0.12</version>
+       <version>2.0.13</version>
    </dependency>
    ```
 
@@ -257,7 +259,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
    implementation 'org.springframework.boot:spring-boot-starter-security'
    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-   implementation 'org.springframework.retry:spring-retry:2.0.12'
+   implementation 'org.springframework.retry:spring-retry:2.0.13'
    ```
 
    **Notes:**
