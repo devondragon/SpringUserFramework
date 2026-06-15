@@ -11,6 +11,7 @@
 
 ### Breaking Changes
 - Reset/verification email links no longer trust `X-Forwarded-Host` by default. Deployments behind a reverse proxy must set `user.security.appUrl` or `user.security.trustedHosts` (see MIGRATION.md). `UserUtils.getAppUrl(HttpServletRequest)` is deprecated for removal.
+- Added a UNIQUE, NOT NULL constraint on the `token` column of `password_reset_token` and `verification_token`. This is a schema/DDL change — see MIGRATION.md.
 
 ### Notes
 - Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.

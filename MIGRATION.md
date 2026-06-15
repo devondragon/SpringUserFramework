@@ -54,6 +54,27 @@ Password-reset and email-verification links are now built from a configured cano
 
 Local development with no proxy needs no change. `UserUtils.getAppUrl(HttpServletRequest)` is deprecated in favor of `AppUrlResolver`.
 
+### Database schema: unique token constraint
+
+The `token` column on both `password_reset_token` and `verification_token` now carries a **UNIQUE + NOT NULL** constraint. The stored value is always a fixed-length hash (introduced in 4.4.0), so the column length is predictable and the index is safe.
+
+**Applications using `spring.jpa.hibernate.ddl-auto=update` (or `create`/`create-drop`):** Hibernate will add the unique index automatically on startup — no manual action required.
+
+**Applications managing schema manually (Flyway, Liquibase, or `ddl-auto=validate`/`none`):** apply the following DDL before upgrading and before starting the application:
+
+```sql
+-- Ensure no existing null or duplicate token values exist first.
+-- (4.4.0 already enforces one active token per user, so duplicates are unlikely.)
+ALTER TABLE password_reset_token ALTER COLUMN token SET NOT NULL;
+ALTER TABLE verification_token ALTER COLUMN token SET NOT NULL;
+CREATE UNIQUE INDEX ux_password_reset_token_token ON password_reset_token (token);
+CREATE UNIQUE INDEX ux_verification_token_token ON verification_token (token);
+```
+
+> **Note:** The DDL syntax above is standard SQL (compatible with PostgreSQL and MariaDB/MySQL). For MySQL/MariaDB, `ALTER COLUMN token SET NOT NULL` may need to include the full column definition, e.g. `MODIFY COLUMN token VARCHAR(255) NOT NULL`.
+
+If your database contains rows with a `null` token value (possible only if tokens were created before 4.4.0 without the hash path), delete or back-fill those rows before applying the NOT NULL constraint.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

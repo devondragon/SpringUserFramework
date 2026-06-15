@@ -2,6 +2,7 @@ package com.digitalsanctuary.spring.user.persistence.model;
 
 import java.util.Calendar;
 import java.util.Date;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -27,6 +28,7 @@ public class PasswordResetToken {
 	private Long id;
 
 	/** The token. */
+	@Column(name = "token", nullable = false, unique = true)
 	private String token;
 
 	/** The user. */
