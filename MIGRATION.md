@@ -75,6 +75,31 @@ CREATE UNIQUE INDEX ux_verification_token_token ON verification_token (token);
 
 If your database contains rows with a `null` token value (possible only if tokens were created before 4.4.0 without the hash path), delete or back-fill those rows before applying the NOT NULL constraint.
 
+### Registration & resend responses are now uniform (anti-enumeration)
+
+The `/user/registration` and `/user/resendRegistrationToken` endpoints now return the **same generic, success-shaped HTTP 200 response** regardless of whether the email is already registered or already verified. This prevents attackers from using these endpoints to enumerate which email addresses have accounts and which are verified (CWE-204).
+
+**Old behavior:**
+
+| Endpoint | Case | Old status | Old body message |
+|---|---|---|---|
+| `/user/registration` | New email | 200 | `Registration Successful!` |
+| `/user/registration` | Email already exists | 409 Conflict | `An account already exists for the email address` (code 2) |
+| `/user/resendRegistrationToken` | Unverified account | 200 | `Verification Email Resent Successfully!` |
+| `/user/resendRegistrationToken` | Already-verified account | 409 Conflict | `Account is already verified.` (code 1) |
+| `/user/resendRegistrationToken` | Unknown email | 500 Internal Server Error | `System Error!` (code 2) |
+
+**New behavior:**
+
+| Endpoint | All cases | New status | New body message |
+|---|---|---|---|
+| `/user/registration` | New email **or** already exists | 200 | `If your email address is eligible, you will receive a verification email shortly.` (success, code 0) |
+| `/user/resendRegistrationToken` | Unverified, already-verified, **or** unknown email | 200 | `If your account requires verification, a new verification email has been sent.` (success, code 0) |
+
+Internally the framework still does the correct thing — a brand-new registration creates the account and sends verification, an existing email creates nothing, and resend sends an email only when the account exists and is unverified — and the true outcome is still recorded in the audit log. Only the externally observable response is now uniform.
+
+**Action required:** Clients (web UIs, mobile apps, integrations) must no longer rely on the `409` status (existing/verified account) or the `500` status (unknown email on resend) to detect account existence or verification state. Branch only on the `success` flag for these two endpoints, and present the generic message to end users.
+
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
 ## Migrating to 4.0.x (Spring Boot 4.0)

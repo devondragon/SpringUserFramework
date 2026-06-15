@@ -215,26 +215,32 @@ class UserApiTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.code").value(0))
-                    .andExpect(jsonPath("$.messages[0]").value("Registration Successful!"));
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your email address is eligible, you will receive a verification email shortly."));
 
             assertThat(userService.findUserByEmail(testEmail)).isNotNull();
         }
 
         @Test
-        @DisplayName("Should return 409 Conflict when the user already exists")
-        void shouldRejectExistingUser() throws Exception {
+        @DisplayName("Should return the same uniform 200 body for an existing email (anti-enumeration) and create no duplicate")
+        void shouldReturnUniformResponseForExistingUser() throws Exception {
             // Register once.
             userService.registerNewUserAccount(baseTestUser);
+            Long existingId = userService.findUserByEmail(testEmail).getId();
 
-            // Register again with the same email.
+            // Register again with the same email - response must be indistinguishable from a new registration.
             mockMvc.perform(post(URL + "/registration")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(baseTestUser)))
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.code").value(2))
-                    .andExpect(jsonPath("$.messages[0]").value("An account already exists for the email address"));
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andExpect(jsonPath("$.messages[0]")
+                            .value("If your email address is eligible, you will receive a verification email shortly."));
+
+            // No duplicate account was created - the existing account is untouched.
+            assertThat(userService.findUserByEmail(testEmail).getId()).isEqualTo(existingId);
         }
 
         @Test

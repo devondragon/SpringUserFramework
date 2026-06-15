@@ -67,6 +67,22 @@ public class UserAPI {
 	/** Error code returned when the {@link RegistrationGuard} denies a registration attempt. */
 	private static final int ERROR_CODE_REGISTRATION_DENIED = 6;
 
+	/**
+	 * Generic, success-shaped message returned by {@code /registration} for every outcome (new account
+	 * created, or email already registered). Keeping the body identical across cases prevents an attacker
+	 * from using the registration endpoint to enumerate which email addresses are already registered.
+	 */
+	private static final String REGISTRATION_GENERIC_MESSAGE =
+			"If your email address is eligible, you will receive a verification email shortly.";
+
+	/**
+	 * Generic, success-shaped message returned by {@code /resendRegistrationToken} for every outcome
+	 * (email unknown, account already verified, or verification email actually resent). Keeping the body
+	 * identical across cases prevents enumeration of which emails exist and which are already verified.
+	 */
+	private static final String RESEND_GENERIC_MESSAGE =
+			"If your account requires verification, a new verification email has been sent.";
+
 	private final UserService userService;
 	private final UserEmailService userEmailService;
 	private final MessageSource messages;
@@ -121,14 +137,23 @@ public class UserAPI {
 
 			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
 
-			return buildSuccessResponse("Registration Successful!", nextURL);
+			return buildSuccessResponse(REGISTRATION_GENERIC_MESSAGE, nextURL);
 		} catch (RegistrationDeniedException ex) {
 			log.info("Registration denied for email: {} source: FORM reason: {}", userDto.getEmail(), ex.getReason());
 			return buildErrorResponse(ex.getReason(), ERROR_CODE_REGISTRATION_DENIED, HttpStatus.FORBIDDEN);
 		} catch (UserAlreadyExistException ex) {
+			// Anti-enumeration: the email is already registered, so we create NOTHING and publish no
+			// registration event, but we return exactly the same generic 200 response a brand-new
+			// registration would produce. The true reason is recorded server-side via the audit event.
+			//
+			// Returning registrationPendingURI here mirrors what a genuine new (unverified) registration
+			// returns in the default verification-enabled config, making both cases indistinguishable to
+			// the caller. In verification-disabled / auto-login mode a real new registration additionally
+			// establishes a session — that is an inherent, accepted difference that cannot be avoided
+			// without skipping auto-login for legitimate new users.
 			log.warn("User already exists with email: {}", userDto.getEmail());
 			logAuditEvent("Registration", "Failure", "User Already Exists", null, request);
-			return buildErrorResponse("An account already exists for the email address", 2, HttpStatus.CONFLICT);
+			return buildSuccessResponse(REGISTRATION_GENERIC_MESSAGE, registrationPendingURI);
 		} catch (Exception ex) {
 			log.error("Unexpected error during registration.", ex);
 			logAuditEvent("Registration", "Failure", ex.getMessage(), null, request);
@@ -148,16 +173,22 @@ public class UserAPI {
 	@PostMapping("/resendRegistrationToken")
 	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody UserDto userDto,
 			HttpServletRequest request) {
+		// Anti-enumeration: this endpoint ALWAYS returns the same generic 200 response, regardless of
+		// whether the email is unknown, already verified, or genuinely awaiting verification. Internally
+		// we only send the verification email when the account exists AND is still unverified. The true
+		// outcome is recorded server-side via audit/log events so operators retain visibility.
 		User user = userService.findUserByEmail(userDto.getEmail());
-		if (user != null) {
-			if (user.isEnabled()) {
-				return buildErrorResponse("Account is already verified.", 1, HttpStatus.CONFLICT);
-			}
+		if (user == null) {
+			log.info("Resend verification requested for unknown email; returning generic response.");
+			logAuditEvent("Resend Reg Token", "Failure", "Unknown Email", null, request);
+		} else if (user.isEnabled()) {
+			log.info("Resend verification requested for already-verified account; returning generic response.");
+			logAuditEvent("Resend Reg Token", "Failure", "Account Already Verified", user, request);
+		} else {
 			userEmailService.sendRegistrationVerificationEmail(user, appUrlResolver.resolveAppUrl(request));
 			logAuditEvent("Resend Reg Token", "Success", "Verification Email Resent", user, request);
-			return buildSuccessResponse("Verification Email Resent Successfully!", registrationPendingURI);
 		}
-		return buildErrorResponse("System Error!", 2, HttpStatus.INTERNAL_SERVER_ERROR);
+		return buildSuccessResponse(RESEND_GENERIC_MESSAGE, registrationPendingURI);
 	}
 
 	/**

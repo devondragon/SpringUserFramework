@@ -8,10 +8,12 @@
 - Added `AppUrlResolver` and `user.security.appUrl` / `user.security.trustedHosts` properties: password-reset and email-verification links are now built from a configured canonical URL, ignoring `X-Forwarded-Host` unless allow-listed (CWE-640).
 
 ### Fixes
+- Registration and resend-verification endpoints no longer reveal whether an email is registered or already verified (account-enumeration hardening).
 
 ### Breaking Changes
 - Reset/verification email links no longer trust `X-Forwarded-Host` by default. Deployments behind a reverse proxy must set `user.security.appUrl` or `user.security.trustedHosts` (see MIGRATION.md). `UserUtils.getAppUrl(HttpServletRequest)` is deprecated for removal.
 - Added a UNIQUE, NOT NULL constraint on the `token` column of `password_reset_token` and `verification_token`. This is a schema/DDL change — see MIGRATION.md.
+- The registration and resend-verification endpoints now always return HTTP 200 with a uniform generic body. Previously an existing email returned 409 on registration, and resend returned 409 (already verified) or 500 (unknown email). Clients that branched on those status codes or messages must update — the response is now intentionally uniform.
 
 ### Notes
 - Audit-log injection (originally slated here as a JSON-per-line format change) was already resolved in 4.4.0 via field sanitization (CR/LF and `|` stripped). The breaking JSON-per-line conversion was intentionally **not** carried into 5.0.0, as it offered no additional security benefit.
