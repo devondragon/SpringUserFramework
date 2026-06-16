@@ -1,4 +1,12 @@
 ## [3.6.0] - 2026-06-15
+
+> **Security-maintenance release for the Spring Boot 3.5 / Java 17 line.** This backports the security-critical
+> fixes from the 4.4.0 and 5.0.x (Spring Boot 4 / Java 21) releases that apply to code present in the 3.5.x line.
+> It deliberately does **not** include the larger architectural changes, new features (WebAuthn, MFA, GDPR service,
+> token-at-rest hashing), or breaking HTTP-contract changes from those releases. **The 3.x line is now in
+> security-maintenance only** — new development happens on the 5.0.x line (Spring Boot 4.0/4.1, Java 21). Java-21
+> users should migrate to 5.0.x.
+
 ### Features
 - None
 
@@ -73,42 +81,6 @@
 - Build: Gradle release configuration widened to allow release/* branches
   - build.gradle now sets net.researchgate.release git.requireBranch to main|release/.* so security-maintenance releases off release/* (e.g., release/3.6.0) can run ./gradlew release.
   - Still accepts exactly main.
-
-## [3.6.0] - 2026-06-15
-
-> **Security-maintenance release for the Spring Boot 3.5 / Java 17 line.** This backports the security-critical
-> fixes from the 4.4.0 and 5.0.x (Spring Boot 4 / Java 21) releases that apply to code present in the 3.5.x line.
-> It deliberately does **not** include the larger architectural changes, new features (WebAuthn, MFA, GDPR service,
-> token-at-rest hashing), or breaking HTTP-contract changes from those releases. **The 3.x line is now in
-> security-maintenance only** — new development happens on the 5.0.x line (Spring Boot 4.0/4.1, Java 21). Java-21
-> users should migrate to 5.0.x.
-
-### Security
-- **OAuth2/OIDC email verification bypass:** reject Google/OIDC/Facebook logins when the provider explicitly
-  reports `email_verified=false` (an absent claim is still trusted). Prevents account takeover via a provider
-  account whose email was never verified.
-- **OAuth2 failure-message leakage:** OAuth2 login failures now store only a generic message in the session via a
-  new `SanitizingOAuth2AuthenticationFailureHandler`; raw exception text (which can leak an account email from
-  Locked/Disabled exceptions or the registered provider on a conflict) is logged server-side only.
-- **Brute-force lockout evasion (race):** the failed-login-attempt counter is now incremented with a single atomic
-  `UPDATE` (`UserRepository.incrementFailedAttempts`) instead of a read-modify-write, so concurrent failed logins
-  can no longer lose increments and evade lockout.
-- **Audit log forging/corruption:** `FileAuditLogWriter` now strips CR/LF and the `|` delimiter from every
-  attacker-influenceable field, so an injected newline can't forge a record and an injected pipe can't shift columns.
-- **Secret leakage in logs:** `User.toString()` no longer includes the password (`@ToString.Exclude`); raw tokens,
-  principals and `Authentication` objects are no longer logged (tokens are fingerprinted; principals log the
-  username/email only).
-- **Host-header poisoning (CWE-640):** new optional `user.security.appUrl` property. When set, password-reset and
-  email-verification links are built from this canonical URL and the `X-Forwarded-Host` header is ignored,
-  closing the vector where an attacker who can set that header makes the app mint links pointing at a host they
-  control. **Default is blank, preserving the prior forwarded-header behavior** — set `user.security.appUrl` if you
-  run behind a reverse proxy and want the hardened behavior. (The 5.0.x line has the full `AppUrlResolver` /
-  `trustedHosts` allow-list; this is the minimal opt-in mitigation for the maintenance line.)
-
-### Notes
-- No database schema changes. No breaking HTTP-contract or Java-API changes versus 3.5.1; the only behavioral
-  change is internal (atomic lockout increment). Tests that mocked the old read-modify-write lockout path should
-  assert on `incrementFailedAttempts` instead.
 
 ## [3.5.1] - 2025-10-26
 ### Features
