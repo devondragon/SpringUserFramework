@@ -1,3 +1,7 @@
+# Changelog
+
+All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
+
 ## [5.0.1] - 2026-06-15
 ### Features
 - WebAuthn credential-management re-authentication now returns distinct HTTP status codes
@@ -58,23 +62,6 @@
   - New case-insensitivity test to confirm mixed-case allow-list and forwarded host match correctly.
 - Repository tests
   - UserRepositoryEntityGraphTest Javadoc/comments corrected to reflect Role.privileges EAGER and User.roles LAZY; continues to verify that plain findByEmail leaves roles uninitialized.
-
-### Other Changes
-- Version bumped to 5.0.1-SNAPSHOT (gradle.properties).
-- Minor code comments:
-  - Added EAGER/LAZY behavior notes to PasswordResetToken and VerificationToken user associations.
-
-# Changelog
-
-All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
-
-## [5.0.1] - Unreleased
-### Changed
-- Reverted `Role.privileges` to `FetchType.EAGER` (it was changed to `LAZY` in 5.0.0). The 5.0.0 change made `role.getPrivileges()` throw `LazyInitializationException` when accessed outside an open transaction/session — a surprising footgun for consumers — in exchange for a negligible gain, since privileges are small, static reference data with no bulk-load path. `User.roles` remains `LAZY` (that is where the real N+1 win is), and the authentication path still loads the full `User → roles → privileges` graph in a single round trip via `UserRepository.findWithRolesByEmail`. This is a **non-breaking relaxation**: code written against 5.0.0 continues to work unchanged. See `MIGRATION.md` ("Lazy fetching of roles and privileges").
-- WebAuthn credential-management re-authentication failures now use distinct HTTP statuses so clients can tell them apart: an incorrect current password returns **401 Unauthorized** and a locked account returns **423 Locked** (both previously **400**). A missing/blank `currentPassword` field remains **400 Bad Request**. Affects `DELETE /user/webauthn/password`, `DELETE /user/webauthn/credentials/{id}`, and `PUT /user/webauthn/credentials/{id}/label`. These endpoints are new in 5.0.0; brute-force lockout behaviour is unchanged.
-
-### Fixed
-- `user.security.trustedHosts` matching is now case-insensitive (RFC 4343). A mixed-case configured entry or forwarded host (e.g. `App.Example.Com`) now matches `app.example.com`; previously a case mismatch caused the resolver to ignore a legitimately trusted `X-Forwarded-Host` and fall back to the container's server name on the CWE-640 path.
 
 ## [5.0.0] - 2026-06-15
 
