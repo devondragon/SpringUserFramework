@@ -17,8 +17,8 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)
-    - [Spring Boot 4.0 (Latest)](#spring-boot-40-latest)
-      - [Spring Boot 4.0 Key Changes](#spring-boot-40-key-changes)
+    - [Spring Boot 4.x (Latest)](#spring-boot-4x-latest)
+      - [Spring Boot 4.x Key Changes](#spring-boot-4x-key-changes)
     - [Spring Boot 3.5 (Stable)](#spring-boot-35-stable)
   - [Migration Guide](#migration-guide)
   - [Quick Start](#quick-start)
@@ -31,7 +31,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Step 6: Create User Profile Extension (Optional)](#step-6-create-user-profile-extension-optional)
     - [Step 7: Start Your Application](#step-7-start-your-application)
     - [Step 8: Test Core Features](#step-8-test-core-features)
-    - [Step 9: Customize Pages (Optional)](#step-9-customize-pages-optional)
+    - [Step 9: Customize Pages (Required for user-facing pages)](#step-9-customize-pages-required-for-user-facing-pages)
     - [Complete Example Configuration](#complete-example-configuration)
     - [Next Steps](#next-steps)
   - [Configuration](#configuration)
@@ -125,7 +125,7 @@ Choose the version that matches your Spring Boot version:
 
 > **Versioning note:** This library follows Semantic Versioning for its **own** API; its major version is intentionally **not** aligned with Spring Boot's major version. The 5.0.x line is built and verified against **Spring Boot 4.1.0** and also runs on 4.0.x — all Spring Boot starters are `compileOnly`, so your application picks the exact Spring Boot patch version. The `5.0.x` line is a **breaking release** over `4.4.x`; read the **[Migration Guide](MIGRATION.md)** ("Migrating to 5.0.x") before upgrading — note especially the reverse-proxy `user.security.appUrl` requirement.
 
-### Spring Boot 4.0 / 4.1 (Latest)
+### Spring Boot 4.x (Latest)
 
 Spring Boot 4.x brings significant changes including Spring Security 7 and requires Java 21. The 5.0.x line is built and verified against Spring Boot 4.1.0 and is compatible with 4.0.x.
 
@@ -143,7 +143,7 @@ Spring Boot 4.x brings significant changes including Spring Security 7 and requi
 implementation 'com.digitalsanctuary:ds-spring-user-framework:5.0.1'
 ```
 
-#### Spring Boot 4.0 Key Changes
+#### Spring Boot 4.x Key Changes
 
 When upgrading to Spring Boot 4.0, be aware of these important changes:
 
