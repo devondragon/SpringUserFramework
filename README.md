@@ -121,7 +121,7 @@ Choose the version that matches your Spring Boot version:
 | Spring Boot Version | Framework Version | Java Version | Spring Security |
 | ------------------- | ----------------- | ------------ | --------------- |
 | 4.0.x – 4.1.x       | 5.0.x             | 21+          | 7.x             |
-| 3.5.x               | 3.5.x             | 17+          | 6.x             |
+| 3.5.x               | 3.6.x             | 17+          | 6.x             |
 
 > **Versioning note:** This library follows Semantic Versioning for its **own** API; its major version is intentionally **not** aligned with Spring Boot's major version. The 5.0.x line is built and verified against **Spring Boot 4.1.0** and also runs on 4.0.x — all Spring Boot starters are `compileOnly`, so your application picks the exact Spring Boot patch version. The `5.0.x` line is a **breaking release** over `4.4.x`; read the **[Migration Guide](MIGRATION.md)** ("Migrating to 5.0.x") before upgrading — note especially the reverse-proxy `user.security.appUrl` requirement.
 
@@ -170,18 +170,20 @@ testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 
 For projects using Spring Boot 3.5.x with Java 17+:
 
+> **Security-maintenance only.** The `3.6.x` line backports security fixes from the 5.0.x line that apply to Spring Boot 3.5; new feature development happens on `5.0.x`. If you are on Java 21 / Spring Boot 4, use `5.0.x`.
+
 **Maven:**
 ```xml
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.5.1</version>
+    <version>3.6.0</version>
 </dependency>
 ```
 
 **Gradle:**
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.5.1'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.6.0'
 ```
 
 ## Migration Guide
@@ -216,7 +218,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
 
    **Spring Boot 3.5 (Java 17+):**
    ```groovy
-   implementation 'com.digitalsanctuary:ds-spring-user-framework:3.5.1'
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:3.6.0'
    ```
 
 2. **Add required dependencies**:

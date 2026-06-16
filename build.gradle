@@ -269,6 +269,11 @@ task generateAIChangelog(type: Exec) {
 }
 
 release {
+    // requireBranch is matched as a regex. Allow main (normal releases) and release/* maintenance
+    // branches (e.g. the security-maintenance 3.x line off release/3.x).
+    git {
+        requireBranch.set('main|release/.*')
+    }
     beforeReleaseBuild.dependsOn generateAIChangelog
     // afterReleaseBuild.dependsOn publishReposilite
     afterReleaseBuild.dependsOn publishMavenCentral
