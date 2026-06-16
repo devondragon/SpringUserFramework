@@ -90,20 +90,25 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
 
 ## Installation
 
+> **⚠️ This is the Spring Boot 3.5 / Java 17 maintenance line (`3.6.x`).** It is in **security-maintenance only** — new
+> development happens on the **`5.0.x`** line (Spring Boot 4.0/4.1, Java 21). If you are on Java 21 / Spring Boot 4,
+> use `5.0.x` instead. `3.6.0` backports the security-critical fixes from 4.4.0/5.0.x that apply to this line; see
+> the [CHANGELOG](CHANGELOG.md).
+
 ### Maven
 
 ```xml
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>3.5.1</version>
+    <version>3.6.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:3.5.1'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:3.6.0'
 ```
 
 ## Quick Start

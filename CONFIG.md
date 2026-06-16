@@ -39,6 +39,7 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 - **Failed Login Attempts (`spring.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout.
 - **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
 - **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
+- **Canonical App URL (`user.security.appUrl`)**: Optional. When set (e.g. `https://app.example.com`), password-reset and email-verification links are built from this value and the `X-Forwarded-Host` request header is ignored. This closes a host-header-poisoning vector (CWE-640): without it, an attacker who can set `X-Forwarded-Host` can make the application generate reset/verification links pointing at a host they control. **Defaults to blank**, preserving the prior behavior of deriving the URL from forwarded headers. Recommended when running behind a reverse proxy.
 
 ## Mail Configuration
 
