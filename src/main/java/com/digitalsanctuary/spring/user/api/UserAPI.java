@@ -62,6 +62,32 @@ public class UserAPI {
 	private String forgotPasswordPendingURI;
 
 	/**
+	 * Optional canonical application URL (e.g. {@code https://app.example.com}). When set, password-reset and
+	 * email-verification links are built from this value and the {@code X-Forwarded-Host} request header is
+	 * ignored. This closes the host-header-poisoning vector (CWE-640): without it, an attacker who can set
+	 * {@code X-Forwarded-Host} can make the library mint reset/verification links pointing at a host they
+	 * control. Defaults to blank, preserving the prior forwarded-header behavior for backward compatibility.
+	 */
+	@Value("${user.security.appUrl:}")
+	private String configuredAppUrl;
+
+	/**
+	 * Resolves the application URL for security emails. Prefers the configured canonical {@code user.security.appUrl}
+	 * (trailing slash stripped) when present; otherwise falls back to deriving it from the request, including
+	 * forwarded headers.
+	 *
+	 * @param request the current request
+	 * @return the canonical app URL when configured, otherwise the request-derived URL
+	 */
+	private String resolveAppUrl(final HttpServletRequest request) {
+		if (configuredAppUrl != null && !configuredAppUrl.isBlank()) {
+			String trimmed = configuredAppUrl.trim();
+			return trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+		}
+		return UserUtils.getAppUrl(request);
+	}
+
+	/**
 	 * Registers a new user account.
 	 *
 	 * @param userDto the user data transfer object containing user details
@@ -123,7 +149,7 @@ public class UserAPI {
 			if (user.isEnabled()) {
 				return buildErrorResponse("Account is already verified.", 1, HttpStatus.CONFLICT);
 			}
-			userEmailService.sendRegistrationVerificationEmail(user, UserUtils.getAppUrl(request));
+			userEmailService.sendRegistrationVerificationEmail(user, resolveAppUrl(request));
 			logAuditEvent("Resend Reg Token", "Success", "Verification Email Resent", user, request);
 			return buildSuccessResponse("Verification Email Resent Successfully!", registrationPendingURI);
 		}
@@ -170,7 +196,7 @@ public class UserAPI {
 	public ResponseEntity<JSONResponse> resetPassword(@Valid @RequestBody PasswordResetRequestDto passwordResetRequest, HttpServletRequest request) {
 		User user = userService.findUserByEmail(passwordResetRequest.getEmail());
 		if (user != null) {
-			userEmailService.sendForgotPasswordVerificationEmail(user, UserUtils.getAppUrl(request));
+			userEmailService.sendForgotPasswordVerificationEmail(user, resolveAppUrl(request));
 			logAuditEvent("Reset Password", "Success", "Password reset email sent", user, request);
 		}
 		return buildSuccessResponse("If account exists, password reset email has been sent!", forgotPasswordPendingURI);
@@ -376,7 +402,7 @@ public class UserAPI {
 	 * @param request the HTTP servlet request
 	 */
 	private void publishRegistrationEvent(User user, HttpServletRequest request) {
-		String appUrl = UserUtils.getAppUrl(request);
+		String appUrl = resolveAppUrl(request);
 		eventPublisher.publishEvent(new OnRegistrationCompleteEvent(user, request.getLocale(), appUrl));
 	}
 

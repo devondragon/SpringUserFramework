@@ -31,6 +31,11 @@
       "description": "Cron expression for token purge schedule"
     },
     {
+      "name": "user.security.appUrl",
+      "type": "java.lang.String",
+      "description": "Optional canonical application URL (e.g. https://app.example.com) used to build password-reset and email-verification links. When set, the X-Forwarded-Host request header is ignored, closing the host-header-poisoning vector (CWE-640). Defaults to blank, preserving forwarded-header behavior."
+    },
+    {
       "name": "user.security.loginActionURI",
       "type": "java.lang.String",
       "description": "URI for login form submission"

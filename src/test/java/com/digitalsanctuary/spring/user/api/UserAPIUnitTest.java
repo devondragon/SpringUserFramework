@@ -631,4 +631,55 @@ public class UserAPIUnitTest {
                     .andExpect(status().isUnsupportedMediaType());
         }
     }
+
+    @Nested
+    @DisplayName("App URL resolution (CWE-640 host-header poisoning)")
+    class AppUrlResolutionTests {
+
+        private jakarta.servlet.http.HttpServletRequest requestWithForgedHost() {
+            jakarta.servlet.http.HttpServletRequest request = mock(jakarta.servlet.http.HttpServletRequest.class);
+            // Simulate an attacker-controlled X-Forwarded-Host that the legacy resolver would trust. Lenient
+            // because the whole point of the configured path is that it returns WITHOUT reading the request.
+            lenient().when(request.getHeader("X-Forwarded-Host")).thenReturn("evil.attacker.example");
+            return request;
+        }
+
+        @Test
+        @DisplayName("uses configured canonical appUrl and ignores X-Forwarded-Host")
+        void resolveAppUrl_configured_ignoresForwardedHost() {
+            ReflectionTestUtils.setField(userAPI, "configuredAppUrl", "https://app.example.com");
+
+            String resolved = (String) ReflectionTestUtils.invokeMethod(userAPI, "resolveAppUrl", requestWithForgedHost());
+
+            assertThat(resolved).isEqualTo("https://app.example.com");
+        }
+
+        @Test
+        @DisplayName("strips a trailing slash from the configured appUrl")
+        void resolveAppUrl_configuredWithTrailingSlash_isStripped() {
+            ReflectionTestUtils.setField(userAPI, "configuredAppUrl", "https://app.example.com/");
+
+            String resolved = (String) ReflectionTestUtils.invokeMethod(userAPI, "resolveAppUrl", requestWithForgedHost());
+
+            assertThat(resolved).isEqualTo("https://app.example.com");
+        }
+
+        @Test
+        @DisplayName("falls back to request-derived URL when appUrl is blank")
+        void resolveAppUrl_blank_fallsBackToRequest() {
+            ReflectionTestUtils.setField(userAPI, "configuredAppUrl", "");
+            jakarta.servlet.http.HttpServletRequest request = mock(jakarta.servlet.http.HttpServletRequest.class);
+            when(request.getHeader("X-Forwarded-Proto")).thenReturn(null);
+            when(request.getScheme()).thenReturn("http");
+            when(request.getHeader("X-Forwarded-Host")).thenReturn(null);
+            when(request.getServerName()).thenReturn("localhost");
+            when(request.getHeader("X-Forwarded-Port")).thenReturn(null);
+            when(request.getServerPort()).thenReturn(8080);
+            when(request.getContextPath()).thenReturn("");
+
+            String resolved = (String) ReflectionTestUtils.invokeMethod(userAPI, "resolveAppUrl", request);
+
+            assertThat(resolved).isEqualTo("http://localhost:8080");
+        }
+    }
 }
