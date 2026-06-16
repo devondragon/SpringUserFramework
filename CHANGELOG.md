@@ -1,4 +1,80 @@
 ## [3.6.0] - 2026-06-15
+### Features
+- None
+
+### Fixes
+- Security: Optional canonical app URL to mitigate host-header poisoning (CWE-640)
+  - Added new configuration property user.security.appUrl. When set (e.g. https://app.example.com), password-reset and email-verification links are built from this value and the X-Forwarded-Host header is ignored.
+  - Implementation details:
+    - UserAPI now injects user.security.appUrl and uses a new resolveAppUrl(HttpServletRequest) helper.
+    - Trailing slash is stripped; if the property is blank, behavior falls back to the legacy UserUtils.getAppUrl(request).
+    - All link creation paths now call resolveAppUrl: registration verification email, forgot-password email, and registration event publishing.
+    - Spring configuration metadata updated to document the new property.
+  - Default remains unchanged (blank), preserving prior behavior. Recommended to set this property when running behind a reverse proxy to close the poisoning vector.
+- Security: Prevent audit log forging/corruption via CR/LF and delimiter injection
+  - FileAuditLogWriter now sanitizes all attacker-influenceable fields (action, status, userId, email, IP, sessionId, message, userAgent, extraData) by replacing CR, LF, and | with spaces before writing the pipe-delimited record.
+  - Ensures each record remains exactly one line with 10 fields, preventing newline-based record forging and delimiter-based column shifting.
+- Security: Reject OAuth2/OIDC logins where providers explicitly report unverified emails
+  - Google (OAuth2 userinfo): getUserFromGoogleOAuth2User now rejects when email_verified is explicitly false (Boolean or case-insensitive String "false"). Absent claim remains trusted.
+  - OIDC providers: rejects when standard email_verified claim is explicitly false.
+  - Facebook: getUserFromFacebookOAuth2User now rejects when either email_verified (newer Graph API) or verified (older) claims are explicitly false. Absent claims remain trusted.
+  - All three paths throw an OAuth2AuthenticationException with error code email_not_verified and log a warning.
+- Security: Sanitize OAuth2 failure messaging to avoid sensitive data leakage
+  - Introduced SanitizingOAuth2AuthenticationFailureHandler; on authentication failure it:
+    - Logs full exception details server-side.
+    - Stores only a generic, user-safe message in session attribute error.message, or a specific non-sensitive message when the error is email_not_verified.
+    - Redirects back to the configured login page.
+  - WebSecurityConfig now wires this handler into oauth2Login(). This prevents raw exception messages (which may include account emails or provider details) from reaching the browser.
+- Concurrency: Atomic failed-login increment to close lockout-evasion race
+  - New repository method UserRepository.incrementFailedAttempts(email) performs a single JPQL UPDATE u.failedLoginAttempts = u.failedLoginAttempts + 1 where u.email = :email with @Modifying(clearAutomatically = true, flushAutomatically = true).
+  - LoginAttemptService.loginFailed now:
+    - Uses the atomic increment to avoid lost updates under parallel failures.
+    - Re-reads the user, and if the threshold is reached, locks and timestamps the account (idempotent lock).
+  - Prevents attackers from evading lockout by generating concurrent failures that previously could lose increments.
+- Security: Reduce secret leakage in logs
+  - User.toString() now excludes the password field via @ToString.Exclude (prevents bcrypt hash from appearing in logs).
+  - Logs no longer include raw tokens or full principals:
+    - Sensitive tokens are logged via a short fingerprint (first 6 chars + ellipsis; short tokens masked as ****).
+    - Authentication/principal logs report only usernames/emails or principal names; attribute dumps replaced with attribute key sets.
+  - Affects logging in UserActionController, UserVerificationService, DSOAuth2UserService, DSOidcUserService, LoginSuccessService, LogoutSuccessService, UserEmailService, UserService, and JpaAuditingConfig.
+
+### Breaking Changes
+- OAuth2 login failure UI messaging is now generic
+  - Previously, raw AuthenticationException messages were stored in the session and could be displayed by the UI. Now only a generic error or the non-sensitive “email not verified” message is stored.
+  - If your UI or integration logic depended on specific raw exception text, update it to rely on generic messaging or server-side logs for detail.
+
+### Refactoring
+- Internal cleanup in LoginAttemptService:
+  - Removed the old read-modify-write incrementFailedAttempts(User) method in favor of the repository-level atomic increment.
+- Logging refactors to reduce sensitive output (see Fixes).
+
+### Documentation
+- CHANGELOG.md: New 3.6.0 section summarizing backported security fixes and maintenance-only posture for the Spring Boot 3.5 / Java 17 line.
+- README.md:
+  - Updated installation coordinates to version 3.6.0.
+  - Added a maintenance-only banner directing Java 21/Spring Boot 4 users to the 5.0.x line.
+- CONFIG.md:
+  - Documented the new user.security.appUrl property, including guidance on when to enable it and its security implications.
+- gradle.properties: Bumped to 3.6.0-SNAPSHOT for development (release plugin produces 3.6.0).
+
+### Testing
+- UserAPIUnitTest: Added “App URL resolution (CWE-640)” tests:
+  - Verifies configured appUrl overrides X-Forwarded-Host, trailing slash stripping, and fallback to request-derived URL when blank.
+- UserRepositoryTest: New repository slice tests for incrementFailedAttempts:
+  - Confirms row count returns and atomic increments via two successive updates; verifies zero rows for non-existent emails.
+- LoginAttemptServiceTest: Updated and expanded:
+  - Asserts atomic increment usage, correct locking at threshold, no lock below threshold, behavior when user missing, and when lockout is disabled.
+- SanitizingOAuth2AuthenticationFailureHandlerTest: Ensures generic/non-leaking messages are stored in session and redirects occur, including the specific mapping for email_not_verified.
+- DSOAuth2UserServiceTest and DSOidcUserServiceTest:
+  - Added comprehensive tests covering acceptance (true/absent) and rejection (explicit false) of email_verified claims for Google and OIDC providers.
+- UserToStringTest: Verifies that User.toString() does not include the password hash.
+
+### Other Changes
+- Build: Gradle release configuration widened to allow release/* branches
+  - build.gradle now sets net.researchgate.release git.requireBranch to main|release/.* so security-maintenance releases off release/* (e.g., release/3.6.0) can run ./gradlew release.
+  - Still accepts exactly main.
+
+## [3.6.0] - 2026-06-15
 
 > **Security-maintenance release for the Spring Boot 3.5 / Java 17 line.** This backports the security-critical
 > fixes from the 4.4.0 and 5.0.x (Spring Boot 4 / Java 21) releases that apply to code present in the 3.5.x line.
