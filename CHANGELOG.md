@@ -1,3 +1,69 @@
+## [5.0.1] - 2026-06-15
+### Features
+- WebAuthn credential-management re-authentication now returns distinct HTTP status codes
+  - Affects: DELETE /user/webauthn/password, DELETE /user/webauthn/credentials/{id}, PUT /user/webauthn/credentials/{id}/label
+  - Status mapping:
+    - Missing/blank currentPassword → 400 Bad Request
+    - Incorrect currentPassword → 401 Unauthorized
+    - Account locked (too many failed attempts) → 423 Locked
+  - Implementation details:
+    - Added WebAuthnReauthenticationException (401) and WebAuthnAccountLockedException (423), both extend WebAuthnException (400 default).
+    - WebAuthnManagementAPI.requireCurrentPasswordIfSet now:
+      - Checks lock first; if locked, throws WebAuthnAccountLockedException (423) before any password verification.
+      - Throws WebAuthnException (400) when currentPassword is missing/blank; this does not count toward lockout.
+      - On wrong password, increments LoginAttemptService, then throws WebAuthnReauthenticationException (401).
+      - On success, clears failed-attempt counter via LoginAttemptService.loginSucceeded to mirror login semantics.
+    - WebAuthnManagementAPIAdvice maps subtypes to precise statuses; base WebAuthnException remains 400.
+  - Client impact:
+    - These endpoints were introduced in 5.0.0 and previously returned 400 for all failures; clients can now branch on 400/401/423 to give better UX.
+    - If a client already treated any 4xx as “re-auth failed,” no change is required.
+
+### Fixes
+- Security: trustedHosts matching is now case-insensitive (RFC 4343)
+  - AppUrlResolver normalizes configured user.security.trustedHosts to lower case and lower-cases X-Forwarded-Host during comparison.
+  - Prevents legitimate mixed-case hosts (e.g., App.Example.Com) from being ignored on the CWE-640 path, which previously forced a fallback to the container’s server name.
+  - Continues to honor only the first entry in a multi-valued X-Forwarded-Host (proxy chains).
+- Model: revert Role.privileges to FetchType.EAGER (User.roles remains LAZY)
+  - Addresses LazyInitializationException footgun when calling role.getPrivileges() outside an open transaction/session, for negligible performance gain.
+  - Rationale: privileges are small, static reference data; there’s no bulk-load path across many Roles.
+  - Performance is preserved: the authentication path still loads User → roles → privileges in one round trip via UserRepository.findWithRolesByEmail using @EntityGraph.
+  - Repository Javadoc clarified: the two-level entity graph yields a Cartesian product of roles × privileges that Hibernate de-duplicates via Sets; acceptable for a single user.
+
+### Breaking Changes
+- Refined HTTP statuses on WebAuthn credential-management re-authentication failures
+  - In 5.0.0, missing/incorrect/locked cases all returned 400; in 5.0.1 they return 400/401/423 respectively.
+  - These endpoints are new as of 5.0.0. Most clients won’t break if they handled any 4xx generically; update only if you explicitly expected 400 for all re-auth failures.
+
+### Documentation
+- CHANGELOG and MIGRATION updated to document:
+  - New WebAuthn re-authentication status codes (400 missing, 401 incorrect, 423 locked) and endpoint list.
+  - Role.privileges reverted to EAGER; guidance focuses on laziness only for User.roles.
+  - Clarified that the entity-graph load is a “single round trip” (bounded, typically one query).
+  - JPA note: @EntityGraph fetch results in a roles × privileges Cartesian product, de-duplicated by Sets; fine for single-user loads, not intended for bulk loads.
+  - Tokens (PasswordResetToken, VerificationToken): getUser() is EAGER for detached access; the associated User’s roles remain LAZY—use findWithRolesByEmail when authorities are needed.
+- README updates for 5.0.0 release:
+  - Installation snippets bumped to 5.0.0; compatibility table reworked (Spring Boot 4.0.x–4.1.x ↔ framework 5.0.x).
+  - Notes that framework versioning is independent of Spring Boot’s major; 5.0.0 is a breaking release with a reverse-proxy configuration requirement (user.security.appUrl or trustedHosts).
+  - Spring Boot badge updated to 4.0 | 4.1; spring-retry doc dependency adjusted to 2.0.13.
+
+### Testing
+- Added WebAuthnManagementAPIAdviceTest to verify precise exception-to-status mapping:
+  - Base WebAuthnException → 400, WebAuthnReauthenticationException → 401, WebAuthnAccountLockedException → 423, WebAuthnUserNotFoundException → 404.
+- Tightened WebAuthn API unit tests to expect specific exception subtypes:
+  - Locked accounts now raise WebAuthnAccountLockedException; wrong currentPassword raises WebAuthnReauthenticationException.
+  - Verified loginAttemptService integration: wrong password increments failures; success resets.
+- Updated integration tests:
+  - Incorrect currentPassword paths now assert 401 (previously 400) for delete/rename credential flows.
+- AppUrlResolverTest
+  - New case-insensitivity test to confirm mixed-case allow-list and forwarded host match correctly.
+- Repository tests
+  - UserRepositoryEntityGraphTest Javadoc/comments corrected to reflect Role.privileges EAGER and User.roles LAZY; continues to verify that plain findByEmail leaves roles uninitialized.
+
+### Other Changes
+- Version bumped to 5.0.1-SNAPSHOT (gradle.properties).
+- Minor code comments:
+  - Added EAGER/LAZY behavior notes to PasswordResetToken and VerificationToken user associations.
+
 # Changelog
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
