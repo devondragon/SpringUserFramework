@@ -40,6 +40,7 @@ import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -53,6 +54,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
@@ -115,6 +117,12 @@ public class UserAPIUnitTest {
 
     @BeforeEach
     void setUp() {
+        // Tests run in parallel (junit-platform.properties: concurrent methods + classes) with thread reuse, and the
+        // `_notAuthenticated` tests resolve @AuthenticationPrincipal from the thread-local SecurityContext (expecting it
+        // empty). Clear any context another test left on this thread so those tests are deterministic — matching the
+        // convention in UserServiceTest / WebAuthnAuthenticationSuccessHandlerTest / UserEmailServiceTest.
+        SecurityContextHolder.clearContext();
+
         testUser = UserTestDataBuilder.aUser()
                 .withId(1L)
                 .withEmail("test@example.com")
@@ -144,6 +152,12 @@ public class UserAPIUnitTest {
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new TestExceptionHandler())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Do not leak a SecurityContext onto this (pooled, reused) thread for a subsequently scheduled parallel test.
+        SecurityContextHolder.clearContext();
     }
 
     @Nested
