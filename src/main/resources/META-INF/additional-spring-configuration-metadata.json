@@ -47,6 +47,18 @@
       "description": "When user.security.appUrl is not set, X-Forwarded-Host is honored only for hosts in this comma-separated allowlist; otherwise the container's own server name is used."
     },
     {
+      "name": "user.security.requireCanonicalAppUrl",
+      "type": "java.lang.Boolean",
+      "description": "When true, fail startup unless user.security.appUrl or a non-empty user.security.trustedHosts is configured, so security email links (password reset, verification) can never derive their authority from a spoofable Host header (CWE-640). When false (default), the library logs a startup warning instead of failing.",
+      "defaultValue": false
+    },
+    {
+      "name": "user.security.allowInitialPasswordSetWithoutStepUp",
+      "type": "java.lang.Boolean",
+      "description": "Controls the fallback behavior of POST /user/setPassword when no StepUpService bean is present. When false (default), setting an initial password on a passwordless (passkey-only) account is disabled (HTTP 403) unless a StepUpService is provided; set to true to explicitly allow the session-only behavior (SUF-02).",
+      "defaultValue": false
+    },
+    {
       "name": "user.security.loginActionURI",
       "type": "java.lang.String",
       "description": "URI for login form submission"
