@@ -33,6 +33,7 @@ import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.security.StepUpService;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
@@ -92,6 +93,8 @@ public class UserAPI {
 	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
 	private final AppUrlResolver appUrlResolver;
 	private final LoginAttemptService loginAttemptService;
+	/** Optional consumer-provided step-up (re-)authentication service; see {@link StepUpService} (SUF-02). */
+	private final ObjectProvider<StepUpService> stepUpServiceProvider;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -101,6 +104,14 @@ public class UserAPI {
 
 	@Value("${user.security.forgotPasswordPendingURI}")
 	private String forgotPasswordPendingURI;
+
+	/**
+	 * SUF-02: controls the fallback behavior of {@code /user/setPassword} when no {@link StepUpService} bean is present.
+	 * When {@code false} (the default), setting an initial password on a passwordless account is disabled unless a
+	 * {@link StepUpService} is provided; set to {@code true} to explicitly allow the session-only behavior.
+	 */
+	@Value("${user.security.allowInitialPasswordSetWithoutStepUp:false}")
+	private boolean allowInitialPasswordSetWithoutStepUp;
 
 	/**
 	 * Registers a new user account.
@@ -519,14 +530,14 @@ public class UserAPI {
 	 * This endpoint only applies to passwordless (passkey-only) accounts and rejects the request if a password is already
 	 * set (use {@code /user/updatePassword} to change an existing password, which requires the current password). Because
 	 * the account has no current password to verify, this credential-altering operation cannot require re-authentication
-	 * via a current password, and this library does not yet implement a WebAuthn step-up assertion.
+	 * via a current password.
 	 * </p>
 	 *
 	 * <p>
-	 * <strong>Residual risk:</strong> a session-only actor on a passwordless account could set an initial password. This is
-	 * a known, documented limitation (see MIGRATION.md "Re-authentication required for credential changes"). It is not a
-	 * regression and is bounded: the new password does not displace any existing credential, and consuming applications can
-	 * front this endpoint with their own step-up if required.
+	 * <strong>Step-up (SUF-02):</strong> to address the residual risk that a session-only actor could add a durable
+	 * password, this endpoint requires step-up when a {@link StepUpService} bean is provided, and is otherwise
+	 * <strong>disabled by default</strong>. Set {@code user.security.allowInitialPasswordSetWithoutStepUp=true} to keep
+	 * the previous session-only behavior when no step-up service is available. See MIGRATION.md.
 	 * </p>
 	 *
 	 * @param userDetails the authenticated user details
@@ -547,6 +558,23 @@ public class UserAPI {
 		try {
 			if (userService.hasPassword(user)) {
 				return buildErrorResponse("User already has a password. Use the change password feature instead.", 1, HttpStatus.BAD_REQUEST);
+			}
+
+			// SUF-02: setting an initial password on a passwordless (passkey-only) account is a credential change with no
+			// current credential to verify, so a session-only actor could otherwise add a durable password. If a consumer
+			// supplies a StepUpService, require it to pass; otherwise the endpoint is disabled by default. Set
+			// user.security.allowInitialPasswordSetWithoutStepUp=true to explicitly keep the session-only behavior.
+			final StepUpService stepUpService = stepUpServiceProvider.getIfAvailable();
+			if (stepUpService != null) {
+				if (!stepUpService.isStepUpSatisfied(user, "set-password", request)) {
+					logAuditEvent("SetPassword", "Failure", "Step-up verification failed", user, request);
+					return buildErrorResponse(messages.getMessage("message.set-password.step-up-required", null,
+							"Additional verification is required to set a password.", locale), 6, HttpStatus.UNAUTHORIZED);
+				}
+			} else if (!allowInitialPasswordSetWithoutStepUp) {
+				logAuditEvent("SetPassword", "Failure", "Initial password set disabled (no step-up configured)", user, request);
+				return buildErrorResponse(messages.getMessage("message.set-password.disabled", null,
+						"Setting an initial password is not enabled on this server.", locale), 6, HttpStatus.FORBIDDEN);
 			}
 
 			if (!setPasswordDto.getNewPassword().equals(setPasswordDto.getConfirmPassword())) {

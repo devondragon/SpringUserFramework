@@ -140,6 +140,59 @@ class UserActionControllerTest {
             mockMvc.perform(get("/user/changePassword"))
                     .andExpect(status().isBadRequest());
         }
+
+        @Test
+        @DisplayName("SUF-06: invalid token audits as Failure and does not mint an HttpSession")
+        void showChangePasswordPage_invalidToken_auditsFailureAndCreatesNoSession() throws Exception {
+            // Given
+            String token = "invalid-token-123";
+            when(userService.validatePasswordResetToken(token)).thenReturn(TokenValidationResult.INVALID_TOKEN);
+
+            // When
+            var result = mockMvc.perform(get("/user/changePassword").param("token", token))
+                    .andExpect(status().is3xxRedirection())
+                    .andReturn();
+
+            // Then: an anonymous invalid-token probe must NOT be recorded as "Success"...
+            ArgumentCaptor<AuditEvent> auditCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+            verify(eventPublisher).publishEvent(auditCaptor.capture());
+            assert auditCaptor.getValue().getActionStatus().equals("Failure");
+            // ...and must NOT mint a server-side HttpSession for the anonymous request (session amplification).
+            assert result.getRequest().getSession(false) == null;
+        }
+
+        @Test
+        @DisplayName("SUF-06: valid token does not mint an HttpSession either")
+        void showChangePasswordPage_validToken_createsNoSession() throws Exception {
+            // Given
+            String token = "valid-token-123";
+            when(userService.validatePasswordResetToken(token)).thenReturn(TokenValidationResult.VALID);
+
+            // When
+            var result = mockMvc.perform(get("/user/changePassword").param("token", token))
+                    .andExpect(status().is3xxRedirection())
+                    .andReturn();
+
+            // Then: token validation is anonymous; no session should be created.
+            assert result.getRequest().getSession(false) == null;
+        }
+
+        @Test
+        @DisplayName("SUF-05: reset page carries Referrer-Policy: no-referrer and Cache-Control: no-store")
+        void resetPage_carriesPrivacyHeaders() throws Exception {
+            // Given: the SUF-05 interceptor mapped to the reset URI (as WebInterceptorConfig registers it).
+            String token = "valid-token-123";
+            when(userService.validatePasswordResetToken(token)).thenReturn(TokenValidationResult.VALID);
+            MockMvc mvc = MockMvcBuilders.standaloneSetup(userActionController)
+                    .addMappedInterceptors(new String[] {"/user/changePassword"},
+                            new com.digitalsanctuary.spring.user.web.PasswordResetSecurityHeadersInterceptor())
+                    .build();
+
+            // When & Then: the token-bearing reset response must suppress Referer leakage and caching.
+            mvc.perform(get("/user/changePassword").param("token", token))
+                    .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                    .andExpect(header().string("Cache-Control", "no-store"));
+        }
     }
     
     @Nested

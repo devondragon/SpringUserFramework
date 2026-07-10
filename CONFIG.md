@@ -92,6 +92,13 @@ Password-reset and verification emails contain a link back to your application. 
 
 When neither `appUrl` nor `trustedHosts` is set, links are built from the request host (backward-compatible behavior) and a startup warning is logged.
 
+### Passwordless Initial Password Step-Up (SUF-02)
+
+`POST /user/setPassword` adds an *initial* password to a passwordless (passkey-only) account. Because there is no current credential to verify, the endpoint is gated:
+
+- **Step-Up Service (`com.digitalsanctuary.spring.user.security.StepUpService` SPI)**: If your application provides a `StepUpService` bean, it is **required** — `setPassword` proceeds only when `isStepUpSatisfied(user, "set-password", request)` returns `true`; otherwise it returns `HTTP 401`. Implement it to require a fresh WebAuthn assertion, TOTP, or recent-auth proof.
+- **Allow Without Step-Up (`user.security.allowInitialPasswordSetWithoutStepUp`)**: When no `StepUpService` bean is present, `setPassword` is **disabled** (`HTTP 403`) unless this is `true`, which restores the previous session-only behavior. Default: `false`.
+
 ### Token Security
 
 Verification and password-reset tokens are **hashed at rest**. The raw token is only ever sent to the user in the emailed link; the database stores its hash. Lookups hash the incoming token and match by hash, with a transparent fallback to plaintext lookup so that any links issued before upgrading keep working until they expire. This requires no schema migration and no action from consuming applications.

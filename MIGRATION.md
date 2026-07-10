@@ -150,9 +150,16 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 **Passwordless (passkey-only) accounts — residual risk:** For accounts with no password set, there is no current credential to verify, and this library does not yet implement a WebAuthn step-up assertion (a feasible recent-authentication signal does not currently exist in the framework). As a result:
 - Deleting or renaming a passkey on a passwordless account remains a session-only operation (last-credential lockout protection and ownership checks still apply).
-- Setting an *initial* password via `POST /user/setPassword` on a passwordless account also cannot require a current password (there is none); this endpoint still rejects accounts that already have a password.
+- Setting an *initial* password via `POST /user/setPassword` cannot require a current password (there is none). **As of the SUF-02 hardening this endpoint is disabled by default** — it returns `HTTP 403` unless you either provide a step-up service (below) or explicitly opt into the previous behavior. It still rejects accounts that already have a password.
 
-This is a deliberate, documented limitation rather than a half-measure: implementing a true WebAuthn step-up assertion would require significant new challenge/response infrastructure. Consuming applications that need stronger guarantees for passwordless accounts can front these endpoints with their own step-up (e.g. require a fresh passkey assertion) before allowing the call. This will be revisited if/when a step-up mechanism is added to the framework.
+**Step-up SPI and the `setPassword` default (SUF-02).** A new SPI, `com.digitalsanctuary.spring.user.security.StepUpService`, lets you require a fresh proof of presence/possession (WebAuthn assertion, TOTP, recent-auth) before `setPassword` proceeds:
+
+- If you register a `StepUpService` bean, it is **required**: `setPassword` proceeds only when `isStepUpSatisfied(...)` returns `true`, otherwise it returns `HTTP 401`.
+- If no `StepUpService` bean is present, `setPassword` is **disabled** (`HTTP 403`) unless you set `user.security.allowInitialPasswordSetWithoutStepUp=true`, which restores the prior session-only behavior.
+
+**Action required if your application lets passwordless users set an initial password:** provide a `StepUpService` bean (recommended), or set `user.security.allowInitialPasswordSetWithoutStepUp=true`. Otherwise `POST /user/setPassword` returns `403`.
+
+Implementing a *full* WebAuthn step-up assertion (challenge/response bound to user/session/action/RP ID/origin/expiry) is tracked as separate feature work; the `StepUpService` SPI is the interim mechanism so applications can enforce their own step-up now.
 
 ### Database schema: unique role/privilege names
 
