@@ -37,7 +37,12 @@ public interface StepUpService {
      * @param user the authenticated user the operation targets (never {@code null})
      * @param action a short, stable action identifier (e.g. {@code "set-password"})
      * @param request the current HTTP request, so the implementation can read a step-up assertion/token supplied by the
-     *        client (headers, body, or a prior challenge stored in the session)
+     *        client. Read it from request headers, query/form parameters, or a prior challenge stored in the session.
+     *        Note: by the time this method runs the request <em>body</em> has already been consumed by the target
+     *        endpoint's {@code @RequestBody} binding (e.g. {@code SetPasswordDto} on {@code POST /user/setPassword}), so
+     *        {@code request.getInputStream()}/{@code getReader()} will be empty. Carry the proof in a header, a request
+     *        parameter, or the session instead &mdash; or install a content-caching request filter if you must re-read
+     *        the body.
      * @return {@code true} if step-up is satisfied and the operation may proceed; {@code false} to reject it
      */
     boolean isStepUpSatisfied(User user, String action, HttpServletRequest request);
