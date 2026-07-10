@@ -16,6 +16,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -50,6 +54,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
@@ -690,7 +695,9 @@ public class UserAPIUnitTest {
                     .content(objectMapper.writeValueAsString(newSetPasswordDto()))
                     .with(csrf()))
                     .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.success").value(false));
+                    .andExpect(jsonPath("$.success").value(false))
+                    // Distinct code from the step-up-denied (401) branch so a client can disambiguate "disabled" from "denied".
+                    .andExpect(jsonPath("$.code").value(7));
 
             // Endpoint disabled by default: no step-up service, opt-in flag off -> the credential is never set.
             verify(userService, never()).setInitialPassword(any(), any());
@@ -734,7 +741,9 @@ public class UserAPIUnitTest {
                     .content(objectMapper.writeValueAsString(newSetPasswordDto()))
                     .with(csrf()))
                     .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.success").value(false));
+                    .andExpect(jsonPath("$.success").value(false))
+                    // Distinct code from the disabled-by-default (403) branch.
+                    .andExpect(jsonPath("$.code").value(6));
 
             verify(userService, never()).setInitialPassword(any(), any());
         }
@@ -759,6 +768,74 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.success").value(true));
 
             verify(userService).setInitialPassword(testUser, "NewValidPass1!");
+        }
+    }
+
+    @Nested
+    @DisplayName("SUF-02: setPassword disabled-by-default startup warning")
+    class SetPasswordStartupWarning {
+
+        private ListAppender<ILoggingEvent> appender;
+        private Logger apiLogger;
+
+        @SuppressWarnings("unchecked")
+        private ObjectProvider<StepUpService> providerOf(StepUpService service) {
+            ObjectProvider<StepUpService> provider = mock(ObjectProvider.class);
+            when(provider.getIfAvailable()).thenReturn(service);
+            return provider;
+        }
+
+        @BeforeEach
+        void attachAppender() {
+            apiLogger = (Logger) LoggerFactory.getLogger(UserAPI.class);
+            appender = new ListAppender<>();
+            appender.start();
+            apiLogger.addAppender(appender);
+        }
+
+        @AfterEach
+        void detachAppender() {
+            apiLogger.detachAppender(appender);
+        }
+
+        private long disabledWarnings() {
+            return appender.list.stream()
+                    .filter(event -> event.getLevel() == Level.WARN)
+                    .filter(event -> event.getFormattedMessage().contains("/user/setPassword is disabled by default"))
+                    .count();
+        }
+
+        @Test
+        @DisplayName("warns at startup when no StepUpService bean and the opt-in flag is false")
+        void warnsWhenDisabledByDefault() {
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", providerOf(null));
+            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", false);
+
+            userAPI.warnIfInitialPasswordSetDisabled();
+
+            assertThat(disabledWarnings()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("does not warn when a StepUpService bean is present")
+        void doesNotWarnWhenStepUpServicePresent() {
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", providerOf(mock(StepUpService.class)));
+            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", false);
+
+            userAPI.warnIfInitialPasswordSetDisabled();
+
+            assertThat(disabledWarnings()).isZero();
+        }
+
+        @Test
+        @DisplayName("does not warn when the opt-in flag is enabled")
+        void doesNotWarnWhenFlagEnabled() {
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", providerOf(null));
+            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", true);
+
+            userAPI.warnIfInitialPasswordSetDisabled();
+
+            assertThat(disabledWarnings()).isZero();
         }
     }
 

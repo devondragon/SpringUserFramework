@@ -43,6 +43,7 @@ import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementServ
 import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import com.digitalsanctuary.spring.user.util.UserUtils;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -112,6 +113,25 @@ public class UserAPI {
 	 */
 	@Value("${user.security.allowInitialPasswordSetWithoutStepUp:false}")
 	private boolean allowInitialPasswordSetWithoutStepUp;
+
+	/**
+	 * SUF-02: warn at startup when {@code POST /user/setPassword} is disabled by default &mdash; i.e. no
+	 * {@link StepUpService} bean is present and {@code user.security.allowInitialPasswordSetWithoutStepUp} is left
+	 * {@code false}. In that state a passwordless (passkey-only) account cannot set an initial password and every request
+	 * returns HTTP 403. Surfacing this at boot (mirroring the SUF-01 fail-fast/warn pattern in
+	 * {@code UserSecurityBeansAutoConfiguration}) means operators learn about the disabled state at startup instead of
+	 * discovering it only when a user hits the 403 in production.
+	 */
+	@PostConstruct
+	void warnIfInitialPasswordSetDisabled() {
+		if (stepUpServiceProvider.getIfAvailable() == null && !allowInitialPasswordSetWithoutStepUp) {
+			log.warn("UserAPI: POST /user/setPassword is disabled by default - no StepUpService bean is configured and "
+					+ "user.security.allowInitialPasswordSetWithoutStepUp is false, so passwordless (passkey-only) accounts "
+					+ "cannot set an initial password (every request returns HTTP 403). Provide a StepUpService bean to "
+					+ "require step-up verification (recommended), or set user.security.allowInitialPasswordSetWithoutStepUp=true "
+					+ "to explicitly allow the session-only behavior. (SUF-02)");
+		}
+	}
 
 	/**
 	 * Registers a new user account.
@@ -573,8 +593,10 @@ public class UserAPI {
 				}
 			} else if (!allowInitialPasswordSetWithoutStepUp) {
 				logAuditEvent("SetPassword", "Failure", "Initial password set disabled (no step-up configured)", user, request);
+				// Distinct code (7) from the step-up-denied branch (6) so callers can tell "disabled on this server" (403)
+				// apart from "step-up verification failed" (401).
 				return buildErrorResponse(messages.getMessage("message.set-password.disabled", null,
-						"Setting an initial password is not enabled on this server.", locale), 6, HttpStatus.FORBIDDEN);
+						"Setting an initial password is not enabled on this server.", locale), 7, HttpStatus.FORBIDDEN);
 			}
 
 			if (!setPasswordDto.getNewPassword().equals(setPasswordDto.getConfirmPassword())) {
