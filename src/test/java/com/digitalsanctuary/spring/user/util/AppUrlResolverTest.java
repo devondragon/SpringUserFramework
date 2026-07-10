@@ -41,6 +41,44 @@ class AppUrlResolverTest {
     }
 
     @Test
+    void usesFirstTrustedHostWhenNonForwardedServerNameNotAllowListed() {
+        // SUF-01 (CWE-640): with trustedHosts configured, the ordinary request server name (derived from the
+        // Host header on common servlet containers) must ALSO be validated against the allow-list, not just
+        // X-Forwarded-Host. An attacker-supplied Host must never flow into a reset/verification link; fall back
+        // to the canonical first trusted host instead.
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("app.example.com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("attacker.example");
+        req.setServerPort(443);
+        String resolved = resolver.resolveAppUrl(req);
+        assertThat(resolved).isEqualTo("https://app.example.com");
+        assertThat(resolved).doesNotContain("attacker.example");
+    }
+
+    @Test
+    void usesNonForwardedServerNameWhenItIsAllowListed() {
+        // Regression guard: a server name that IS in the allow-list is used as-is (no fallback).
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("app.example.com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("app.example.com");
+        req.setServerPort(443);
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://app.example.com");
+    }
+
+    @Test
+    void doesNotLeakUntrustedRequestPortWhenFallingBackToTrustedHost() {
+        // The untrusted request's port (e.g. an internal 8443) must not leak into the canonical link.
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("app.example.com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("attacker.example");
+        req.setServerPort(8443);
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://app.example.com");
+    }
+
+    @Test
     void honorsForwardedHostOnlyWhenAllowListed() {
         AppUrlResolver resolver = new AppUrlResolver(null, List.of("trusted.example.com"));
         MockHttpServletRequest req = new MockHttpServletRequest();
@@ -154,7 +192,7 @@ class AppUrlResolverTest {
     }
 
     @Test
-    void ignoresUntrustedForwardedHostAndUsesContainerServerName() {
+    void fallsBackToTrustedHostWhenNeitherForwardedNorServerNameIsAllowListed() {
         AppUrlResolver resolver = new AppUrlResolver(null, List.of("trusted.example.com"));
         MockHttpServletRequest req = new MockHttpServletRequest();
         req.setScheme("http");
@@ -163,10 +201,11 @@ class AppUrlResolverTest {
         req.addHeader("X-Forwarded-Proto", "https");
         req.addHeader("X-Forwarded-Host", "evil.com");
         req.addHeader("X-Forwarded-Port", "443");
-        // Untrusted forwarded host -> forwarded headers are NOT honored; the container's own
-        // scheme/host/port are used instead.
+        // SUF-01 (CWE-640): the untrusted forwarded host is ignored AND the ordinary server name ("internal") is
+        // not allow-listed either, so neither may be emitted. Fall back to the canonical first trusted host with
+        // the port reset to the scheme default. The internal host/port must not leak into the link.
         String resolved = resolver.resolveAppUrl(req);
-        assertThat(resolved).isEqualTo("http://internal:8080");
-        assertThat(resolved).doesNotContain("evil.com");
+        assertThat(resolved).isEqualTo("http://trusted.example.com");
+        assertThat(resolved).doesNotContain("evil.com").doesNotContain("internal").doesNotContain("8080");
     }
 }

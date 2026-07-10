@@ -82,6 +82,16 @@ user:
 - **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
 - **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
 
+### Email Link Authority (Host-header poisoning defense, CWE-640)
+
+Password-reset and verification emails contain a link back to your application. The host in that link determines where the bearer token is sent, so it must not be derived from an attacker-controllable `Host` header. Configure at least one of the following in production.
+
+- **App URL (`user.security.appUrl`)**: Canonical base URL for security email links (e.g. `https://app.example.com`). **Strongly recommended in production.** When set, request-derived hosts and `X-Forwarded-Host` are ignored entirely. Default: unset.
+- **Trusted Hosts (`user.security.trustedHosts`)**: Comma-separated allow-list used when `appUrl` is unset. It gates **both** `X-Forwarded-Host` and the ordinary request server name (the `Host` header). A request host not in the list falls back to the first entry (treated as the canonical host) rather than being emitted into the link. Default: empty.
+- **Require Canonical App URL (`user.security.requireCanonicalAppUrl`)**: When `true`, application startup fails unless `appUrl` or a non-empty `trustedHosts` is configured — a hard guarantee that email links can never derive their authority from a spoofable `Host` header. Default `false` (a startup warning is logged instead). Planned to become the default in the next major version.
+
+When neither `appUrl` nor `trustedHosts` is set, links are built from the request host (backward-compatible behavior) and a startup warning is logged.
+
 ### Token Security
 
 Verification and password-reset tokens are **hashed at rest**. The raw token is only ever sent to the user in the emailed link; the database stores its hash. Lookups hash the incoming token and match by hash, with a transparent fallback to plaintext lookup so that any links issued before upgrading keep working until they expire. This requires no schema migration and no action from consuming applications.

@@ -13,8 +13,10 @@ import lombok.extern.slf4j.Slf4j;
  * Resolution order:
  * <ol>
  * <li>If {@code user.security.appUrl} is configured, always use it (forwarded headers ignored).</li>
- * <li>Otherwise build from the request, honoring {@code X-Forwarded-*} only when the resolved host is in {@code user.security.trustedHosts};
- * otherwise use the container's own server name (the untrusted forwarded host is ignored and a warning is logged).</li>
+ * <li>Otherwise build from the request. {@code X-Forwarded-*} is honored only when the forwarded host is in {@code user.security.trustedHosts}. When
+ * {@code trustedHosts} is configured, the ordinary request server name must also be in it &mdash; a non-allow-listed host (e.g. a spoofed {@code Host}
+ * header) falls back to the first configured trusted host rather than being emitted into the link. When {@code trustedHosts} is empty, the request
+ * server name is used as-is; configure {@code user.security.appUrl} or {@code trustedHosts} to prevent Host-header link poisoning.</li>
  * </ol>
  *
  * <p>
@@ -45,7 +47,7 @@ public class AppUrlResolver {
         // Hostnames are case-insensitive (RFC 4343); normalise the allow-list to lower case so a mixed-case
         // configured or forwarded host (e.g. "App.Example.Com") still matches "app.example.com".
         this.trustedHosts = trustedHosts == null ? List.of()
-                : trustedHosts.stream().map(s -> s.trim().toLowerCase(Locale.ROOT)).toList();
+                : trustedHosts.stream().map(s -> s.trim().toLowerCase(Locale.ROOT)).filter(s -> !s.isBlank()).toList();
     }
 
     /**
@@ -72,6 +74,22 @@ public class AppUrlResolver {
         String scheme = useForwarded ? forwardedScheme(request) : request.getScheme();
         String host = useForwarded ? stripPort(fwdHost) : request.getServerName();
         int port = useForwarded ? forwardedPort(request, scheme) : request.getServerPort();
+
+        // SUF-01 (CWE-640): when a trusted-host allow-list is configured, the finally-chosen host must be in it —
+        // including the ordinary request server name, which on common servlet containers is derived from the Host
+        // header and is therefore attacker-influenced. A trusted X-Forwarded-Host already satisfies this (it is only
+        // used when allow-listed), so this guard effectively validates the non-forwarded server name. If the host is
+        // not allow-listed, fall back to the first configured trusted host (a known-good canonical authority) rather
+        // than emitting the untrusted value, and reset the port to the scheme default so the untrusted request's port
+        // cannot leak. When trustedHosts is empty this block is skipped and the server name is used as-is (see the
+        // startup warning in UserSecurityBeansAutoConfiguration).
+        if (!trustedHosts.isEmpty() && (host == null || !trustedHosts.contains(host.toLowerCase(Locale.ROOT)))) {
+            String canonical = trustedHosts.get(0);
+            log.warn("AppUrlResolver: request host '{}' is not in user.security.trustedHosts; using canonical trusted host '{}' for the email link",
+                    sanitizeForLog(host), canonical);
+            host = canonical;
+            port = "https".equalsIgnoreCase(scheme) ? DEFAULT_HTTPS_PORT : DEFAULT_HTTP_PORT;
+        }
 
         StringBuilder url = new StringBuilder();
         url.append(scheme).append("://").append(host);
