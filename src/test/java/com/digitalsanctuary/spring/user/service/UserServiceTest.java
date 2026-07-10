@@ -357,17 +357,22 @@ public class UserServiceTest {
                 // When
                 userService.deleteOrDisableUser(testUser);
 
-                // Then: the disable event must NOT yet be published
+                // Then: neither the disable event nor session revocation may happen before commit. Revoking sessions
+                // pre-commit leaves a race window (SUF-03): a login landing between the session scan and the commit
+                // registers a new session against the still-enabled row and, because DSUserDetails caches the enabled
+                // flag at login, that session would survive the disable.
                 verify(eventPublisher, never()).publishEvent(any(UserDisabledEvent.class));
+                verify(sessionInvalidationService, never()).invalidateUserSessions(any());
 
-                // A synchronization was registered for after-commit delivery
+                // Two after-commit synchronizations were registered: session revocation and the disable event.
                 List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
-                assertThat(syncs).hasSize(1);
+                assertThat(syncs).hasSize(2);
 
-                // When the transaction commits, the disable event is delivered
+                // When the transaction commits, sessions are revoked and the disable event is delivered
                 syncs.forEach(TransactionSynchronization::afterCommit);
 
                 // Then
+                verify(sessionInvalidationService).invalidateUserSessions(testUser);
                 ArgumentCaptor<UserDisabledEvent> captor = ArgumentCaptor.forClass(UserDisabledEvent.class);
                 verify(eventPublisher).publishEvent(captor.capture());
                 assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
@@ -387,18 +392,23 @@ public class UserServiceTest {
                 // When
                 userService.deleteOrDisableUser(testUser);
 
-                // Then: the pre-delete event fires immediately, but the deleted event must NOT yet
+                // Then: the pre-delete event fires immediately, but the deleted event must NOT yet, and sessions must
+                // NOT be revoked before commit. Pre-commit revocation leaves a race window (SUF-03): a login landing
+                // between the session scan and the commit registers a new session against the still-present row that
+                // would survive the delete.
                 verify(eventPublisher).publishEvent(any(UserPreDeleteEvent.class));
                 verify(eventPublisher, never()).publishEvent(any(UserDeletedEvent.class));
+                verify(sessionInvalidationService, never()).invalidateUserSessions(any());
 
-                // A synchronization was registered for after-commit delivery
+                // Two after-commit synchronizations were registered: session revocation and the deleted event.
                 List<TransactionSynchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
-                assertThat(syncs).hasSize(1);
+                assertThat(syncs).hasSize(2);
 
-                // When the transaction commits, the deleted event is delivered
+                // When the transaction commits, sessions are revoked and the deleted event is delivered
                 syncs.forEach(TransactionSynchronization::afterCommit);
 
                 // Then
+                verify(sessionInvalidationService).invalidateUserSessions(testUser);
                 ArgumentCaptor<UserDeletedEvent> captor = ArgumentCaptor.forClass(UserDeletedEvent.class);
                 verify(eventPublisher).publishEvent(captor.capture());
                 assertThat(captor.getValue().getUserId()).isEqualTo(testUser.getId());
@@ -436,6 +446,34 @@ public class UserServiceTest {
             UserPreDeleteEvent publishedEvent = eventCaptor.getValue();
             assertThat(publishedEvent.getUserId()).isEqualTo(testUser.getId());
             assertThat(publishedEvent.getUserEmail()).isEqualTo(testUser.getEmail());
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - hard delete revokes all of the user's sessions")
+        void deleteOrDisableUser_whenActuallyDeleteTrue_invalidatesAllUserSessions() {
+            // Given
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", true);
+
+            // When
+            userService.deleteOrDisableUser(testUser);
+
+            // Then: every session for the user must be revoked, not just the caller's current request,
+            // otherwise a concurrent session keeps carrying the now-deleted principal until it expires.
+            verify(sessionInvalidationService).invalidateUserSessions(testUser);
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - soft disable revokes all of the user's sessions")
+        void deleteOrDisableUser_whenActuallyDeleteFalse_invalidatesAllUserSessions() {
+            // Given
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", false);
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            userService.deleteOrDisableUser(testUser);
+
+            // Then: a disabled account's other sessions must not remain authenticated on cached authorities.
+            verify(sessionInvalidationService).invalidateUserSessions(testUser);
         }
     }
 

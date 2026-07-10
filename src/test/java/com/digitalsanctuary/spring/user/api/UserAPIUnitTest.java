@@ -27,6 +27,7 @@ import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -96,6 +97,9 @@ public class UserAPIUnitTest {
 
     @Mock
     private AppUrlResolver appUrlResolver;
+
+    @Mock
+    private LoginAttemptService loginAttemptService;
 
     @InjectMocks
     private UserAPI userAPI;
@@ -425,6 +429,7 @@ public class UserAPIUnitTest {
                     .build();
 
             when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(true);
             when(messageSource.getMessage(eq("message.update-password.success"), any(), any(), any(Locale.class)))
                     .thenReturn("Password updated successfully");
             when(userService.checkIfValidOldPassword(any(User.class), eq("oldPassword"))).thenReturn(true);
@@ -469,6 +474,7 @@ public class UserAPIUnitTest {
                     .build();
 
             when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(true);
             when(messageSource.getMessage(eq("message.update-password.invalid-old"), any(), any(), any(Locale.class)))
                     .thenReturn("Invalid old password");
             when(userService.checkIfValidOldPassword(any(User.class), eq("wrongPassword"))).thenReturn(false);
@@ -482,6 +488,137 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.code").value(1))
                     .andExpect(jsonPath("$.messages[0]").value("Invalid old password"));
+        }
+
+        /**
+         * Builds a standalone MockMvc that resolves the {@code @AuthenticationPrincipal} argument to
+         * {@link #testUserDetails}, matching the setup the other updatePassword tests use inline.
+         */
+        private MockMvc updatePasswordMockMvc() {
+            return MockMvcBuilders.standaloneSetup(userAPI)
+                    .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
+                        @Override
+                        public boolean supportsParameter(org.springframework.core.MethodParameter parameter) {
+                            return parameter.getParameterType().equals(DSUserDetails.class);
+                        }
+
+                        @Override
+                        public Object resolveArgument(org.springframework.core.MethodParameter parameter,
+                                org.springframework.web.method.support.ModelAndViewContainer mavContainer,
+                                org.springframework.web.context.request.NativeWebRequest webRequest,
+                                org.springframework.web.bind.support.WebDataBinderFactory binderFactory) {
+                            return testUserDetails;
+                        }
+                    })
+                    .setControllerAdvice(new TestExceptionHandler())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("POST /user/updatePassword - wrong old password is recorded for lockout")
+        void updatePassword_wrongOldPassword_recordsFailedAttempt() throws Exception {
+            PasswordDto passwordDto = new PasswordDto();
+            passwordDto.setOldPassword("wrongPassword");
+            passwordDto.setNewPassword("newPassword123");
+
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(true);
+            when(messageSource.getMessage(eq("message.update-password.invalid-old"), any(), any(), any(Locale.class)))
+                    .thenReturn("Invalid old password");
+            when(userService.checkIfValidOldPassword(any(User.class), eq("wrongPassword"))).thenReturn(false);
+
+            mockMvc.perform(post("/user/updatePassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(passwordDto))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            // A wrong current-password guess must count toward brute-force lockout, like the login path.
+            verify(loginAttemptService).loginFailed(testUser.getEmail());
+            verify(userService, never()).changeUserPassword(any(), any());
+        }
+
+        @Test
+        @DisplayName("POST /user/updatePassword - successful change resets the lockout counter")
+        void updatePassword_success_resetsLockoutCounter() throws Exception {
+            PasswordDto passwordDto = new PasswordDto();
+            passwordDto.setOldPassword("oldPassword");
+            passwordDto.setNewPassword("newPassword123");
+
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(true);
+            when(messageSource.getMessage(eq("message.update-password.success"), any(), any(), any(Locale.class)))
+                    .thenReturn("Password updated successfully");
+            when(userService.checkIfValidOldPassword(any(User.class), eq("oldPassword"))).thenReturn(true);
+
+            mockMvc.perform(post("/user/updatePassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(passwordDto))
+                    .with(csrf()))
+                    .andExpect(status().isOk());
+
+            // Correct reauthentication clears the failed-attempt counter, matching login semantics.
+            verify(loginAttemptService).loginSucceeded(testUser.getEmail());
+            verify(loginAttemptService, never()).loginFailed(any());
+        }
+
+        @Test
+        @DisplayName("POST /user/updatePassword - locked account is rejected with 423 without touching the password")
+        void updatePassword_lockedAccount_returnsLocked() throws Exception {
+            PasswordDto passwordDto = new PasswordDto();
+            passwordDto.setOldPassword("oldPassword");
+            passwordDto.setNewPassword("newPassword123");
+
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(true);
+            when(loginAttemptService.isLocked(testUser.getEmail())).thenReturn(true);
+            when(messageSource.getMessage(eq("message.update-password.account-locked"), any(), any(), any(Locale.class)))
+                    .thenReturn("Account is locked");
+
+            mockMvc.perform(post("/user/updatePassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(passwordDto))
+                    .with(csrf()))
+                    .andExpect(status().isLocked())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.code").value(3));
+
+            verify(userService, never()).checkIfValidOldPassword(any(), any());
+            verify(userService, never()).changeUserPassword(any(), any());
+        }
+
+        @Test
+        @DisplayName("POST /user/updatePassword - passwordless account is rejected without feeding the lockout counter")
+        void updatePassword_passwordlessAccount_rejectedWithoutLockout() throws Exception {
+            PasswordDto passwordDto = new PasswordDto();
+            passwordDto.setOldPassword("anything");
+            passwordDto.setNewPassword("newPassword123");
+
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            // Passwordless (passkey-only / OAuth-only) account: no password is set.
+            when(userService.hasPassword(testUser)).thenReturn(false);
+            when(messageSource.getMessage(eq("message.update-password.no-password"), any(), any(), any(Locale.class)))
+                    .thenReturn("No password is set on this account. Use the set password feature instead.");
+
+            mockMvc.perform(post("/user/updatePassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(passwordDto))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.code").value(4));
+
+            // A passwordless account has no current password to guess, so this endpoint must never report a failed
+            // attempt — otherwise any authenticated (or session-hijacking) caller could lock the account out of every
+            // auth method by hammering this endpoint. The guard also short-circuits before the lockout check itself.
+            verify(loginAttemptService, never()).loginFailed(any());
+            verify(loginAttemptService, never()).isLocked(any());
+            verify(userService, never()).checkIfValidOldPassword(any(), any());
+            verify(userService, never()).changeUserPassword(any(), any());
         }
 
         @Test

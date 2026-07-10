@@ -34,6 +34,7 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -90,6 +91,7 @@ public class UserAPI {
 	private final PasswordPolicyService passwordPolicyService;
 	private final ObjectProvider<WebAuthnCredentialManagementService> webAuthnCredentialManagementServiceProvider;
 	private final AppUrlResolver appUrlResolver;
+	private final LoginAttemptService loginAttemptService;
 
 	@Value("${user.security.registrationPendingURI}")
 	private String registrationPendingURI;
@@ -344,11 +346,36 @@ public class UserAPI {
 			return buildErrorResponse(messages.getMessage("message.user.not-found", null, "User not found", locale), 1, HttpStatus.BAD_REQUEST);
 		}
 
+		// A passwordless (passkey-only / OAuth-only) account has no current password to verify or change here.
+		// checkIfValidOldPassword() always returns false for such an account, so without this guard every call would
+		// report a "failed attempt" to the lockout counter below — letting any authenticated (or session-hijacking)
+		// caller lock the account out of EVERY authentication method by hitting this endpoint repeatedly. Reject up
+		// front, before the lockout logic and without touching the counter, and point the user at the set-password
+		// flow. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet and the symmetric guard in setPassword().
+		if (!userService.hasPassword(user)) {
+			logAuditEvent("PasswordUpdate", "Failure", "No password set", user, request);
+			return buildErrorResponse(messages.getMessage("message.update-password.no-password", null,
+					"No password is set on this account. Use the set password feature instead.", locale), 4, HttpStatus.BAD_REQUEST);
+		}
+
+		// Verifying the current password is an authentication surface, so it participates in the same brute-force
+		// lockout as login: reject a locked account up front (HTTP 423) so a session-holding actor cannot make
+		// unlimited old-password guesses here. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet.
+		if (loginAttemptService.isLocked(user.getEmail())) {
+			logAuditEvent("PasswordUpdate", "Failure", "Account locked", user, request);
+			return buildErrorResponse(messages.getMessage("message.update-password.account-locked", null,
+					"Account is locked due to too many failed attempts. Please try again later.", locale), 3, HttpStatus.LOCKED);
+		}
+
 		try {
 			// Verify old password is correct
 			if (!userService.checkIfValidOldPassword(user, passwordDto.getOldPassword())) {
+				// A wrong guess counts toward lockout, locking the account once the configured threshold is reached.
+				loginAttemptService.loginFailed(user.getEmail());
 				throw new InvalidOldPasswordException("Invalid old password");
 			}
+			// Successful reauthentication clears the failed-attempt counter, matching login semantics.
+			loginAttemptService.loginSucceeded(user.getEmail());
 
 			// Validate new password against policy
 			List<String> errors = passwordPolicyService.validate(user, passwordDto.getNewPassword(), user.getEmail(),

@@ -40,7 +40,7 @@ Welcome to the User Framework SpringBoot Configuration Guide! This document outl
 - **Flush on Write (`user.audit.flushOnWrite`)**: Set to `true` for immediate log flushing on every write. Defaults to `false` for performance. See **Durability** below.
 - **Flush Rate (`user.audit.flushRate`)**: The interval, in milliseconds, at which the buffered audit log is flushed to disk when `flushOnWrite=false`. Defaults to `30000` (30 seconds).
 - **Max Query Results (`user.audit.maxQueryResults`)**: Maximum number of audit events returned from queries. The query service streams the active log file and retains only the most-recent `maxQueryResults` matching events in a bounded ring buffer, so query memory stays bounded regardless of file size. Defaults to `10000`.
-- **Max File Size (`user.audit.maxFileSizeMb`)**: Maximum size, in megabytes, of the active audit log file before it is rotated. When exceeded, the active file is renamed to `<name>.1` (shifting existing archives up to `maxFiles`) and a fresh active file is opened. Set to `0` or a negative value to **disable rotation** (logs grow unbounded). Defaults to `10`. **Rotation is enabled by default** to prevent unbounded disk growth.
+- **Max File Size (`user.audit.maxFileSizeMb`)**: Maximum size, in megabytes, of the active audit log file before it is rotated. When exceeded, the active file is renamed to `<name>.1` (shifting existing archives up to `maxFiles`) and a fresh active file is opened. **Defaults to `0`, which disables rotation — the active audit file grows unbounded.** Rotation is opt-in (rather than on by default) because audit queries used by GDPR export and investigations read only the *active* file, so once events rotate into `<name>.1`, `<name>.2`, ... they are excluded from those results (see **Query Scope** below). Enable rotation (a positive value) only alongside external log retention or a database-backed `AuditLogWriter`/`AuditLogQueryService`; when enabled, `maxFiles` bounds how many archives are retained. If unbounded growth of the active file is a concern for your deployment, enable rotation with one of those retention strategies in place.
 - **Max Files (`user.audit.maxFiles`)**: Maximum number of rotated archive files to retain (e.g. `user-audit.log.1` .. `user-audit.log.5`). The oldest archive beyond this count is deleted on rotation. Defaults to `5`.
 
 ### Durability
@@ -78,9 +78,19 @@ user:
 
 ## Security Settings
 
-- **Failed Login Attempts (`spring.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout.
-- **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
-- **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
+- **Failed Login Attempts (`user.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout. Applies to the login path and to the authenticated password-change endpoint `POST /user/updatePassword` (a locked account is rejected with `HTTP 423`, a wrong current password counts toward lockout, and a correct one resets the counter).
+- **Account Lockout Duration (`user.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout. `0` disables lockout; a negative value (e.g. `-1`) locks the account until an administrator unlocks it.
+- **BCrypt Strength (`user.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
+
+### Email Link Authority (Host-header poisoning defense, CWE-640)
+
+Password-reset and verification emails contain a link back to your application. The host in that link determines where the bearer token is sent, so it must not be derived from an attacker-controllable `Host` header. Configure at least one of the following in production.
+
+- **App URL (`user.security.appUrl`)**: Canonical base URL for security email links (e.g. `https://app.example.com`). **Strongly recommended in production.** When set, request-derived hosts and `X-Forwarded-Host` are ignored entirely. Default: unset.
+- **Trusted Hosts (`user.security.trustedHosts`)**: Comma-separated allow-list used when `appUrl` is unset. It gates **both** `X-Forwarded-Host` and the ordinary request server name (the `Host` header). A request host not in the list falls back to the first entry (treated as the canonical host) rather than being emitted into the link. Default: empty.
+- **Require Canonical App URL (`user.security.requireCanonicalAppUrl`)**: When `true`, application startup fails unless `appUrl` or a non-empty `trustedHosts` is configured — a hard guarantee that email links can never derive their authority from a spoofable `Host` header. Default `false` (a startup warning is logged instead). Planned to become the default in the next major version.
+
+When neither `appUrl` nor `trustedHosts` is set, links are built from the request host (backward-compatible behavior) and a startup warning is logged.
 
 ### Token Security
 

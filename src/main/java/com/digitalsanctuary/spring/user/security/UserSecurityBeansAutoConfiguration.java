@@ -175,14 +175,35 @@ public class UserSecurityBeansAutoConfiguration {
      * ({@code user.security.trustedHosts}), defending against Host-header / X-Forwarded-Host poisoning (CWE-640). Backs off entirely if the consuming
      * application defines its own {@link AppUrlResolver}.
      *
+     * <p>
+     * When neither {@code user.security.appUrl} nor {@code user.security.trustedHosts} is configured, email links derive their authority from the
+     * request {@code Host} header, which can be spoofed (CWE-640). By default the library logs a startup warning in that case; setting
+     * {@code user.security.requireCanonicalAppUrl=true} makes it fail startup instead, so an operator who wants a hard guarantee can opt into fail-fast.
+     * </p>
+     *
      * @param appUrl the configured canonical base URL, or {@code null} when unset
-     * @param trustedHosts the allow-listed forwarded hosts (empty when unset)
+     * @param trustedHosts the allow-listed hosts (empty when unset)
+     * @param requireCanonicalAppUrl when {@code true}, fail startup unless {@code appUrl} or a non-empty {@code trustedHosts} is configured
      * @return the default {@link AppUrlResolver}
      */
     @Bean
     @ConditionalOnMissingBean(AppUrlResolver.class)
     public AppUrlResolver appUrlResolver(@Value("${user.security.appUrl:#{null}}") String appUrl,
-            @Value("${user.security.trustedHosts:}") List<String> trustedHosts) {
+            @Value("${user.security.trustedHosts:}") List<String> trustedHosts,
+            @Value("${user.security.requireCanonicalAppUrl:false}") boolean requireCanonicalAppUrl) {
+        boolean appUrlConfigured = appUrl != null && !appUrl.isBlank();
+        boolean trustedHostsConfigured = trustedHosts != null && trustedHosts.stream().anyMatch(h -> h != null && !h.isBlank());
+        if (!appUrlConfigured && !trustedHostsConfigured) {
+            if (requireCanonicalAppUrl) {
+                throw new IllegalStateException("user.security.requireCanonicalAppUrl is enabled but neither user.security.appUrl nor "
+                        + "user.security.trustedHosts is configured. Set a canonical user.security.appUrl (recommended) or a non-empty "
+                        + "user.security.trustedHosts so password-reset and verification links cannot be poisoned via the Host header (CWE-640).");
+            }
+            log.warn("AppUrlResolver: neither user.security.appUrl nor user.security.trustedHosts is configured; password-reset and verification "
+                    + "email links will derive their authority from the request Host header, which can be spoofed (CWE-640). Set "
+                    + "user.security.appUrl to a canonical URL (recommended) or user.security.trustedHosts to close this exposure, or set "
+                    + "user.security.requireCanonicalAppUrl=true to fail startup instead of warning.");
+        }
         return new AppUrlResolver(appUrl, trustedHosts);
     }
 }
