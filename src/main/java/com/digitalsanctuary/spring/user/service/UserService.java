@@ -500,12 +500,17 @@ public class UserService {
 	@Transactional
 	public void deleteOrDisableUser(final User user) {
 		log.debug("UserService.deleteOrDisableUser: called for user: {}", user != null ? user.getEmail() : null);
-		// Revoke every active session for this user before the account is removed or disabled. Otherwise a
-		// concurrent session keeps carrying the cached DSUserDetails (authorities and the enabled flag are
-		// captured at login and not re-checked per request), so it stays authorized until natural expiry — the
-		// API-level logout only terminates the caller's current request. Done at the service layer so all callers
-		// of deleteOrDisableUser() are covered, mirroring the GDPR deletion path (GdprAPI.logoutUser).
-		sessionInvalidationService.invalidateUserSessions(user);
+		// Revoke every active session for this user AFTER the delete/disable commits. Otherwise a concurrent session
+		// keeps carrying the cached DSUserDetails (authorities and the enabled flag are captured at login and not
+		// re-checked per request), so it stays authorized until natural expiry — the API-level logout only terminates
+		// the caller's current request. Doing it post-commit (rather than as the first statement) closes a race the
+		// pre-commit ordering left open: a login landing between the session scan and the commit would authenticate
+		// against the still-present/enabled row and register a NEW session the scan already passed, and that session
+		// would then survive the delete/disable. After commit the row is gone/disabled, so no new login can succeed and
+		// this scan catches every session created before commit. Done at the service layer so all callers of
+		// deleteOrDisableUser() are covered, mirroring the GDPR deletion path (GdprAPI.logoutUser). The only residual
+		// gap is SessionRegistry's own documented getAllPrincipals()/expireNow() window (see SessionInvalidationService).
+		runAfterCommit(() -> sessionInvalidationService.invalidateUserSessions(user));
 		if (actuallyDeleteAccount) {
 			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user.getEmail());
 			// Capture user details before deletion for the post-delete event
@@ -569,17 +574,35 @@ public class UserService {
 	 * @param event the event to publish after commit
 	 */
 	private void publishEventAfterCommit(final ApplicationEvent event) {
+		runAfterCommit(() -> {
+			log.debug("Publishing {} after commit/synchronously", event.getClass().getSimpleName());
+			eventPublisher.publishEvent(event);
+		});
+	}
+
+	/**
+	 * Runs the given action after the current transaction commits.
+	 *
+	 * <p>
+	 * If a transaction is active, the action runs from {@link TransactionSynchronization#afterCommit()} so it never
+	 * observes (or acts on) a change that has not yet been committed, and never runs at all if the transaction rolls
+	 * back. If no transaction is active, the action runs immediately so behavior is still correct in non-transactional
+	 * callers. Used both to defer event publication ({@link UserDeletedEvent}/{@link UserDisabledEvent}) and to revoke
+	 * the user's sessions only once a delete/disable is durable.
+	 * </p>
+	 *
+	 * @param action the action to run after commit (or immediately when no transaction is active)
+	 */
+	private void runAfterCommit(final Runnable action) {
 		if (TransactionSynchronizationManager.isSynchronizationActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 				@Override
 				public void afterCommit() {
-					log.debug("Publishing {} after commit", event.getClass().getSimpleName());
-					eventPublisher.publishEvent(event);
+					action.run();
 				}
 			});
 		} else {
-			log.debug("Publishing {} (no active transaction)", event.getClass().getSimpleName());
-			eventPublisher.publishEvent(event);
+			action.run();
 		}
 	}
 
