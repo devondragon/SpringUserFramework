@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -22,6 +23,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
+import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 
 /**
  * Proves that the four core, overridable security beans &mdash; {@link PasswordEncoder}, {@link SessionRegistry}, {@link RoleHierarchy}, and
@@ -96,6 +98,55 @@ class CoreBeanOverrideTest {
                 assertThat(context.getBean(RoleHierarchy.class)).isInstanceOf(RoleHierarchyImpl.class);
             });
         }
+
+        @Test
+        @DisplayName("Library provides an AppUrlResolver by default")
+        void libraryAppUrlResolverPresentByDefault() {
+            contextRunner.run(context -> assertThat(context).hasSingleBean(AppUrlResolver.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("SUF-01 requireCanonicalAppUrl strict mode (through real @Value binding)")
+    class AppUrlResolverStrictMode {
+
+        @Test
+        @DisplayName("requireCanonicalAppUrl=true fails context startup when neither appUrl nor trustedHosts is bound")
+        void strictModeFailsStartupWhenNothingConfigured() {
+            // Drives the real @Value binding of user.security.requireCanonicalAppUrl/appUrl/trustedHosts, not a
+            // direct method call, proving the property binding wires the fail-fast guard end-to-end.
+            contextRunner.withPropertyValues("user.security.requireCanonicalAppUrl=true").run(context -> {
+                assertThat(context).hasFailed();
+                assertThat(context.getStartupFailure()).rootCause()
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessageContaining("requireCanonicalAppUrl");
+            });
+        }
+
+        @Test
+        @DisplayName("requireCanonicalAppUrl=true starts when user.security.appUrl is bound, and the resolver uses it")
+        void strictModeStartsWhenAppUrlBound() {
+            contextRunner.withPropertyValues("user.security.requireCanonicalAppUrl=true",
+                    "user.security.appUrl=https://app.example.com").run(context -> {
+                        assertThat(context).hasNotFailed().hasSingleBean(AppUrlResolver.class);
+                        assertThat(context.getBean(AppUrlResolver.class).resolveAppUrl(new MockHttpServletRequest()))
+                                .isEqualTo("https://app.example.com");
+                    });
+        }
+
+        @Test
+        @DisplayName("requireCanonicalAppUrl=true starts when user.security.trustedHosts is bound")
+        void strictModeStartsWhenTrustedHostsBound() {
+            contextRunner.withPropertyValues("user.security.requireCanonicalAppUrl=true",
+                    "user.security.trustedHosts=app.example.com")
+                    .run(context -> assertThat(context).hasNotFailed().hasSingleBean(AppUrlResolver.class));
+        }
+
+        @Test
+        @DisplayName("default (non-strict) mode starts even when nothing is configured")
+        void nonStrictModeStartsWhenNothingConfigured() {
+            contextRunner.run(context -> assertThat(context).hasNotFailed().hasSingleBean(AppUrlResolver.class));
+        }
     }
 
     @Nested
@@ -140,6 +191,15 @@ class CoreBeanOverrideTest {
             contextRunner.withUserConfiguration(ConsumerAuthProviderConfig.class).run(context -> {
                 assertThat(context).hasSingleBean(DaoAuthenticationProvider.class);
                 assertThat(context.getBean(DaoAuthenticationProvider.class)).isSameAs(ConsumerAuthProviderConfig.CONSUMER_PROVIDER);
+            });
+        }
+
+        @Test
+        @DisplayName("Consumer AppUrlResolver replaces the library's default")
+        void consumerAppUrlResolverWins() {
+            contextRunner.withUserConfiguration(ConsumerAppUrlResolverConfig.class).run(context -> {
+                assertThat(context).hasSingleBean(AppUrlResolver.class);
+                assertThat(context.getBean(AppUrlResolver.class)).isSameAs(ConsumerAppUrlResolverConfig.CONSUMER_RESOLVER);
             });
         }
 
@@ -192,6 +252,13 @@ class CoreBeanOverrideTest {
             // authProvider must RECEIVE the PasswordEncoder (so a consumer override is honored) rather than self-call encoder().
             assertThat(method.getParameterTypes()).as("authProvider must receive PasswordEncoder via injection").contains(PasswordEncoder.class);
         }
+
+        @Test
+        @DisplayName("appUrlResolver() is @ConditionalOnMissingBean")
+        void appUrlResolverIsConditional() throws Exception {
+            Method method = UserSecurityBeansAutoConfiguration.class.getMethod("appUrlResolver", String.class, List.class, boolean.class);
+            assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
+        }
     }
 
     // ---- Consumer-supplied stand-in configurations. Not @Configuration so the integration tests' component scan does not pick them up. ----
@@ -230,6 +297,15 @@ class CoreBeanOverrideTest {
         @Bean
         DaoAuthenticationProvider consumerAuthProvider() {
             return CONSUMER_PROVIDER;
+        }
+    }
+
+    static class ConsumerAppUrlResolverConfig {
+        static final AppUrlResolver CONSUMER_RESOLVER = new AppUrlResolver("https://consumer.example.com", List.of());
+
+        @Bean
+        AppUrlResolver consumerAppUrlResolver() {
+            return CONSUMER_RESOLVER;
         }
     }
 

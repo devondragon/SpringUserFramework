@@ -208,4 +208,57 @@ class AppUrlResolverTest {
         assertThat(resolved).isEqualTo("http://trusted.example.com");
         assertThat(resolved).doesNotContain("evil.com").doesNotContain("internal").doesNotContain("8080");
     }
+
+    @Test
+    void filtersBlankTrustedHostEntriesSoTheFallbackUsesTheRealHost() {
+        // An empty/whitespace user.security.trustedHosts= property can bind as ["", "  ", "app.example.com"].
+        // The blank entries must be filtered so the canonical fallback is the real host, not an empty authority
+        // (which would produce "https://" with no host).
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("", "   ", "app.example.com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("attacker.example");
+        req.setServerPort(443);
+        String resolved = resolver.resolveAppUrl(req);
+        assertThat(resolved).isEqualTo("https://app.example.com");
+        assertThat(resolved).doesNotContain("attacker.example");
+    }
+
+    @Test
+    void treatsAnAllBlankTrustedHostsListAsUnconfiguredAndUsesTheServerName() {
+        // If every trustedHosts entry is blank the allow-list is effectively empty, so the ordinary-host guard is
+        // skipped and the request server name is used as-is (matching the empty-list behavior, not a fallback to "").
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("", "   "));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("api.example.com");
+        req.setServerPort(443);
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://api.example.com");
+    }
+
+    @Test
+    void matchesOrdinaryServerNameAgainstAllowListCaseInsensitively() {
+        // Hostnames are case-insensitive (RFC 4343): a mixed-case allow-list entry must match a mixed-case ordinary
+        // server name (Host-derived on common containers), not just X-Forwarded-Host, otherwise the SUF-01 guard
+        // needlessly falls back to the canonical host for a legitimate request.
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("App.Example.Com"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("APP.example.COM");
+        req.setServerPort(443);
+        // Allow-listed case-insensitively, so the server name is used as-is (no fallback) with its original casing.
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://APP.example.COM");
+    }
+
+    @Test
+    void honorsAllowListedIpv6OrdinaryServerName() {
+        // Documents the ordinary-host branch for IPv6 deployments: request.getServerName() already excludes the port
+        // (unlike the forwarded-host path), so an allow-listed IPv6 literal is emitted correctly with no stripPort.
+        AppUrlResolver resolver = new AppUrlResolver(null, List.of("[::1]"));
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setScheme("https");
+        req.setServerName("[::1]");
+        req.setServerPort(443);
+        assertThat(resolver.resolveAppUrl(req)).isEqualTo("https://[::1]");
+    }
 }
