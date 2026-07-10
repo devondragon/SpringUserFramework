@@ -3,7 +3,9 @@ package com.digitalsanctuary.spring.user.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -506,6 +508,58 @@ class UserApiTest {
 
             // The token must NOT have been consumed by a failed (mismatched) attempt.
             assertThat(passwordResetTokenRepository.findByToken(tokenHasher.hash(rawToken))).isNotNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("Set Initial Password (passwordless account, SUF-02)")
+    class SetInitialPassword {
+
+        @Test
+        @DisplayName("Disabled by default: the real context ships no StepUpService and the opt-in flag is false, so a passwordless account gets 403 (code 7)")
+        void shouldBeDisabledByDefaultForPasswordlessAccount() throws Exception {
+            // Register a normal user, capture the principal while it still has a password, then strip the password so the
+            // account is passwordless (passkey-only) - the exact state /user/setPassword targets. Unlike UserAPIUnitTest
+            // (which stubs the ObjectProvider), this drives the endpoint through the REAL ObjectProvider<StepUpService>,
+            // which is empty in the default context, proving the wiring keeps the endpoint fail-closed.
+            User user = userService.registerNewUserAccount(baseTestUser);
+            DSUserDetails principal = new DSUserDetails(user);
+            userService.removeUserPassword(user);
+            assertThat(userService.hasPassword(userService.findUserByEmail(testEmail))).isFalse();
+
+            Map<String, String> body = Map.of(
+                    "newPassword", NEW_VALID_PASSWORD,
+                    "confirmPassword", NEW_VALID_PASSWORD);
+
+            mockMvc.perform(post(URL + "/setPassword")
+                            .with(user(principal))
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(body)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.code").value(7));
+
+            // The credential must not have been set while the endpoint is disabled by default.
+            assertThat(userService.hasPassword(userService.findUserByEmail(testEmail))).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("Reset Page Security Headers (SUF-05 interceptor wiring)")
+    class ResetPageSecurityHeaders {
+
+        @Test
+        @DisplayName("GET changePasswordURI carries Referrer-Policy: no-referrer and Cache-Control: no-store via WebInterceptorConfig")
+        void changePasswordPageCarriesPrivacyHeaders() throws Exception {
+            // Booted through the full context (including the Spring Security filter chain), so the
+            // PasswordResetSecurityHeadersInterceptor is registered by WebInterceptorConfig using its @Value-resolved
+            // URIs - not a hand-registered interceptor as in the standalone controller test. preHandle runs before the
+            // controller regardless of token validity, so any GET to the reset URI must carry both headers, and they
+            // must survive the security filter chain's own default header writers.
+            mockMvc.perform(get(URL + "/changePassword").param("token", "any-token"))
+                    .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                    .andExpect(header().string("Cache-Control", "no-store"));
         }
     }
 }
