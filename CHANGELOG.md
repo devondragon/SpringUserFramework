@@ -2,9 +2,11 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
-## [Unreleased]
+## [5.1.0] - 2026-07-10
 
 Security hardening from the SUF review series (SUF-01 through SUF-06). Most changes are backward compatible. The one notable behavior change: `POST /user/setPassword` is now **disabled by default** (SUF-02) — see **Behavior changes** below.
+
+This is a **minor** release (`5.1.0`): it adds new public API — the `StepUpService` SPI and new `user.security.*` properties (`appUrl`/`trustedHosts`/`requireCanonicalAppUrl`, `allowInitialPasswordSetWithoutStepUp`) — alongside the security hardening. No source- or binary-incompatible API changes were made (a consuming app compiles and its tests pass unchanged). The one runtime behavior change (`setPassword` disabled by default) is a fail-closed security default that is reversible with a single documented property, so it does not warrant a major bump; consumers whose passwordless users set an initial password must set `user.security.allowInitialPasswordSetWithoutStepUp=true` or provide a `StepUpService` bean (see **Behavior changes** and `MIGRATION.md`).
 
 ### Security
 - **SUF-01 — Host-header link poisoning (CWE-640): the ordinary request host is now allow-listed, not just `X-Forwarded-Host`.** When `user.security.trustedHosts` is configured, the finally-chosen host for a password-reset / verification link — including the ordinary request server name, which on common servlet containers is derived from the attacker-influenceable `Host` header — must be in the allow-list. A non-allow-listed host now falls back to the first configured trusted host (a known-good canonical authority) instead of being emitted into the link. Matching on this ordinary-host path is case-insensitive (RFC 4343; previously only the forwarded-host path was), and blank/whitespace `trustedHosts` entries are ignored.
