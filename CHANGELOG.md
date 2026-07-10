@@ -1,115 +1,3 @@
-## [5.1.0] - 2026-07-10
-### Features
-- Step-up SPI for sensitive operations (SUF-02)
-  - Introduced a new public SPI: com.digitalsanctuary.spring.user.security.StepUpService.
-  - POST /user/setPassword now consults StepUpService when present to require re‑authentication before adding an initial password to a passwordless account.
-  - If a StepUpService bean is present, it must return true for the action "set-password" or the request is rejected with HTTP 401.
-  - Javadoc clarifies implementations must read step‑up proofs from headers/params/session (the request body is already consumed by @RequestBody binding).
-
-- Configurable, canonical app URL/host allow‑list for email links (SUF-01)
-  - Added user.security.requireCanonicalAppUrl (default false): when true, application startup fails unless user.security.appUrl or a non‑empty user.security.trustedHosts is configured.
-  - AppUrlResolver now treats user.security.trustedHosts as an allow‑list for both X‑Forwarded‑Host and the ordinary request Host; case‑insensitive matching; filters blank entries.
-  - When trustedHosts is set and a request host isn’t allow‑listed, links fall back to the first trusted host (canonical) and reset the port to the scheme default.
-
-- Reset-page privacy headers (SUF-05)
-  - New PasswordResetSecurityHeadersInterceptor sets Referrer-Policy: no-referrer and Cache-Control: no-store on the configured reset endpoints to mitigate token leakage to Referer and caches.
-  - Wired via WebInterceptorConfig to user.security.changePasswordURI and user.security.forgotPasswordChangeURI.
-
-- IDE metadata for new properties
-  - Registered user.security.requireCanonicalAppUrl and user.security.allowInitialPasswordSetWithoutStepUp in additional-spring-configuration-metadata.json for IDE auto-completion.
-
-### Fixes
-- SUF-02: Secure initial password setting for passwordless users
-  - Behavior: If a StepUpService is present and denies the request, return HTTP 401 with response code 6.
-  - If no StepUpService is present, the endpoint is disabled by default and returns HTTP 403 with response code 7 unless user.security.allowInitialPasswordSetWithoutStepUp=true is set.
-  - Startup visibility: UserAPI now logs a WARN at boot when setPassword is disabled-by-default (no StepUpService and the opt‑in flag is false).
-  - Added distinct message bundle keys for step‑up required and disabled states.
-
-- SUF-01: Defend against Host-header poisoning in email links (CWE-640)
-  - AppUrlResolver now:
-    - Validates ordinary request.getServerName() (Host) against user.security.trustedHosts (not only X‑Forwarded‑Host).
-    - Falls back to the canonical first trusted host if Host isn’t allow‑listed and resets the port to scheme default.
-    - Matches allow‑listed hosts case‑insensitively and filters blank/whitespace entries.
-  - Auto-configuration logs a startup WARN when neither appUrl nor trustedHosts is configured; in strict mode, it fails fast.
-
-- SUF-03: Revoke all sessions on account delete/disable, safely after commit
-  - UserService.deleteOrDisableUser now revokes all of the user’s sessions after the transaction commits to close a race where a new session could be created between a pre‑commit revocation pass and the commit.
-  - Implemented a shared runAfterCommit helper (also used for post‑commit events); if no transaction is active, actions run immediately.
-
-- SUF-04: Enforce brute‑force lockout on authenticated password change
-  - POST /user/updatePassword now:
-    - Rejects a locked account with HTTP 423 (code 3) before hashing.
-    - Reports wrong current passwords to LoginAttemptService.loginFailed().
-    - Resets the counter via loginSucceeded() on success.
-  - Passwordless accounts (no current password) are rejected up front with HTTP 400 (code 4) and DO NOT feed the lockout counter; directs users to POST /user/setPassword.
-
-- SUF-05/06: Password‑reset flow hardening
-  - Privacy headers as above (SUF‑05).
-  - UserActionController.showChangePasswordPage no longer creates a new HttpSession for anonymous token validations and audits an invalid token as Failure (not Success) (SUF‑06).
-
-### Breaking Changes
-- Default-disabled initial password set for passwordless users (SUF‑02)
-  - POST /user/setPassword is now disabled by default unless you either:
-    - Provide a StepUpService bean (recommended), or
-    - Set user.security.allowInitialPasswordSetWithoutStepUp=true to explicitly allow the previous session‑only behavior.
-  - Client-observable changes:
-    - Step-up denied returns HTTP 401 with response code 6.
-    - Disabled-by-default returns HTTP 403 with response code 7.
-  - See MIGRATION.md for guidance.
-
-### Refactoring
-- Transaction post‑commit action abstraction
-  - Introduced runAfterCommit in UserService and refactored publishEventAfterCommit to use it, ensuring session revocation and post‑commit events only run once changes are durable (and not at all on rollback).
-
-### Documentation
-- Changelog and release classification
-  - Classified the security hardening release as 5.1.0 (minor), with rationale: adds new public API and properties; the default‑disabled setPassword is a configurable, fail‑closed default.
-
-- Configuration and migration guides
-  - Documented:
-    - StepUpService SPI, the setPassword default‑disabled behavior, and the allowInitialPasswordSetWithoutStepUp opt‑in (action required for apps that let passwordless users set an initial password).
-    - Email link authority controls: appUrl, trustedHosts (including ordinary‑host gating), and requireCanonicalAppUrl strict mode.
-    - updatePassword’s participation in lockout and passwordless account handling.
-  - Corrected the audit rotation default (0/disabled) and explained why rotation is opt‑in.
-
-- README updates
-  - Fixed TOC anchors and headings; updated install versions (5.0.1 for Boot 4.x; 3.6.0 for Boot 3.5 line) and noted 3.x is security‑maintenance only.
-
-- SPI Javadoc clarifications
-  - StepUpService Javadoc clarifies request body is already consumed before isStepUpSatisfied() runs and suggests reading proofs from headers/params/session; minor text polish.
-
-### Testing
-- Extensive unit and integration coverage added
-  - SUF‑02:
-    - Unit tests for disabled‑by‑default, opt‑in flag, StepUpService grant/deny, distinct response codes (6 vs 7), and startup WARN when disabled-by-default.
-    - Full-context test verifying that, with no StepUpService bean, a passwordless setPassword returns 403 (code 7) and does not set a password.
-  - SUF‑01:
-    - AppUrlResolver tests for ordinary host allow‑listing, blank-entry filtering, case‑insensitive matches, IPv6 literals, fallback host behavior, and port reset on fallback.
-    - Auto-configuration tests for strict mode fail‑fast and property binding paths; verified resolver actually uses configured values; conditional bean override coverage.
-  - SUF‑03:
-    - Verified sessions are not revoked before commit and are revoked after commit for both delete and disable flows.
-  - SUF‑04:
-    - Unit tests for failed‑attempt recording, counter reset on success, 423 enforcement, and passwordless rejection without lockout counter increments.
-    - Full‑context lockout test that drives the real LoginAttemptService wiring: thresholds lock the account; 423 enforced even with the correct old password; password unchanged.
-  - SUF‑05/06:
-    - Standalone and full‑context tests verifying reset‑page privacy headers survive the Spring Security filter chain.
-    - Verified showChangePasswordPage does not mint sessions for anonymous requests and audits invalid tokens as Failure.
-  - Test stability:
-    - Cleared SecurityContext in UserAPIUnitTest @BeforeEach/@AfterEach to eliminate cross‑test thread‑local leakage under parallel execution.
-
-### Other Changes
-- Build and dependency updates
-  - Gradle wrapper: 9.5.1 → 9.6.0 → 9.6.1.
-  - com.vanniktech.maven.publish plugin: 0.36.0 → 0.37.0.
-  - Hibernate Validator test dependency: 9.1.0.Final → 9.1.1.Final.
-  - Gradle Release Plugin config: allow release/* branches in requireBranch (e.g., release/3.x maintenance line).
-  - Version bumped to 5.0.2-SNAPSHOT for ongoing development.
-
-- Polish and housekeeping
-  - Startup WARN added to surface disabled setPassword state at boot (mirrors SUF‑01 fail‑fast pattern).
-  - Additional message keys added for step‑up required and disabled messages.
-  - Minor README anchor/name fixes and compatibility table refresh.
-
 # Changelog
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
@@ -855,101 +743,6 @@ Notes for adopters
 
 ## [4.2.0] - 2026-02-21
 ### Features
-- WebAuthn/Passkeys (opt-in, disabled by default)
-  - End-to-end passwordless authentication using Spring Security 7 WebAuthn and WebAuthn4J:
-    - Supports platform authenticators (Touch ID, Face ID, Windows Hello) and roaming keys (YubiKey), including synced passkeys (iCloud Keychain, Google Password Manager).
-    - New WebAuthnAuthenticationSuccessHandler converts the WebAuthn principal to your DSUserDetails and issues a WebAuthnAuthenticationToken, allowing downstream code and audit logic to distinguish passkey vs password sessions without behavior changes elsewhere.
-  - Passkey Management REST API (auth required) under /user/webauthn:
-    - GET /user/webauthn/credentials — List user’s passkeys (returns DTO with id, label, created, lastUsed, transports as List<String>, backup flags).
-    - GET /user/webauthn/has-credentials — Boolean check for any registered passkeys.
-    - PUT /user/webauthn/credentials/{id}/label — Rename a passkey (label trimmed and limited to 64 chars).
-    - DELETE /user/webauthn/credentials/{id} — Delete a passkey with “last-credential” protection to avoid lockouts if the user has no password.
-  - WebAuthn persistence and repositories:
-    - JPA entities: WebAuthnUserEntity and WebAuthnCredential.
-    - Spring Data repositories and a repository bridge that implements PublicKeyCredentialUserEntityRepository so Spring Security uses your application users.
-    - Query repository provides DTO projections, ownership checks, a JOIN FETCH findByIdWithUser to avoid N+1s, and a lock-and-count operation for safe deletions.
-  - Configuration and conditional loading:
-    - New user.webauthn.* configuration (enabled, rpId, rpName, allowedOrigins) with sane defaults for localhost.
-    - All WebAuthn beans, endpoints, and exception advice are @ConditionalOnProperty(name="user.webauthn.enabled") so they only register when explicitly enabled.
-    - Security config updated to use WebAuthnConfigProperties; you must add /webauthn/authenticate/** and /login/webauthn to unprotected URIs.
-  - Database schema:
-    - Tables user_entities and user_credentials (ON DELETE CASCADE on FKs for cleanup safety).
-    - Label column length reduced from 255 to 64 to avoid UI overflow in consuming apps.
-  - Account cleanup:
-    - WebAuthnPreDeleteEventListener listens for UserPreDeleteEvent and deletes the user’s WebAuthn entity and all credentials (also enforced at DB level via cascade).
-  - Safer identifiers and metadata:
-    - User handle generated from SecureRandom bytes (privacy-preserving, non-derivable from user ID).
-    - Transports parsed safely and exposed as a List<String> in responses.
-
-- Persistence architecture improvements
-  - Migrated WebAuthn persistence from ad-hoc JDBC/SQL to JPA entities and Spring Data repositories:
-    - Eliminates raw SQL and the BLOB/VARCHAR mismatch for credential_id.
-    - Lets Hibernate manage schema (ddl-auto) when desired; kept reference schema scripts for manual DBs.
-    - Bulk delete for credentials by user entity to avoid N+1 delete operations.
-
-### Fixes
-- Safety, validation, and API quality
-  - Added @Validated and path variable constraints (@NotBlank and @Size(max=512)) to management endpoints; centralized error mapping via WebAuthnManagementAPIAdvice.
-  - Trim passkey labels before length validation and storage; default label to “Passkey” when missing.
-  - Safe parsing of AuthenticatorTransport and PublicKeyCredentialType with WARN logs for unknown values (prevents IllegalArgumentException on unexpected inputs).
-  - Management advice logs expected business/validation errors without noisy stack traces.
-
-- Concurrency and data integrity
-  - Fixed TOCTOU race in last-credential protection: introduced transactional lock-and-count with pessimistic locking and Propagation.MANDATORY so counts and deletes execute within one transaction boundary.
-  - Prevent orphaned WebAuthn user entities: nullable=false on user join, explicit IllegalStateException if an entity cannot be linked to an application user.
-  - Eliminated N+1 queries when verifying credential ownership via a JOIN FETCH repository method.
-  - Replaced iterative credential deletion with single-statement bulk delete (@Modifying @Query) in deleteByUserEntity().
-  - Added ON DELETE CASCADE to WebAuthn FKs for database-level cleanup when users/entities are removed.
-
-- Build/test stability and noise reduction
-  - FileAuditLogQueryServiceTest: fixed temp directory handling and later removed a global system property hack to keep tests parallel-safe; switched to ISO timestamp parsing for consistent sort assertions.
-  - Test output made context-aware: gradle build is quiet (short exception format), gradle test is verbose (full stack traces); added JVM args and a test logback to remove spurious warnings.
-
-### Breaking Changes
-- None. WebAuthn is entirely opt-in and disabled by default. Existing APIs, behavior, and defaults are unchanged for consumers who do not enable the feature.
-
-### Refactoring
-- Centralized WebAuthn error handling with a dedicated @RestControllerAdvice.
-- Introduced WebAuthnConfigProperties and migrated WebSecurityConfig to use properties over scattered @Value fields.
-- Extracted WebAuthnTransportUtils for shared, safe parsing of transport strings; returns unmodifiable collections and throws on construction to enforce utility usage.
-- Consolidated persistence through JPA (entities + repositories + bridge) and removed raw SQL-based schema code.
-- WebAuthnAuthenticationSuccessHandler now issues a dedicated WebAuthnAuthenticationToken instead of a generic UsernamePasswordAuthenticationToken.
-
-### Documentation
-- README and CONFIG updated with:
-  - WebAuthn setup, endpoints, and requirements.
-  - Dev and prod configuration examples, HTTPS requirements, and unprotected URI notes.
-  - Notes on automatic cleanup and disabled-by-default behavior.
-- CHANGELOG.md updated for 4.2.0 with a comprehensive WebAuthn entry.
-- CLAUDE.md expanded with testing infrastructure, startup order, auto-configuration details, and library design invariants (compileOnly starters, serializable isolation, event-driven design).
-- README dependency snippets updated to version 4.2.0.
-
-### Testing
-- New and updated test suites covering:
-  - WebAuthnFeatureDisabledIntegrationTest and WebAuthnFeatureEnabledIntegrationTest (bean/endpoint presence, validation and business error responses).
-  - WebAuthnManagementAPITest (endpoint behavior, validation, exception mapping).
-  - WebAuthnCredentialManagementServiceTest (rename/delete flows, trim-before-store, TOCTOU protection).
-  - WebAuthnAuthenticationSuccessHandlerTest (principal conversion and token type).
-  - WebAuthnUserEntityBridgeTest (entity lookup/creation, SecureRandom handle generation, concurrent creation scenario).
-  - WebAuthnPreDeleteEventListenerTest (bulk credential deletion + entity cleanup).
-  - WebAuthnTransportUtilsTest (null/empty, whitespace trimming, multiple values, unmodifiable collections).
-- Test logging tuned to reduce noise; added logback-test.xml and JVM args to suppress irrelevant warnings.
-
-### Other Changes
-- Build and dependencies:
-  - Added Spring Security WebAuthn (compileOnly) and WebAuthn4J core.
-  - Added test dependency on spring-security-webauthn.
-  - Removed a stale commented version line from build.gradle.
-- Defaults:
-  - WebAuthn disabled by default via dsspringuserconfig.properties; added default allowedOrigins for localhost.
-- Versioning:
-  - Intermediate bump to 4.1.1-SNAPSHOT (release plugin), followed by 4.2.0-SNAPSHOT for the WebAuthn feature.
-- Cleanup:
-  - Removed PASSKEY.md planning document.
-  - Reduced label length for passkeys to 64 characters to prevent UI layout issues in consuming apps.
-
-## [4.2.0] - 2026-02-21
-### Features
 - WebAuthn / Passkey support (opt-in, disabled by default)
   - Passwordless authentication via platform authenticators (Touch ID, Face ID, Windows Hello) and roaming security keys (YubiKey)
   - Synced passkey support (iCloud Keychain, Google Password Manager, etc.)
@@ -1691,7 +1484,6 @@ Migration checklist
 - Be aware that emails are now normalized to lowercase; verify database uniqueness constraints if case sensitivity was previously assumed
 
 ## [3.3.0] - 2025-07-22
-# Changelog
 
 ## Features
 
@@ -1810,7 +1602,6 @@ These updates help make sure the project dependencies are current, which is impo
 This changelog captures nuanced improvements and ensures that developers and users of the project are aware of the recent enhancements and bugfixes, to maintain alignment with the latest codebase optimizations.
 
 ## [3.2.1] - 2025-04-13
-# Changelog
 
 ## Features
 - **User Account Deletion Improvements (80f7c474, 1c42d603):** Added comprehensive handling for user account deletions. A new event, `UserPreDeleteEvent`, is published before a user is deleted, allowing applications to clean up related data. This supports both logical disablement (setting `enabled=false`) and actual deletion from the database, controlled by the `user.actuallyDeleteAccount` configuration.
@@ -1894,7 +1685,6 @@ This changelog covers significant feature enhancements, critical fixes, and upda
 There were no breaking changes, refactorings, documentation updates, or test-related changes in this update cycle. The focus was on maintaining a secure, compatible, and up-to-date codebase.
 
 ## [3.1.0] - 2025-02-24
-# Changelog
 
 ## Features
 - **User Profile Management**: Added new classes for user profile management, including `BaseUserProfile`, `UserProfileService`, `BaseAuthenticationListener`, and `BaseSessionProfile`. This allows for enhanced management of user-specific data within the session context of a Spring Boot application. [commit 363013cd]
