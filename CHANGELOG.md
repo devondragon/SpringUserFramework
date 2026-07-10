@@ -1,3 +1,115 @@
+## [5.1.0] - 2026-07-10
+### Features
+- Step-up SPI for sensitive operations (SUF-02)
+  - Introduced a new public SPI: com.digitalsanctuary.spring.user.security.StepUpService.
+  - POST /user/setPassword now consults StepUpService when present to require re‑authentication before adding an initial password to a passwordless account.
+  - If a StepUpService bean is present, it must return true for the action "set-password" or the request is rejected with HTTP 401.
+  - Javadoc clarifies implementations must read step‑up proofs from headers/params/session (the request body is already consumed by @RequestBody binding).
+
+- Configurable, canonical app URL/host allow‑list for email links (SUF-01)
+  - Added user.security.requireCanonicalAppUrl (default false): when true, application startup fails unless user.security.appUrl or a non‑empty user.security.trustedHosts is configured.
+  - AppUrlResolver now treats user.security.trustedHosts as an allow‑list for both X‑Forwarded‑Host and the ordinary request Host; case‑insensitive matching; filters blank entries.
+  - When trustedHosts is set and a request host isn’t allow‑listed, links fall back to the first trusted host (canonical) and reset the port to the scheme default.
+
+- Reset-page privacy headers (SUF-05)
+  - New PasswordResetSecurityHeadersInterceptor sets Referrer-Policy: no-referrer and Cache-Control: no-store on the configured reset endpoints to mitigate token leakage to Referer and caches.
+  - Wired via WebInterceptorConfig to user.security.changePasswordURI and user.security.forgotPasswordChangeURI.
+
+- IDE metadata for new properties
+  - Registered user.security.requireCanonicalAppUrl and user.security.allowInitialPasswordSetWithoutStepUp in additional-spring-configuration-metadata.json for IDE auto-completion.
+
+### Fixes
+- SUF-02: Secure initial password setting for passwordless users
+  - Behavior: If a StepUpService is present and denies the request, return HTTP 401 with response code 6.
+  - If no StepUpService is present, the endpoint is disabled by default and returns HTTP 403 with response code 7 unless user.security.allowInitialPasswordSetWithoutStepUp=true is set.
+  - Startup visibility: UserAPI now logs a WARN at boot when setPassword is disabled-by-default (no StepUpService and the opt‑in flag is false).
+  - Added distinct message bundle keys for step‑up required and disabled states.
+
+- SUF-01: Defend against Host-header poisoning in email links (CWE-640)
+  - AppUrlResolver now:
+    - Validates ordinary request.getServerName() (Host) against user.security.trustedHosts (not only X‑Forwarded‑Host).
+    - Falls back to the canonical first trusted host if Host isn’t allow‑listed and resets the port to scheme default.
+    - Matches allow‑listed hosts case‑insensitively and filters blank/whitespace entries.
+  - Auto-configuration logs a startup WARN when neither appUrl nor trustedHosts is configured; in strict mode, it fails fast.
+
+- SUF-03: Revoke all sessions on account delete/disable, safely after commit
+  - UserService.deleteOrDisableUser now revokes all of the user’s sessions after the transaction commits to close a race where a new session could be created between a pre‑commit revocation pass and the commit.
+  - Implemented a shared runAfterCommit helper (also used for post‑commit events); if no transaction is active, actions run immediately.
+
+- SUF-04: Enforce brute‑force lockout on authenticated password change
+  - POST /user/updatePassword now:
+    - Rejects a locked account with HTTP 423 (code 3) before hashing.
+    - Reports wrong current passwords to LoginAttemptService.loginFailed().
+    - Resets the counter via loginSucceeded() on success.
+  - Passwordless accounts (no current password) are rejected up front with HTTP 400 (code 4) and DO NOT feed the lockout counter; directs users to POST /user/setPassword.
+
+- SUF-05/06: Password‑reset flow hardening
+  - Privacy headers as above (SUF‑05).
+  - UserActionController.showChangePasswordPage no longer creates a new HttpSession for anonymous token validations and audits an invalid token as Failure (not Success) (SUF‑06).
+
+### Breaking Changes
+- Default-disabled initial password set for passwordless users (SUF‑02)
+  - POST /user/setPassword is now disabled by default unless you either:
+    - Provide a StepUpService bean (recommended), or
+    - Set user.security.allowInitialPasswordSetWithoutStepUp=true to explicitly allow the previous session‑only behavior.
+  - Client-observable changes:
+    - Step-up denied returns HTTP 401 with response code 6.
+    - Disabled-by-default returns HTTP 403 with response code 7.
+  - See MIGRATION.md for guidance.
+
+### Refactoring
+- Transaction post‑commit action abstraction
+  - Introduced runAfterCommit in UserService and refactored publishEventAfterCommit to use it, ensuring session revocation and post‑commit events only run once changes are durable (and not at all on rollback).
+
+### Documentation
+- Changelog and release classification
+  - Classified the security hardening release as 5.1.0 (minor), with rationale: adds new public API and properties; the default‑disabled setPassword is a configurable, fail‑closed default.
+
+- Configuration and migration guides
+  - Documented:
+    - StepUpService SPI, the setPassword default‑disabled behavior, and the allowInitialPasswordSetWithoutStepUp opt‑in (action required for apps that let passwordless users set an initial password).
+    - Email link authority controls: appUrl, trustedHosts (including ordinary‑host gating), and requireCanonicalAppUrl strict mode.
+    - updatePassword’s participation in lockout and passwordless account handling.
+  - Corrected the audit rotation default (0/disabled) and explained why rotation is opt‑in.
+
+- README updates
+  - Fixed TOC anchors and headings; updated install versions (5.0.1 for Boot 4.x; 3.6.0 for Boot 3.5 line) and noted 3.x is security‑maintenance only.
+
+- SPI Javadoc clarifications
+  - StepUpService Javadoc clarifies request body is already consumed before isStepUpSatisfied() runs and suggests reading proofs from headers/params/session; minor text polish.
+
+### Testing
+- Extensive unit and integration coverage added
+  - SUF‑02:
+    - Unit tests for disabled‑by‑default, opt‑in flag, StepUpService grant/deny, distinct response codes (6 vs 7), and startup WARN when disabled-by-default.
+    - Full-context test verifying that, with no StepUpService bean, a passwordless setPassword returns 403 (code 7) and does not set a password.
+  - SUF‑01:
+    - AppUrlResolver tests for ordinary host allow‑listing, blank-entry filtering, case‑insensitive matches, IPv6 literals, fallback host behavior, and port reset on fallback.
+    - Auto-configuration tests for strict mode fail‑fast and property binding paths; verified resolver actually uses configured values; conditional bean override coverage.
+  - SUF‑03:
+    - Verified sessions are not revoked before commit and are revoked after commit for both delete and disable flows.
+  - SUF‑04:
+    - Unit tests for failed‑attempt recording, counter reset on success, 423 enforcement, and passwordless rejection without lockout counter increments.
+    - Full‑context lockout test that drives the real LoginAttemptService wiring: thresholds lock the account; 423 enforced even with the correct old password; password unchanged.
+  - SUF‑05/06:
+    - Standalone and full‑context tests verifying reset‑page privacy headers survive the Spring Security filter chain.
+    - Verified showChangePasswordPage does not mint sessions for anonymous requests and audits invalid tokens as Failure.
+  - Test stability:
+    - Cleared SecurityContext in UserAPIUnitTest @BeforeEach/@AfterEach to eliminate cross‑test thread‑local leakage under parallel execution.
+
+### Other Changes
+- Build and dependency updates
+  - Gradle wrapper: 9.5.1 → 9.6.0 → 9.6.1.
+  - com.vanniktech.maven.publish plugin: 0.36.0 → 0.37.0.
+  - Hibernate Validator test dependency: 9.1.0.Final → 9.1.1.Final.
+  - Gradle Release Plugin config: allow release/* branches in requireBranch (e.g., release/3.x maintenance line).
+  - Version bumped to 5.0.2-SNAPSHOT for ongoing development.
+
+- Polish and housekeeping
+  - Startup WARN added to surface disabled setPassword state at boot (mirrors SUF‑01 fail‑fast pattern).
+  - Additional message keys added for step‑up required and disabled messages.
+  - Minor README anchor/name fixes and compatibility table refresh.
+
 # Changelog
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
