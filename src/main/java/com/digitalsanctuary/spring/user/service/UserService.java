@@ -500,6 +500,12 @@ public class UserService {
 	@Transactional
 	public void deleteOrDisableUser(final User user) {
 		log.debug("UserService.deleteOrDisableUser: called for user: {}", user != null ? user.getEmail() : null);
+		// Revoke every active session for this user before the account is removed or disabled. Otherwise a
+		// concurrent session keeps carrying the cached DSUserDetails (authorities and the enabled flag are
+		// captured at login and not re-checked per request), so it stays authorized until natural expiry — the
+		// API-level logout only terminates the caller's current request. Done at the service layer so all callers
+		// of deleteOrDisableUser() are covered, mirroring the GDPR deletion path (GdprAPI.logoutUser).
+		sessionInvalidationService.invalidateUserSessions(user);
 		if (actuallyDeleteAccount) {
 			log.debug("UserService.deleteOrDisableUser: actuallyDeleteAccount is true, deleting user: {}", user.getEmail());
 			// Capture user details before deletion for the post-delete event

@@ -437,6 +437,34 @@ public class UserServiceTest {
             assertThat(publishedEvent.getUserId()).isEqualTo(testUser.getId());
             assertThat(publishedEvent.getUserEmail()).isEqualTo(testUser.getEmail());
         }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - hard delete revokes all of the user's sessions")
+        void deleteOrDisableUser_whenActuallyDeleteTrue_invalidatesAllUserSessions() {
+            // Given
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", true);
+
+            // When
+            userService.deleteOrDisableUser(testUser);
+
+            // Then: every session for the user must be revoked, not just the caller's current request,
+            // otherwise a concurrent session keeps carrying the now-deleted principal until it expires.
+            verify(sessionInvalidationService).invalidateUserSessions(testUser);
+        }
+
+        @Test
+        @DisplayName("deleteOrDisableUser - soft disable revokes all of the user's sessions")
+        void deleteOrDisableUser_whenActuallyDeleteFalse_invalidatesAllUserSessions() {
+            // Given
+            ReflectionTestUtils.setField(userService, "actuallyDeleteAccount", false);
+            when(userRepository.save(any(User.class))).thenReturn(testUser);
+
+            // When
+            userService.deleteOrDisableUser(testUser);
+
+            // Then: a disabled account's other sessions must not remain authenticated on cached authorities.
+            verify(sessionInvalidationService).invalidateUserSessions(testUser);
+        }
     }
 
     @Test
