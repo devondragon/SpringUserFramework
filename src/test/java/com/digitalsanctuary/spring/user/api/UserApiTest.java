@@ -34,6 +34,7 @@ import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetToke
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
+import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.TokenHasher;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -307,6 +308,52 @@ class UserApiTest {
     @Nested
     @DisplayName("Update Password (authenticated)")
     class UpdatePassword {
+
+        @Autowired
+        private LoginAttemptService loginAttemptService;
+
+        @Test
+        @DisplayName("Repeated wrong old passwords lock the account through the real lockout wiring, and the lock is then enforced")
+        void repeatedWrongOldPasswordLocksAccountEndToEnd() throws Exception {
+            // Unlike UserAPIUnitTest (which mocks LoginAttemptService), this drives updatePassword through the full
+            // Spring context so it proves the real wiring — bean injection, the atomic failed-attempt increment, the
+            // threshold, and the isLocked() guard — actually enforces lockout, not just that the controller calls a mock.
+            User user = userService.registerNewUserAccount(baseTestUser);
+            DSUserDetails principal = new DSUserDetails(user);
+            int maxAttempts = loginAttemptService.getMaxFailedLoginAttempts();
+            assertThat(maxAttempts).as("test profile must have account lockout enabled").isGreaterThan(0);
+
+            Map<String, String> wrong = Map.of("oldPassword", "WrongOldPass9!", "newPassword", NEW_VALID_PASSWORD);
+            // Each wrong guess is a 400 (invalid old password) that feeds the real LoginAttemptService.
+            for (int i = 0; i < maxAttempts; i++) {
+                mockMvc.perform(post(URL + "/updatePassword")
+                                .with(user(principal))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(json(wrong)))
+                        .andExpect(status().isBadRequest());
+            }
+
+            // The real wiring must now record the account as locked (the atomic increment reached the threshold).
+            User locked = userRepository.findByEmail(testEmail);
+            assertThat(locked.isLocked()).as("account must be locked after %d failed attempts", maxAttempts).isTrue();
+            assertThat(locked.getFailedLoginAttempts()).isGreaterThanOrEqualTo(maxAttempts);
+
+            // The endpoint must ENFORCE the lock: even the CORRECT current password is rejected with 423 while locked.
+            Map<String, String> correct = Map.of("oldPassword", VALID_PASSWORD, "newPassword", NEW_VALID_PASSWORD);
+            mockMvc.perform(post(URL + "/updatePassword")
+                            .with(user(principal))
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(correct)))
+                    .andExpect(status().isLocked())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.code").value(3));
+
+            // And the password was never changed while the account was locked.
+            User after = userRepository.findByEmail(testEmail);
+            assertThat(userService.checkIfValidOldPassword(after, VALID_PASSWORD)).isTrue();
+        }
 
         @Test
         @DisplayName("Should update the password with a valid old password")

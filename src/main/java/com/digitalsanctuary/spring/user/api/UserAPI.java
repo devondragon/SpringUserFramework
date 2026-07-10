@@ -346,6 +346,18 @@ public class UserAPI {
 			return buildErrorResponse(messages.getMessage("message.user.not-found", null, "User not found", locale), 1, HttpStatus.BAD_REQUEST);
 		}
 
+		// A passwordless (passkey-only / OAuth-only) account has no current password to verify or change here.
+		// checkIfValidOldPassword() always returns false for such an account, so without this guard every call would
+		// report a "failed attempt" to the lockout counter below — letting any authenticated (or session-hijacking)
+		// caller lock the account out of EVERY authentication method by hitting this endpoint repeatedly. Reject up
+		// front, before the lockout logic and without touching the counter, and point the user at the set-password
+		// flow. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet and the symmetric guard in setPassword().
+		if (!userService.hasPassword(user)) {
+			logAuditEvent("PasswordUpdate", "Failure", "No password set", user, request);
+			return buildErrorResponse(messages.getMessage("message.update-password.no-password", null,
+					"No password is set on this account. Use the set password feature instead.", locale), 4, HttpStatus.BAD_REQUEST);
+		}
+
 		// Verifying the current password is an authentication surface, so it participates in the same brute-force
 		// lockout as login: reject a locked account up front (HTTP 423) so a session-holding actor cannot make
 		// unlimited old-password guesses here. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet.
