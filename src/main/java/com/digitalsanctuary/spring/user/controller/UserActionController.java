@@ -19,6 +19,7 @@ import com.digitalsanctuary.spring.user.service.UserVerificationService;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import com.digitalsanctuary.spring.user.web.IncludeUserInModel;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -82,13 +83,20 @@ public class UserActionController {
 		log.debug("UserAPI.showChangePasswordPage: called with token: {}", TokenHasher.fingerprint(token));
 		final TokenValidationResult result = userService.validatePasswordResetToken(token);
 		log.debug("UserAPI.showChangePasswordPage: result: {}", result);
-		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(request.getSession().getId())
+		final boolean valid = TokenValidationResult.VALID.equals(result);
+		// SUF-06: this is an anonymous, token-validating GET. Do NOT mint an HttpSession just to audit it (a stream of
+		// anonymous invalid-token probes would otherwise accumulate server-side session state); reuse an existing
+		// session id only if the caller already has one.
+		final HttpSession existingSession = request.getSession(false);
+		final String sessionId = existingSession != null ? existingSession.getId() : null;
+		AuditEvent changePasswordAuditEvent = AuditEvent.builder().source(this).sessionId(sessionId)
 				.ipAddress(UserUtils.getClientIP(request)).userAgent(request.getHeader("User-Agent"))
 				.action("showChangePasswordPage")
-				.actionStatus("Success").message("Requested. Result:" + result).build();
+				// SUF-06: label by validity so anonymous invalid-token attempts are not recorded as "Success".
+				.actionStatus(valid ? "Success" : "Failure").message("Requested. Result:" + result).build();
 
 		eventPublisher.publishEvent(changePasswordAuditEvent);
-		if (TokenValidationResult.VALID.equals(result)) {
+		if (valid) {
 			model.addAttribute("token", token);
 			String redirectString = "redirect:" + forgotPasswordChangeURI;
 			return new ModelAndView(redirectString, model);
