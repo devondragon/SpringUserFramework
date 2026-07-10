@@ -59,11 +59,17 @@ Password-reset and email-verification links are now built from a configured cano
   user.security.appUrl=https://app.example.com
   ```
   When set, `X-Forwarded-Host` is ignored entirely and all email links use this URL.
-- **Alternative:** allow-list the trusted forwarded host(s):
+- **Alternative:** allow-list the trusted host(s):
   ```properties
   user.security.trustedHosts=app.example.com,www.example.com
   ```
-  `X-Forwarded-Host` is then honored only for hosts in this list; all others fall back to the container's own server name.
+  When set, the allow-list gates **both** `X-Forwarded-Host` **and** the ordinary request server name (the `Host` header): a request whose host is not in the list falls back to the **first** entry (treated as the canonical host) rather than being emitted into the link. Matching is case-insensitive (RFC 4343), and blank entries are ignored.
+- **Optional hard guarantee (opt-in):** make a missing configuration fail startup instead of logging a warning:
+  ```properties
+  # Default: false (a startup warning is logged). When true, startup fails unless appUrl or a
+  # non-empty trustedHosts is configured. Planned to become the default in a future major version.
+  user.security.requireCanonicalAppUrl=true
+  ```
 
 Local development with no proxy needs no change. `UserUtils.getAppUrl(HttpServletRequest)` is deprecated in favor of `AppUrlResolver`.
 
@@ -136,7 +142,9 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 > **5.0.0 → 5.0.1 note:** In 5.0.0 all three failure cases returned `HTTP 400`. As of 5.0.1 they return distinct statuses (400 missing / 401 incorrect / 423 locked) so clients can tell them apart. If you wrote a client against 5.0.0 that treats any `4xx` as "re-auth failed", no change is needed; only update it if you branched specifically on `400`.
 
-`/user/updatePassword` is unchanged: it already required and verified `oldPassword`.
+`/user/updatePassword` still requires and verifies `oldPassword`, but the 5.0.x security-hardening series (SUF-04) added two behaviors:
+- **Brute-force lockout.** A locked account is rejected with `HTTP 423 Locked` before the current password is verified; a wrong `oldPassword` is reported to `LoginAttemptService` (and locks the account at the configured `user.security.failedLoginAttempts` threshold); a correct one resets the counter — matching the login path.
+- **Passwordless accounts.** A passwordless (passkey-only / OAuth-only) account has no `oldPassword` to verify, so it is rejected with `HTTP 400` (the message directs the user to `POST /user/setPassword`) and does **not** feed the lockout counter — this prevents a session-holding caller from locking such an account out of every authentication method.
 
 **Action required:** Update any client that calls the three endpoints above so that it collects the user's current password and sends it in the request body. `DELETE /user/webauthn/credentials/{id}` and `DELETE /user/webauthn/password`, which previously had no request body, now accept (and for password-holding accounts require) a JSON body carrying `currentPassword`. Existing IDOR/ownership checks and last-credential lockout protection are unchanged.
 

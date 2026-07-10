@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
+## [Unreleased]
+
+Security hardening from the SUF review series (SUF-01, SUF-03, SUF-04) plus a documentation correction (SUF-06). All changes are backward compatible; the one new property is opt-in and defaults to the pre-existing behavior.
+
+### Security
+- **SUF-01 — Host-header link poisoning (CWE-640): the ordinary request host is now allow-listed, not just `X-Forwarded-Host`.** When `user.security.trustedHosts` is configured, the finally-chosen host for a password-reset / verification link — including the ordinary request server name, which on common servlet containers is derived from the attacker-influenceable `Host` header — must be in the allow-list. A non-allow-listed host now falls back to the first configured trusted host (a known-good canonical authority) instead of being emitted into the link. Matching on this ordinary-host path is case-insensitive (RFC 4343; previously only the forwarded-host path was), and blank/whitespace `trustedHosts` entries are ignored.
+  - New opt-in property **`user.security.requireCanonicalAppUrl`** (default `false`): when `true`, application startup fails unless `user.security.appUrl` or a non-empty `user.security.trustedHosts` is configured — a hard guarantee that email links can never derive their authority from a spoofable `Host` header. The default stays `false` in this release (a startup warning is logged instead), and is **planned to become the default in a future major version**. Setting `user.security.appUrl` (recommended) or `trustedHosts` in production is advised regardless of this flag.
+- **SUF-03 — Revoke every user session on account delete/disable, after the change commits.** Deleting or disabling an account now revokes *all* of that user's active sessions (not just the caller's current request; `DSUserDetails` caches the enabled flag at login and is not re-checked per request). Revocation is deferred until *after* the delete/disable transaction commits, closing a race where a login landing between the session scan and the commit could register a new, surviving session. If the transaction rolls back, sessions are no longer revoked.
+- **SUF-04 — Authenticated password change participates in brute-force lockout.** `POST /user/updatePassword` now rejects a locked account up front with `HTTP 423 Locked`, reports a wrong current password to `LoginAttemptService` (counting toward lockout, matching the login path), and resets the counter on success. **Passwordless (passkey-only / OAuth-only) accounts** — which have no current password to verify — are rejected up front with `HTTP 400` (the message directs the user to `POST /user/setPassword`) and **never feed the lockout counter**, preventing a session-holding caller from locking such an account out of every authentication method.
+
+### Fixes
+- **SUF-06** — Corrected the documented audit-log rotation default in `CONFIG.md`.
+
+### Behavior changes (client impact)
+- `POST /user/updatePassword` can now return `HTTP 423 Locked` (account locked) in addition to its existing `200`/`400`. Clients that treat any non-`200` as a generic failure need no change; clients that branch on status can surface the locked state. A passwordless account calling this endpoint receives `400` with a "no password set" message and is directed to `POST /user/setPassword`.
+
+### Documentation
+- `CONFIG.md`: documented `user.security.requireCanonicalAppUrl` and the ordinary-host allow-list behavior; corrected the account-lockout property prefixes to `user.security.*`; noted that `/user/updatePassword` participates in lockout.
+- `MIGRATION.md`: the credential-changes section no longer states `/user/updatePassword` is "unchanged" (it now enforces lockout and rejects passwordless accounts); documented the `requireCanonicalAppUrl` opt-in and corrected the trusted-host fallback description.
+
+### Testing
+- Added unit and full-context integration coverage: passwordless `updatePassword` rejection without touching the lockout counter; end-to-end lockout through a real Spring context; session revocation deferred to after commit (delete and disable paths); `AppUrlResolver` ordinary-host allow-list (blank-entry filtering, case-insensitive matching, IPv6 literal); and `user.security.requireCanonicalAppUrl` through real `@Value` binding (`CoreBeanOverrideTest`) plus strict-mode tests that assert the resolver actually uses the configured values.
+
 ## [5.0.1] - 2026-06-15
 ### Features
 - WebAuthn credential-management re-authentication now returns distinct HTTP status codes
@@ -365,17 +388,6 @@ All notable changes to this project are documented here. This project follows [S
   - Gradle wrapper: 9.4.0 → 9.4.1.
 - Version bump for development
   - gradle.properties set to 4.3.2-SNAPSHOT.
-
-## [Unreleased]
-### Features
-- HTMX-aware AuthenticationEntryPoint for session expiry handling (#294)
-  - When HTMX requests (identified by `HX-Request: true` header) hit an expired session, the framework now returns a 401 JSON response with an `HX-Redirect` header instead of the default 302 redirect that causes HTMX to swap login page HTML into fragment targets.
-  - New classes:
-    - `HtmxAwareAuthenticationEntryPoint` — detects HTMX requests and returns 401 + JSON + `HX-Redirect`; delegates to wrapped entry point for standard browser requests
-    - `HtmxAwareAuthenticationEntryPointConfiguration` — registers the entry point via `@ConditionalOnMissingBean(AuthenticationEntryPoint.class)`
-  - `WebSecurityConfig` now always configures `exceptionHandling()` with the injected entry point (previously only configured when OAuth2 was enabled)
-  - Consumer override: define any `AuthenticationEntryPoint` bean to replace the default
-  - 100% backward-compatible: non-HTMX browser requests get the same 302 redirect as before
 
 ## [4.3.1] - 2026-03-22
 ### Features

@@ -78,9 +78,9 @@ user:
 
 ## Security Settings
 
-- **Failed Login Attempts (`spring.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout.
-- **Account Lockout Duration (`spring.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout.
-- **BCrypt Strength (`spring.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
+- **Failed Login Attempts (`user.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout. Applies to the login path and to the authenticated password-change endpoint `POST /user/updatePassword` (a locked account is rejected with `HTTP 423`, a wrong current password counts toward lockout, and a correct one resets the counter).
+- **Account Lockout Duration (`user.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout. `0` disables lockout; a negative value (e.g. `-1`) locks the account until an administrator unlocks it.
+- **BCrypt Strength (`user.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.
 
 ### Email Link Authority (Host-header poisoning defense, CWE-640)
 
