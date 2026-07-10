@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -20,8 +21,12 @@ import java.util.Locale;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
+import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
+import com.digitalsanctuary.spring.user.security.StepUpService;
+import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.InvalidOldPasswordException;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
@@ -638,6 +643,108 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.code").value(401))
                     .andExpect(jsonPath("$.messages[0]").value("User not logged in."));
+        }
+
+        // ---- SUF-02: /user/setPassword step-up guard ----
+
+        @SuppressWarnings("unchecked")
+        private ObjectProvider<StepUpService> stepUpProvider(StepUpService service) {
+            ObjectProvider<StepUpService> provider = mock(ObjectProvider.class);
+            when(provider.getIfAvailable()).thenReturn(service);
+            return provider;
+        }
+
+        private SetPasswordDto newSetPasswordDto() {
+            SetPasswordDto dto = new SetPasswordDto();
+            dto.setNewPassword("NewValidPass1!");
+            dto.setConfirmPassword("NewValidPass1!");
+            return dto;
+        }
+
+        @Test
+        @DisplayName("POST /user/setPassword - disabled by default when no StepUpService is configured")
+        void setPassword_noStepUpService_disabledByDefault() throws Exception {
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(false);
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(null));
+            when(messageSource.getMessage(eq("message.set-password.disabled"), any(), any(), any(Locale.class)))
+                    .thenReturn("Setting an initial password is not enabled on this server.");
+
+            mockMvc.perform(post("/user/setPassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(newSetPasswordDto()))
+                    .with(csrf()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.success").value(false));
+
+            // Endpoint disabled by default: no step-up service, opt-in flag off -> the credential is never set.
+            verify(userService, never()).setInitialPassword(any(), any());
+        }
+
+        @Test
+        @DisplayName("POST /user/setPassword - allowed session-only when the opt-in flag is enabled")
+        void setPassword_noStepUpService_allowedWhenFlagEnabled() throws Exception {
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(false);
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(null));
+            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", true);
+            when(passwordPolicyService.validate(eq(testUser), eq("NewValidPass1!"), eq(testUser.getEmail()), any(Locale.class)))
+                    .thenReturn(List.of());
+
+            mockMvc.perform(post("/user/setPassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(newSetPasswordDto()))
+                    .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(userService).setInitialPassword(testUser, "NewValidPass1!");
+        }
+
+        @Test
+        @DisplayName("POST /user/setPassword - rejected 401 when the StepUpService denies step-up")
+        void setPassword_stepUpService_deniesReturns401() throws Exception {
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(false);
+            StepUpService stepUp = mock(StepUpService.class);
+            when(stepUp.isStepUpSatisfied(eq(testUser), eq("set-password"), any())).thenReturn(false);
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(stepUp));
+            when(messageSource.getMessage(eq("message.set-password.step-up-required"), any(), any(), any(Locale.class)))
+                    .thenReturn("Additional verification is required to set a password.");
+
+            mockMvc.perform(post("/user/setPassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(newSetPasswordDto()))
+                    .with(csrf()))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.success").value(false));
+
+            verify(userService, never()).setInitialPassword(any(), any());
+        }
+
+        @Test
+        @DisplayName("POST /user/setPassword - proceeds when the StepUpService grants step-up")
+        void setPassword_stepUpService_grantsProceeds() throws Exception {
+            mockMvc = updatePasswordMockMvc();
+            when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
+            when(userService.hasPassword(testUser)).thenReturn(false);
+            StepUpService stepUp = mock(StepUpService.class);
+            when(stepUp.isStepUpSatisfied(eq(testUser), eq("set-password"), any())).thenReturn(true);
+            ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(stepUp));
+            when(passwordPolicyService.validate(eq(testUser), eq("NewValidPass1!"), eq(testUser.getEmail()), any(Locale.class)))
+                    .thenReturn(List.of());
+
+            mockMvc.perform(post("/user/setPassword")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(newSetPasswordDto()))
+                    .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(userService).setInitialPassword(testUser, "NewValidPass1!");
         }
     }
 
