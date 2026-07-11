@@ -25,6 +25,9 @@ public final class StatementCountInspector implements StatementInspector, Serial
 
     private static final long serialVersionUID = 1L;
 
+    // The counter is intentionally left set (rather than removed) for the calling thread's lifetime: JUnit's parallel
+    // executor reuses a bounded worker-thread pool, so at most one boxed Integer lingers per pool thread, and every
+    // measurement calls reset() first, so a stale value from a prior test can never leak into a new one.
     private static final ThreadLocal<Integer> COUNT = ThreadLocal.withInitial(() -> 0);
 
     /**
