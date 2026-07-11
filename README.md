@@ -127,20 +127,20 @@ Choose the version that matches your Spring Boot version:
 
 ### Spring Boot 4.x (Latest)
 
-Spring Boot 4.x brings significant changes including Spring Security 7 and requires Java 21. The 5.0.x line is built and verified against Spring Boot 4.1.0 and is compatible with 4.0.x.
+Spring Boot 4.x brings significant changes including Spring Security 7 and requires Java 21. The 5.x line is built and verified against Spring Boot 4.1.0 and is compatible with 4.0.x.
 
 **Maven:**
 ```xml
 <dependency>
     <groupId>com.digitalsanctuary</groupId>
     <artifactId>ds-spring-user-framework</artifactId>
-    <version>5.0.1</version>
+    <version>5.1.0</version>
 </dependency>
 ```
 
 **Gradle:**
 ```groovy
-implementation 'com.digitalsanctuary:ds-spring-user-framework:5.0.1'
+implementation 'com.digitalsanctuary:ds-spring-user-framework:5.1.0'
 ```
 
 #### Spring Boot 4.x Key Changes
@@ -213,7 +213,7 @@ Follow these steps to get up and running with the Spring User Framework in your 
 
    **Spring Boot 4.0 / 4.1 (Java 21+):**
    ```groovy
-   implementation 'com.digitalsanctuary:ds-spring-user-framework:5.0.1'
+   implementation 'com.digitalsanctuary:ds-spring-user-framework:5.1.0'
    ```
 
    **Spring Boot 3.5 (Java 17+):**
