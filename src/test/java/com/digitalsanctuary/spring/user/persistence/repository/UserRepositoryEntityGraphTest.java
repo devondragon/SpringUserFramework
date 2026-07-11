@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import java.util.HashSet;
 import java.util.Set;
 import org.hibernate.Hibernate;
-import org.hibernate.SessionFactory;
-import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
@@ -15,7 +13,7 @@ import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.test.annotations.DatabaseTest;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
-import jakarta.persistence.EntityManager;
+import com.digitalsanctuary.spring.user.test.config.StatementCountInspector;
 
 /**
  * Database-slice tests verifying that {@link UserRepository#findWithRolesByEmail(String)} eagerly loads the
@@ -60,13 +58,6 @@ class UserRepositoryEntityGraphTest {
         entityManager.persist(user);
         entityManager.flush();
         entityManager.clear();
-    }
-
-    private Statistics statistics() {
-        EntityManager em = entityManager.getEntityManager();
-        Statistics stats = em.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
-        stats.setStatisticsEnabled(true);
-        return stats;
     }
 
     @Test
@@ -121,8 +112,9 @@ class UserRepositoryEntityGraphTest {
     void shouldLoadRolesAndPrivilegesInBoundedQueryCountViaEntityGraphFinder() {
         persistUserWithRolesAndPrivileges("bounded@test.com");
 
-        Statistics stats = statistics();
-        stats.clear();
+        // Count prepared statements per-thread rather than reading the SessionFactory-global Statistics counter,
+        // which is polluted by tests running concurrently on other threads under JUnit parallel execution (GH-337).
+        StatementCountInspector.reset();
 
         User user = userRepository.findWithRolesByEmail("bounded@test.com");
         // Force full traversal to prove no additional (N+1) queries are issued for privileges.
@@ -132,10 +124,12 @@ class UserRepositoryEntityGraphTest {
         }
 
         assertThat(privilegeCount).isPositive();
-        // A single entity-graph fetch should not degenerate into a per-role / per-privilege N+1 explosion.
-        // Allow a small bound to tolerate join-table fetch strategy differences across Hibernate versions.
-        assertThat(stats.getPrepareStatementCount())
+        // Upper bound: a single entity-graph fetch should not degenerate into a per-role / per-privilege N+1
+        // explosion. A small bound tolerates join-table fetch strategy differences across Hibernate versions.
+        // Lower bound: at least one statement must be counted, so a broken/unregistered inspector (which would
+        // read 0) fails loudly instead of passing as a false green.
+        assertThat(StatementCountInspector.getCount())
                 .as("EntityGraph finder should load roles + privileges in a bounded number of queries")
-                .isLessThanOrEqualTo(3);
+                .isBetween(1, 3);
     }
 }
