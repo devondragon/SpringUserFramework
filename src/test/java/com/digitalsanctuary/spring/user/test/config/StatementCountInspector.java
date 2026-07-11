@@ -15,8 +15,8 @@ import org.hibernate.resource.jdbc.spi.StatementInspector;
  * <p>
  * Because each parallel test executes on its own thread and JDBC connection, this inspector records its count in a {@link ThreadLocal}, yielding a
  * stable, per-test measurement that is immune to concurrent pollution. A single instance is registered on the shared test {@code SessionFactory} via
- * the {@code hibernate.session_factory.statement_inspector} property (see {@code application-test.yml}); the counter state is {@code static} so the
- * inspecting instance created by Hibernate and the assertions in a test share the same per-thread counter.
+ * the {@code hibernate.session_factory.statement_inspector} property (see {@code application-test.properties}); the counter state is {@code static} so
+ * the inspecting instance created by Hibernate and the assertions in a test share the same per-thread counter.
  *
  * <p>
  * Usage: call {@link #reset()} immediately before the code under measurement, then assert on {@link #getCount()}.
