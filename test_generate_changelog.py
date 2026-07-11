@@ -26,16 +26,21 @@ def _commit(subject, body="", files=None, diff="", pr_numbers=None):
 
 
 class ReleasePlumbingTests(unittest.TestCase):
-    def test_matches_gradle_release_and_snapshot(self):
+    def test_matches_gradle_release_plugin_commits(self):
         for msg in (
             "[Gradle Release Plugin] - new version commit: '5.1.1-SNAPSHOT'.",
             "[Gradle Release Plugin] - pre tag commit: '5.1.0'.",
-            "bump to 6.0.0-SNAPSHOT",
         ):
             self.assertIsNotNone(gc.RELEASE_PLUMBING_RE.search(msg), msg)
 
     def test_ignores_real_commits(self):
         self.assertIsNone(gc.RELEASE_PLUMBING_RE.search("feat: add StepUpService SPI"))
+
+    def test_does_not_drop_legit_commit_mentioning_snapshot(self):
+        # A bare "-SNAPSHOT" mention must not be treated as release plumbing.
+        self.assertIsNone(
+            gc.RELEASE_PLUMBING_RE.search("chore: verify build against 6.0.0-SNAPSHOT")
+        )
 
 
 class ParseStatFilesTests(unittest.TestCase):
@@ -134,8 +139,7 @@ class SplitAndComposeTests(unittest.TestCase):
         self.assertIn("### Security", result)
 
     def test_compose_dedupes_same_version(self):
-        content = self.SAMPLE + "## [5.1.0] - 2026-07-01\n### Features\n- hand draft\n\n"
-        # Reorder so 5.1.0 exists; split then compose a fresh 5.1.0.
+        # A hand-written 5.1.0 section already exists; composing a fresh 5.1.0 replaces it.
         head, sections = gc.split_changelog(
             "# Changelog\n\n## [5.1.0] - 2026-07-01\n### Features\n- hand draft\n\n"
             "## [5.0.1] - 2026-06-15\n### Fixes\n- old\n\n"
@@ -270,6 +274,42 @@ class ReliabilityTests(unittest.TestCase):
         ) as fetch:
             gc.build_changelog_body(commits, "1.0.0")
             fetch.assert_not_called()
+
+    def test_ai_failure_falls_back_to_deterministic(self):
+        # The headline contract: an AI-path failure degrades to the offline generator.
+        commits = [_commit("feat: something")]
+        env = {"CHANGELOG_SKIP_AI": "", "OPENAI_API_TOKEN": "test-token"}
+        with mock.patch.dict(os.environ, env, clear=False), mock.patch.object(
+            gc, "fetch_pr_bodies"
+        ), mock.patch.object(gc, "generate_ai_changelog", side_effect=RuntimeError("api down")):
+            body = gc.build_changelog_body(commits, "1.0.0")
+        self.assertIn("generated offline", body)
+        self.assertIn("### Features", body)
+        self.assertIn("something", body)
+
+    def test_no_tags_uses_full_history_range(self):
+        # With no tags (last_ref is None), the git log range must be HEAD (includes root).
+        calls = []
+
+        def fake_git(args):
+            calls.append(args)
+            return ""  # empty log -> no commits, short-circuits
+
+        with mock.patch.object(gc, "_git", side_effect=fake_git):
+            gc.get_commits(None)
+        log_args = calls[0]
+        self.assertIn("HEAD", log_args)
+        self.assertNotIn("..HEAD", " ".join(log_args))
+
+    def test_pr_fetch_capped(self):
+        commits = [_commit(f"feat: x{i}", pr_numbers=[i]) for i in range(5)]
+        with mock.patch.dict(os.environ, {}, clear=False), mock.patch.object(
+            gc, "MAX_PR_FETCHES", 2
+        ), mock.patch("shutil.which", return_value="/usr/bin/gh"), mock.patch.object(
+            gc, "_fetch_single_pr", return_value=None
+        ) as fetch:
+            gc.fetch_pr_bodies(commits)
+        self.assertEqual(fetch.call_count, 2)
 
 
 if __name__ == "__main__":

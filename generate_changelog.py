@@ -48,6 +48,7 @@ from datetime import date
 DEFAULT_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5")
 DEFAULT_TEMPERATURE = os.environ.get("OPENAI_TEMPERATURE", "0.2")
 PROMPT_CHAR_BUDGET = int(os.environ.get("CHANGELOG_PROMPT_CHAR_BUDGET", "200000"))
+MAX_PR_FETCHES = int(os.environ.get("CHANGELOG_MAX_PR_FETCHES", "50"))
 PER_COMMIT_DIFF_LINE_LIMIT = 500
 MAX_PR_BODY_CHARS = 4000
 EXEMPLAR_CHAR_LIMIT = 6000
@@ -64,9 +65,11 @@ CATEGORY_ORDER = [
     ("other", "Other Changes"),
 ]
 
-# Commits that are pure release plumbing and carry no changelog value.
+# Commits that are pure release plumbing and carry no changelog value. Matches the
+# Gradle Release Plugin's own commit messages, NOT any commit that mentions a version
+# string (a bare "-SNAPSHOT" match would drop legitimate commits referencing one).
 RELEASE_PLUMBING_RE = re.compile(
-    r"\[Gradle Release Plugin\]|new version commit|pre tag commit|-SNAPSHOT",
+    r"\[Gradle Release Plugin\]|new version commit|pre tag commit",
     re.IGNORECASE,
 )
 PR_NUMBER_RE = re.compile(r"#(\d+)")
@@ -83,12 +86,12 @@ def _git(args):
 
 
 def get_last_reference():
-    """Return the last tag, or the first commit if there are no tags."""
+    """Return the last tag, or None when there are no tags (i.e. include all history)."""
     try:
         return _git(["git", "describe", "--tags", "--abbrev=0"]).strip()
     except subprocess.CalledProcessError:
-        print("No tags found. Using the first commit as reference.")
-        return _git(["git", "rev-list", "--max-parents=0", "HEAD"]).strip()
+        print("No tags found; including full history.")
+        return None
 
 
 def _parse_stat_files(show_output):
@@ -110,12 +113,12 @@ def _parse_stat_files(show_output):
 def get_commits(last_ref):
     """Collect commits since `last_ref`, with subject, body, diff and file list.
 
-    Release-plumbing commits are filtered out.
+    When `last_ref` is falsy (no tags), the full history is used so the root commit
+    is included. Release-plumbing commits are filtered out.
     """
     us, rs = "\x1f", "\x1e"  # unit + record separators (safe for multiline bodies)
-    raw = _git(
-        ["git", "log", f"{last_ref}..HEAD", f"--pretty=format:%H{us}%s{us}%b{rs}"]
-    )
+    rev_range = f"{last_ref}..HEAD" if last_ref else "HEAD"
+    raw = _git(["git", "log", rev_range, f"--pretty=format:%H{us}%s{us}%b{rs}"])
     if not raw.strip():
         return []
 
@@ -164,11 +167,20 @@ def fetch_pr_bodies(commits):
     if not shutil.which("gh"):
         return
 
+    unique = {n for commit in commits for n in commit["pr_numbers"]}
+    if len(unique) > MAX_PR_FETCHES:
+        print(
+            f"Note: {len(unique)} PRs referenced; fetching descriptions for at most "
+            f"{MAX_PR_FETCHES} (raise CHANGELOG_MAX_PR_FETCHES to change)."
+        )
+
     cache = {}
     for commit in commits:
         for number in commit["pr_numbers"]:
             if number not in cache:
-                cache[number] = _fetch_single_pr(number)
+                # `cache` grows with every seen number (including cap misses), so the
+                # number of actual `gh` calls is bounded by MAX_PR_FETCHES.
+                cache[number] = None if len(cache) >= MAX_PR_FETCHES else _fetch_single_pr(number)
             if cache[number]:
                 commit["pr_bodies"].append(cache[number])
 
@@ -189,6 +201,8 @@ def _fetch_single_pr(number):
     try:
         data = json.loads(out.stdout)
     except ValueError:
+        return None
+    if not isinstance(data, dict):
         return None
     title = (data.get("title") or "").strip()
     body = (data.get("body") or "").strip()
@@ -458,6 +472,9 @@ def generate_fallback_changelog(categorized, human_draft):
         lines.append(human_draft.strip())
 
     for key, label in CATEGORY_ORDER:
+        # Merge commits are dropped from this offline list (their PR's real commits are
+        # already listed), but intentionally kept in the AI context (_render_context)
+        # because they carry the PR numbers whose descriptions feed the model.
         commits = [c for c in categorized[key] if not MERGE_COMMIT_RE.match(c["subject"])]
         if not commits:
             continue
@@ -598,13 +615,15 @@ def build_changelog_body(commits, version):
         print(f"AI changelog disabled ({reason}); using deterministic generator.")
         return generate_fallback_changelog(categorized, human_draft)
 
-    # PR descriptions only feed the AI context, so fetch them only on the AI path.
-    fetch_pr_bodies(commits)
-    allow_diffs = not os.environ.get("CHANGELOG_NO_DIFFS")
-    context = build_context(categorized, allow_diffs=allow_diffs)
-    exemplar = read_exemplar()
-    prompt = build_prompt(context, exemplar, human_draft)
+    # The entire AI path is guarded: any failure (PR fetch, context build, API call)
+    # degrades to the deterministic generator so a release is never aborted.
     try:
+        # PR descriptions only feed the AI context, so fetch them only on the AI path.
+        fetch_pr_bodies(commits)
+        allow_diffs = not os.environ.get("CHANGELOG_NO_DIFFS")
+        context = build_context(categorized, allow_diffs=allow_diffs)
+        exemplar = read_exemplar()
+        prompt = build_prompt(context, exemplar, human_draft)
         print("Generating changelog via OpenAI...")
         return generate_ai_changelog(prompt)
     except Exception as exc:  # noqa: BLE001 - never let this abort a release
@@ -637,11 +656,12 @@ def main(argv=None):
         )
         return 0
 
+    since = last_ref or "the beginning of history"
     if not commits:
-        print("No new commits found since", last_ref)
+        print("No new commits found since", since)
         return 0
 
-    print(f"Found {len(commits)} commits since {last_ref}")
+    print(f"Found {len(commits)} commits since {since}")
     version = resolve_version(args.version)
     body = build_changelog_body(commits, version)
 
