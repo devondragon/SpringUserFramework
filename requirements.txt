@@ -1,0 +1,3 @@
+# Dependencies for generate_changelog.py (release changelog generator).
+# Pinned for reproducible releases; bump deliberately and re-test.
+openai==1.105.0

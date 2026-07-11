@@ -2,6 +2,11 @@
 # Created by https://www.gitignore.io/api/java,gradle,eclipse
 # Edit at https://www.gitignore.io/?templates=java,gradle,eclipse
 
+### Python (release tooling: generate_changelog.py) ###
+__pycache__/
+*.pyc
+.venv/
+
 ### MacOS ###
 *.DS_Store
 
