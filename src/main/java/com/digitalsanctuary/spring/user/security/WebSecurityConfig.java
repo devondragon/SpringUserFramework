@@ -20,6 +20,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -116,6 +117,7 @@ public class WebSecurityConfig {
 	private final MfaConfigProperties mfaConfigProperties;
 	private final Environment environment;
 	private final ApplicationEventPublisher applicationEventPublisher;
+	private final RequestCache requestCache;
 
 	/**
 	 * Builds the library's security filter chain for Spring Security.
@@ -142,6 +144,12 @@ public class WebSecurityConfig {
 
 		// Always configure exception handling with the injected entry point (HTMX-aware by default)
 		http.exceptionHandling(handling -> handling.authenticationEntryPoint(authenticationEntryPoint));
+
+		// Use the hardened RequestCache (see UserSecurityBeansAutoConfiguration.requestCache()) so automatic browser
+		// probes of protected URLs (e.g. Safari fetching /apple-touch-icon.png while the login page renders) cannot
+		// overwrite the user's saved deep link and hijack the post-login redirect. Consumer-overridable via a
+		// RequestCache bean.
+		http.requestCache(cache -> cache.requestCache(requestCache));
 
 		// Configure remember-me only if explicitly enabled and key is provided
 		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
