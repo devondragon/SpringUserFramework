@@ -799,8 +799,16 @@ public class UserAPIUnitTest {
         }
 
         private long disabledWarnings() {
-            return appender.list.stream()
+            // UserAPI's logger is a JVM-global singleton, and this suite runs tests in parallel (see
+            // junit-platform.properties). warnIfInitialPasswordSetDisabled() is a @PostConstruct hook, so every other
+            // test that boots a Spring context (flag false, no StepUpService) fires this same WARN on its own thread
+            // into this shared appender. Count only warnings emitted on the current test thread — this test invokes
+            // the method synchronously — so a concurrently-booting context cannot pollute the count. Snapshot the list
+            // first (List.copyOf) to avoid a ConcurrentModificationException from a concurrent append during iteration.
+            String testThread = Thread.currentThread().getName();
+            return List.copyOf(appender.list).stream()
                     .filter(event -> event.getLevel() == Level.WARN)
+                    .filter(event -> testThread.equals(event.getThreadName()))
                     .filter(event -> event.getFormattedMessage().contains("/user/setPassword is disabled by default"))
                     .count();
         }
