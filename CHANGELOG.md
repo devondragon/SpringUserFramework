@@ -2,6 +2,47 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
+## [5.1.1] - 2026-07-24
+
+This release hardens post-login redirect handling so browser auto-probes (e.g., Safari’s /apple-touch-icon.png) can no longer hijack where users land after authentication, and it auto-unprotects common probe paths so they no longer bounce unauthenticated users to the login page. No endpoints, response code contracts, or user.* properties changed.
+
+SemVer classification: patch — security hardening and small defaults-only behavior adjustments; no new public API and no source/binary-incompatible changes for consuming applications.
+
+### Security
+- Hardened, consumer-overridable RequestCache to prevent post-login redirect hijacking:
+  - A new default RequestCache bean is contributed by UserSecurityBeansAutoConfiguration (ConditionalOnMissingBean). It uses HttpSessionRequestCache with a stricter matcher that saves only plausible user navigations:
+    - GET requests that explicitly accept text/html (Accept: */* is ignored — real navigations list text/html).
+    - Not XHR (X-Requested-With: XMLHttpRequest), not HTMX (HX-Request), and not static-asset/auto-probe paths.
+    - Excludes well-known probe/static paths: /apple-touch-icon*, /favicon*, /.well-known/, and common static file extensions (png, ico, css, js, fonts, etc.).
+  - WebSecurityConfig now wires that RequestCache into http.requestCache(...), and LoginSuccessService reads from the same injected RequestCache, ensuring the save and read sides are consistent — so the user is redirected back to the original protected page they clicked, not to an auto-probed icon URL.
+  - Consumer impact:
+    - If you want Spring Security’s default (save-anything) semantics, define your own RequestCache bean; the framework will back off and use yours in both the filter chain and LoginSuccessService.
+    - If you previously relied on saving non-HTML, XHR/HTMX, or asset fetches to the saved request, explicitly override the RequestCache to restore that behavior.
+
+### Behavior changes (client impact)
+- getUnprotectedURIsList() now auto-unprotects browser/crawler probe paths for every consumer:
+  - /apple-touch-icon*.png, /favicon.*, and /.well-known/** are added to the permitAll list by default (least-privilege patterns, narrowly scoped).
+  - Under user.security.defaultAction=deny, unauthenticated requests to these probe URLs will now reach your app (typically 200 if you serve the asset, or 404 if you don’t) instead of 302 redirecting to the login page. This reduces noisy, misleading login redirects triggered by the browser while the login page is rendering.
+  - If your application intentionally kept any of these paths protected, define your own SecurityFilterChain bean to fully control the permitAll surface.
+
+### Fixes
+- Post-login redirect correctness: SavedRequestAwareAuthenticationSuccessHandler (via LoginSuccessService) now reads from the same RequestCache instance the filter chain writes to, so a consumer override is honored end-to-end and the redirect target can’t be silently lost or replaced by a browser probe.
+
+### Documentation
+- README installation snippets updated to 5.1.1 for Spring Boot 4.x.
+- CHANGELOG housekeeping: deduplicated a prior section and removed stray titles; no behavioral impact.
+
+### Testing
+- Added RequestCacheHardeningTest to prove that an HTML navigation survives an /apple-touch-icon.png probe on the same session, and that probes/partials (HTMX/XHR), non-HTML requests, and POSTs are not saved.
+- Added WebSecurityAuthorizationDenyTest coverage for the new auto-unprotected probe paths (asserting 404 rather than a 302-to-login when they aren’t listed in configuration).
+- Stabilized parallel tests:
+  - Introduced a thread-local StatementCountInspector (wired via spring.jpa.properties.hibernate.session_factory.statement_inspector) so N+1 query-count assertions are isolated from concurrent tests.
+  - De-flaked a warning-count assertion in UserAPIUnitTest under parallel execution.
+
+### Other Changes
+- build.gradle: bumped org.hibernate.validator:hibernate-validator to 9.1.2.Final for tests.
+- Release tooling: the generate_changelog.py script was hardened (never blocks a release, improved style/exemplar use); no impact on runtime behavior for consumers.
+
 ## [5.1.0] - 2026-07-10
 
 Security hardening from the SUF review series (SUF-01 through SUF-06). Most changes are backward compatible. The one notable behavior change: `POST /user/setPassword` is now **disabled by default** (SUF-02) — see **Behavior changes** below.
