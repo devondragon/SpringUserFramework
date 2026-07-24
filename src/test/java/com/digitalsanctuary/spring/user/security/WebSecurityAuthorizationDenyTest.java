@@ -90,4 +90,46 @@ class WebSecurityAuthorizationDenyTest {
         mockMvc.perform(get(UNLISTED_URI).with(user("user@test.com").roles("USER")))
                 .andExpect(status().isNotFound());
     }
+
+    /**
+     * The framework auto-unprotects always-public browser/crawler probe paths (apple-touch icons, favicons,
+     * {@code /.well-known/**}) in {@code getUnprotectedURIsList()} so consumers do not have to list them and so the
+     * probes do not 302 to login. These paths are intentionally absent from {@code application-test.yml}'s
+     * {@code unprotectedURIs}, so a 404 (no handler, request reached the dispatcher) rather than a 302 proves the
+     * auto-unprotect applied.
+     */
+    @org.junit.jupiter.api.Nested
+    @DisplayName("auto-unprotected browser/crawler probe paths")
+    class AutoUnprotectedProbePaths {
+
+        @Test
+        @DisplayName("should auto-unprotect /apple-touch-icon.png (Safari's default probe) without it being listed")
+        void shouldAllowPlainAppleTouchIcon() throws Exception {
+            mockMvc.perform(get("/apple-touch-icon.png")).andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("should auto-unprotect /apple-touch-icon-precomposed.png")
+        void shouldAllowPrecomposedAppleTouchIcon() throws Exception {
+            mockMvc.perform(get("/apple-touch-icon-precomposed.png")).andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("should auto-unprotect a sized apple-touch-icon variant (/apple-touch-icon-120x120.png)")
+        void shouldAllowSizedAppleTouchIcon() throws Exception {
+            mockMvc.perform(get("/apple-touch-icon-120x120.png")).andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("should auto-unprotect a favicon variant beyond the listed /favicon.ico (/favicon-32x32.png)")
+        void shouldAllowFaviconVariant() throws Exception {
+            mockMvc.perform(get("/favicon-32x32.png")).andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("should auto-unprotect /.well-known/** (e.g. security.txt)")
+        void shouldAllowWellKnown() throws Exception {
+            mockMvc.perform(get("/.well-known/security.txt")).andExpect(status().isNotFound());
+        }
+    }
 }

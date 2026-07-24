@@ -311,6 +311,16 @@ public class WebSecurityConfig {
 		// Add the required user pages and actions to the unprotected URIs from configuration
 		List<String> unprotectedURIs = new ArrayList<String>();
 		unprotectedURIs.addAll(Arrays.asList(getUnprotectedURIsArray()));
+		// Auto-unprotect the always-public paths that browsers and crawlers probe automatically without any markup
+		// referencing them: apple-touch icons (Safari/iOS fetches /apple-touch-icon.png and -precomposed variants on
+		// every page load, including sized variants), favicons, and /.well-known/** (RFC 8615: security.txt, ACME
+		// challenges, passkey/associated-domain files, etc.). These are never sensitive, and leaving them protected
+		// means every probe 302s to the login page. This mirrors the exclusion set in the hardened RequestCache
+		// (see UserSecurityBeansAutoConfiguration.requestCache()) so a probe neither hijacks the post-login redirect
+		// nor bounces through login. Consumers no longer need to remember to list these manually.
+		unprotectedURIs.add("/apple-touch-icon*");
+		unprotectedURIs.add("/favicon*");
+		unprotectedURIs.add("/.well-known/**");
 		unprotectedURIs.add(loginPageURI);
 		unprotectedURIs.add(loginActionURI);
 		unprotectedURIs.add(logoutSuccessURI);
