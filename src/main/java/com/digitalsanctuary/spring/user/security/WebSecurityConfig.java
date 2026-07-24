@@ -312,14 +312,22 @@ public class WebSecurityConfig {
 		List<String> unprotectedURIs = new ArrayList<String>();
 		unprotectedURIs.addAll(Arrays.asList(getUnprotectedURIsArray()));
 		// Auto-unprotect the always-public paths that browsers and crawlers probe automatically without any markup
-		// referencing them: apple-touch icons (Safari/iOS fetches /apple-touch-icon.png and -precomposed variants on
-		// every page load, including sized variants), favicons, and /.well-known/** (RFC 8615: security.txt, ACME
-		// challenges, passkey/associated-domain files, etc.). These are never sensitive, and leaving them protected
-		// means every probe 302s to the login page. This mirrors the exclusion set in the hardened RequestCache
-		// (see UserSecurityBeansAutoConfiguration.requestCache()) so a probe neither hijacks the post-login redirect
-		// nor bounces through login. Consumers no longer need to remember to list these manually.
-		unprotectedURIs.add("/apple-touch-icon*");
-		unprotectedURIs.add("/favicon*");
+		// referencing them. Because this widens the permitAll surface for EVERY consumer (who never opted in), the
+		// patterns are deliberately scoped to exactly the auto-probed paths, not a broad prefix:
+		// - /apple-touch-icon*.png : Safari/iOS probes /apple-touch-icon.png, -precomposed, and sized variants
+		//   (e.g. -120x120, -120x120-precomposed) on every page load; every one ends in .png. The .png anchor keeps a
+		//   route like /apple-touch-icon-admin protected.
+		// - /favicon.* : the browser auto-probe is /favicon.ico (the .EXT anchor also covers /favicon.svg|.png root
+		//   probes while keeping a route like /favicon-report protected). Sized favicons (/favicon-32x32.png) are
+		//   <link>-referenced assets, not auto-probes, and are served from the app's static path.
+		// - /.well-known/** : RFC 8615 well-known URIs (security.txt, ACME challenges, passkey/associated-domain
+		//   files) are public by design.
+		// These are never sensitive, and leaving them protected means every probe 302s to the login page. The intent
+		// mirrors the exclusion set in the hardened RequestCache (see UserSecurityBeansAutoConfiguration.requestCache()),
+		// though that save-side heuristic may be broader since misclassifying there merely fails open (a request is not
+		// saved) rather than granting access. Consumers no longer need to remember to list these manually.
+		unprotectedURIs.add("/apple-touch-icon*.png");
+		unprotectedURIs.add("/favicon.*");
 		unprotectedURIs.add("/.well-known/**");
 		unprotectedURIs.add(loginPageURI);
 		unprotectedURIs.add(loginActionURI);

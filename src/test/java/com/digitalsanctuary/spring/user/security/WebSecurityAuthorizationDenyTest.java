@@ -121,15 +121,33 @@ class WebSecurityAuthorizationDenyTest {
         }
 
         @Test
-        @DisplayName("should auto-unprotect a favicon variant beyond the listed /favicon.ico (/favicon-32x32.png)")
-        void shouldAllowFaviconVariant() throws Exception {
-            mockMvc.perform(get("/favicon-32x32.png")).andExpect(status().isNotFound());
+        @DisplayName("should auto-unprotect the /favicon.ico browser probe")
+        void shouldAllowFaviconIco() throws Exception {
+            mockMvc.perform(get("/favicon.ico")).andExpect(status().isNotFound());
         }
 
         @Test
         @DisplayName("should auto-unprotect /.well-known/** (e.g. security.txt)")
         void shouldAllowWellKnown() throws Exception {
             mockMvc.perform(get("/.well-known/security.txt")).andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("should NOT auto-unprotect a non-.png path sharing the apple-touch-icon prefix (least privilege)")
+        void shouldStillProtectAppleTouchIconPrefixedRoute() throws Exception {
+            // /apple-touch-icon*.png is anchored to .png, so a route like /apple-touch-icon-admin is not silently
+            // made public by the auto-unprotect and still requires authentication under deny (302 -> login).
+            mockMvc.perform(get("/apple-touch-icon-admin")).andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl(LOGIN_PAGE));
+        }
+
+        @Test
+        @DisplayName("should NOT auto-unprotect a non-favicon.EXT path sharing the favicon prefix (least privilege)")
+        void shouldStillProtectFaviconPrefixedRoute() throws Exception {
+            // /favicon.* is anchored to a dot, so a route like /favicon-report is not silently made public and still
+            // requires authentication under deny.
+            mockMvc.perform(get("/favicon-report")).andExpect(status().is3xxRedirection())
+                    .andExpect(redirectedUrl(LOGIN_PAGE));
         }
     }
 }
