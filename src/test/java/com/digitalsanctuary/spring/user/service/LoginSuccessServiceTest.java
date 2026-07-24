@@ -27,6 +27,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
@@ -51,6 +53,9 @@ class LoginSuccessServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private RequestCache requestCache;
 
     @Mock
     private HttpServletRequest request;
@@ -158,6 +163,26 @@ class LoginSuccessServiceTest {
 
         // Then - verify audit event was attempted
         verify(eventPublisher).publishEvent(any(AuditEvent.class));
+    }
+
+    @Test
+    @DisplayName("Should read the saved request from the INJECTED RequestCache, not a private default (M1 regression)")
+    void onAuthenticationSuccess_readsSavedRequestFromInjectedCache() throws IOException, ServletException {
+        // Regression guard for the consumer-override contract: LoginSuccessService must read the post-login redirect
+        // target from the SAME RequestCache bean the security filter chain writes to. If it fell back to its own
+        // private default HttpSessionRequestCache (the bug), the injected mock below would never be consulted and a
+        // consumer-supplied RequestCache override would silently break deep-link redirects.
+        SavedRequest saved = mock(SavedRequest.class);
+        when(saved.getRedirectUrl()).thenReturn("https://app.example/menus/42");
+        when(requestCache.getRequest(request, response)).thenReturn(saved);
+        when(response.encodeRedirectURL(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+
+        loginSuccessService.onAuthenticationSuccess(request, response, authentication);
+
+        // The injected cache was consulted (proves the read side uses it) and drove the redirect to the saved URL.
+        verify(requestCache, org.mockito.Mockito.atLeastOnce()).getRequest(request, response);
+        verify(response).sendRedirect("https://app.example/menus/42");
     }
 
     @Test

@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
@@ -13,7 +14,6 @@ import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -28,12 +28,31 @@ import lombok.extern.slf4j.Slf4j;
  * @see SavedRequestAwareAuthenticationSuccessHandler
  */
 @Slf4j
-@RequiredArgsConstructor
 @Service
 public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessHandler {
 
 	/** The event publisher. */
 	private final ApplicationEventPublisher eventPublisher;
+
+	/**
+	 * Constructs the login success handler and wires in the application's effective {@link RequestCache}.
+	 *
+	 * <p>
+	 * The injected {@code requestCache} is passed to {@link #setRequestCache(RequestCache)} so this handler <em>reads</em> the saved request from the
+	 * exact same cache the security filter chain <em>writes</em> to. Both sides therefore honor a consumer-supplied {@link RequestCache} bean (see
+	 * {@code UserSecurityBeansAutoConfiguration.requestCache()}); without this, {@link SavedRequestAwareAuthenticationSuccessHandler} would fall back to
+	 * its own default {@link org.springframework.security.web.savedrequest.HttpSessionRequestCache} and a consumer who overrode the cache with a
+	 * different implementation (or a different session attribute) would get their saved request written to one store and read from another, silently
+	 * breaking the post-login redirect to the originally-requested page.
+	 * </p>
+	 *
+	 * @param eventPublisher the application event publisher used to emit login audit events
+	 * @param requestCache the effective {@link RequestCache} bean (the library's hardened default, or a consumer override)
+	 */
+	public LoginSuccessService(ApplicationEventPublisher eventPublisher, RequestCache requestCache) {
+		this.eventPublisher = eventPublisher;
+		super.setRequestCache(requestCache);
+	}
 
 	/** The login success uri. */
 	@Value("${user.security.loginSuccessURI}")

@@ -94,6 +94,16 @@ class RequestCacheHardeningTest {
     }
 
     @Test
+    @DisplayName("should not save a request with no Accept header (resolves to */*, which is ignored)")
+    void noAcceptHeaderIsNotSaved() throws Exception {
+        // A missing Accept header resolves to */* via HeaderContentNegotiationStrategy; */* is in the ignored set, so
+        // the request is not a confirmed HTML navigation and must not be saved. This exercises the one matcher branch
+        // not covered by the explicit-Accept cases above.
+        MvcResult probe = mockMvc.perform(get(PROTECTED_PAGE)).andReturn();
+        assertThat(savedRequest(probe)).as("a request without an explicit text/html Accept is not saved").isNull();
+    }
+
+    @Test
     @DisplayName("should not save an HTMX partial request")
     void htmxRequestIsNotSaved() throws Exception {
         MvcResult probe = mockMvc.perform(get(PROTECTED_PAGE).header("Accept", BROWSER_ACCEPT).header("HX-Request", "true")).andReturn();

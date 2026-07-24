@@ -16,6 +16,7 @@ import org.springframework.security.authentication.DefaultAuthenticationEventPub
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,7 +28,7 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestHeaderRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
-import org.springframework.http.MediaType;
+import jakarta.servlet.http.HttpServletRequest;
 import com.digitalsanctuary.spring.user.UserConfiguration;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.util.AppUrlResolver;
@@ -240,7 +241,10 @@ public class UserSecurityBeansAutoConfiguration {
      * @param request the request to classify
      * @return true when the request is a static-asset fetch or well-known auto-probe
      */
-    private static boolean isStaticAssetOrAutoProbe(jakarta.servlet.http.HttpServletRequest request) {
+    private static boolean isStaticAssetOrAutoProbe(HttpServletRequest request) {
+        // getRequestURI() excludes the query string but is URL-encoded and unnormalized. That is acceptable here: this
+        // is a fail-open save-side heuristic (misclassification at worst saves an odd redirect target), never an
+        // authorization decision, so an encoded dot (%2E) slipping past extension detection has no security impact.
         String path = request.getRequestURI().substring(request.getContextPath().length()).toLowerCase();
         for (String prefix : AUTO_PROBED_PATH_PREFIXES) {
             if (path.startsWith(prefix)) {
