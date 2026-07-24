@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.security;
 
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -15,10 +16,19 @@ import org.springframework.security.authentication.DefaultAuthenticationEventPub
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
+import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestHeaderRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+import jakarta.servlet.http.HttpServletRequest;
 import com.digitalsanctuary.spring.user.UserConfiguration;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.util.AppUrlResolver;
@@ -27,7 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * Auto-configuration that contributes the library's core, consumer-overridable security beans:
- * {@link PasswordEncoder}, {@link SessionRegistry}, {@link RoleHierarchy}, and {@link DaoAuthenticationProvider}.
+ * {@link PasswordEncoder}, {@link SessionRegistry}, {@link RoleHierarchy}, {@link DaoAuthenticationProvider}, and the hardened
+ * {@link org.springframework.security.web.savedrequest.RequestCache}.
  *
  * <p>
  * Each bean is guarded by {@link ConditionalOnMissingBean}, so a consuming application can fully replace any of them simply by defining their own bean
@@ -167,6 +178,87 @@ public class UserSecurityBeansAutoConfiguration {
     @ConditionalOnMissingBean(AuthenticationEventPublisher.class)
     public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
+    }
+
+    /**
+     * File extensions that identify static-asset fetches. Requests for these are never worth replaying after login, and browsers frequently fetch
+     * them automatically (icons, manifests, fonts) while the login page itself is rendering &mdash; which would otherwise overwrite the user's real
+     * saved destination.
+     */
+    private static final Set<String> STATIC_ASSET_EXTENSIONS = Set.of("png", "jpg", "jpeg", "gif", "ico", "svg", "webp", "avif", "css", "js", "mjs",
+            "map", "woff", "woff2", "ttf", "otf", "eot", "webmanifest", "json", "xml");
+
+    /**
+     * Root-level paths that browsers and crawlers probe automatically without any markup referencing them. Safari/iOS in particular requests
+     * {@code /apple-touch-icon.png} and {@code /apple-touch-icon-precomposed.png} on every page load.
+     */
+    private static final Set<String> AUTO_PROBED_PATH_PREFIXES = Set.of("/apple-touch-icon", "/favicon", "/.well-known/");
+
+    /**
+     * Creates the library's default {@link RequestCache}: an {@link HttpSessionRequestCache} that only saves requests that plausibly represent a
+     * user navigation worth returning to after login &mdash; {@code GET} requests that explicitly accept {@code text/html} and are not XHR
+     * ({@code X-Requested-With: XMLHttpRequest}), HTMX ({@code HX-Request}) or static-asset/auto-probed requests (favicons, apple-touch icons,
+     * {@code /.well-known/**}, common static file extensions).
+     *
+     * <p>
+     * Why this matters: Spring Security's default request cache saves <em>any</em> request that triggers authentication. Browsers automatically
+     * probe protected-by-default URLs such as {@code /apple-touch-icon.png} while the login page renders, overwriting the saved deep link the user
+     * actually clicked &mdash; so the post-login redirect lands on {@code /apple-touch-icon.png?continue} (typically a 404/error page) instead of
+     * the user's destination. The hardened matcher makes the saved request survive those probes.
+     * </p>
+     *
+     * <p>
+     * Backs off entirely if the consuming application defines its own {@link RequestCache} bean, which is also the hook for consumers who want
+     * Spring Security's default behavior back ({@code new HttpSessionRequestCache()}).
+     * </p>
+     *
+     * @return the hardened {@link HttpSessionRequestCache}
+     */
+    @Bean
+    @ConditionalOnMissingBean(RequestCache.class)
+    public RequestCache requestCache() {
+        MediaTypeRequestMatcher acceptsHtml = new MediaTypeRequestMatcher(MediaType.TEXT_HTML);
+        // Treat "Accept: */*" as NOT an HTML navigation: real browser navigations always list text/html explicitly,
+        // while auto-probes (touch icons, prefetchers) and API clients typically send */* or a concrete non-HTML type.
+        acceptsHtml.setIgnoredMediaTypes(Set.of(MediaType.ALL));
+
+        RequestMatcher isGet = request -> "GET".equalsIgnoreCase(request.getMethod());
+        RequestMatcher isStaticAssetOrProbe = UserSecurityBeansAutoConfiguration::isStaticAssetOrAutoProbe;
+
+        RequestMatcher savableNavigation = new AndRequestMatcher(isGet, acceptsHtml,
+                new NegatedRequestMatcher(new RequestHeaderRequestMatcher("X-Requested-With", "XMLHttpRequest")),
+                new NegatedRequestMatcher(new RequestHeaderRequestMatcher("HX-Request")), new NegatedRequestMatcher(isStaticAssetOrProbe));
+
+        HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
+        requestCache.setRequestMatcher(savableNavigation);
+        return requestCache;
+    }
+
+    /**
+     * Returns true when the request targets a static asset or a path that browsers/crawlers probe automatically (and which should therefore never
+     * become a post-login redirect target).
+     *
+     * @param request the request to classify
+     * @return true when the request is a static-asset fetch or well-known auto-probe
+     */
+    private static boolean isStaticAssetOrAutoProbe(HttpServletRequest request) {
+        // getRequestURI() excludes the query string but is URL-encoded and unnormalized. That is acceptable here: this
+        // is a fail-open save-side heuristic (misclassification at worst saves an odd redirect target), never an
+        // authorization decision, so an encoded dot (%2E) slipping past extension detection has no security impact.
+        String path = request.getRequestURI().substring(request.getContextPath().length()).toLowerCase();
+        for (String prefix : AUTO_PROBED_PATH_PREFIXES) {
+            if (path.startsWith(prefix)) {
+                return true;
+            }
+        }
+        int lastDot = path.lastIndexOf('.');
+        int lastSlash = path.lastIndexOf('/');
+        if (lastDot > lastSlash) {
+            String extension = path.substring(lastDot + 1);
+            // .html/.htm are real pages, everything else in the static set is an asset fetch
+            return STATIC_ASSET_EXTENSIONS.contains(extension);
+        }
+        return false;
     }
 
     /**
