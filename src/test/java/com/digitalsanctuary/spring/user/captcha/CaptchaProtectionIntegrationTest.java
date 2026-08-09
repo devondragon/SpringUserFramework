@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 
@@ -228,6 +229,37 @@ class CaptchaProtectionIntegrationTest {
 
         User created = userService.findUserByEmail(testEmail);
         assertThat(created).isNotNull();
+    }
+
+    @Test
+    void shouldRejectRegistrationWithMatrixParametersWithoutToken() throws Exception {
+        // Regression for the matcher-mismatch bypass. Through the full stack, Spring Security's
+        // default StrictHttpFirewall rejects any URL containing a semicolon before dispatch
+        // (400, empty body, no resolved exception), so this variant never reaches the handler.
+        // The interceptor-level defense for a consumer who relaxes the firewall (PathPattern
+        // routing strips matrix parameters, so the request would then reach the handler) is
+        // proven by CaptchaValidationInterceptorTest.shouldRejectWhenPathCarriesMatrixParameters,
+        // which asserts the interceptor itself 403s this path.
+        mockMvc.perform(post("/user/registration;jsessionid=abc").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(registrationJson()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(userService.findUserByEmail(testEmail)).isNull();
+        assertNoEmailSent();
+    }
+
+    @Test
+    void shouldRejectRegistrationWithPercentEncodedPathWithoutToken() throws Exception {
+        // Regression for the matcher-mismatch bypass: PathPattern routing URL-decodes segments, so
+        // /user/%72egistration reaches the registration handler. URI.create keeps the raw encoding
+        // (the String overload would re-encode the percent sign).
+        mockMvc.perform(post(URI.create("/user/%72egistration")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(registrationJson()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(CaptchaValidationInterceptor.ERROR_CODE_CAPTCHA_FAILED));
+
+        assertThat(userService.findUserByEmail(testEmail)).isNull();
+        assertNoEmailSent();
     }
 
     @Test

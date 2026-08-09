@@ -6,7 +6,11 @@ import org.apache.commons.text.StringEscapeUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.MessageSource;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.PathContainer;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.util.ServletRequestPathUtils;
+import org.springframework.web.util.pattern.PathPattern;
+import org.springframework.web.util.pattern.PathPatternParser;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -56,6 +60,18 @@ public class CaptchaValidationInterceptor implements HandlerInterceptor {
     private static final String MESSAGE_KEY = "message.captcha.validation-failed";
     private static final String DEFAULT_MESSAGE = "CAPTCHA verification failed. Please complete the challenge and try again.";
 
+    /*
+     * The action patterns compiled with the same PathPatternParser the InterceptorRegistry uses
+     * (MappedInterceptor defaults to PathPatternParser.defaultInstance). Enforcement MUST use the
+     * same pattern engine as registration: PathPattern matches against the parsed request path,
+     * whose segments are URL-decoded and stripped of matrix parameters, so raw-URI string
+     * comparison would let variants like "/user/registration;jsessionid=x" or
+     * "/user/%72egistration" through unprotected while still reaching the handler.
+     */
+    private static final PathPattern REGISTRATION_PATTERN = PathPatternParser.defaultInstance.parse(REGISTRATION_PATH);
+    private static final PathPattern RESET_PASSWORD_PATTERN = PathPatternParser.defaultInstance.parse(RESET_PASSWORD_PATH);
+    private static final PathPattern RESEND_TOKEN_PATTERN = PathPatternParser.defaultInstance.parse(RESEND_TOKEN_PATH);
+
     private final CaptchaConfigProperties captchaConfigProperties;
     private final ObjectProvider<CaptchaService> captchaServiceProvider;
     private final MessageSource messages;
@@ -66,8 +82,8 @@ public class CaptchaValidationInterceptor implements HandlerInterceptor {
         if (!"POST".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        if (!isActionProtected(path)) {
+        String path = request.getRequestURI();
+        if (!isActionProtected(request)) {
             return true;
         }
         String token = resolveToken(request);
@@ -87,14 +103,46 @@ public class CaptchaValidationInterceptor implements HandlerInterceptor {
         return true;
     }
 
-    private boolean isActionProtected(String path) {
+    /**
+     * Decides whether this POST targets a protected action, matching the context-relative request
+     * path with the same {@code PathPattern} engine the interceptor registration uses, so this
+     * decision cannot disagree with the registration's. Fail-closed on both edge cases: a request
+     * path that cannot be parsed, or one that matches none of the action patterns even though this
+     * interceptor was invoked for it (the interceptor is registered against exactly these
+     * patterns, so through the real dispatcher that cannot happen), is treated as protected.
+     */
+    private boolean isActionProtected(HttpServletRequest request) {
+        PathContainer path;
+        try {
+            path = resolvePathWithinApplication(request);
+        } catch (RuntimeException e) {
+            log.warn("Could not parse request path {}. Failing closed.", request.getRequestURI(), e);
+            return true;
+        }
         CaptchaConfigProperties.Protect protect = captchaConfigProperties.getProtect();
-        return switch (path) {
-            case REGISTRATION_PATH -> protect.isRegistration();
-            case RESET_PASSWORD_PATH -> protect.isResetPassword();
-            case RESEND_TOKEN_PATH -> protect.isResendRegistrationToken();
-            default -> false;
-        };
+        if (REGISTRATION_PATTERN.matches(path)) {
+            return protect.isRegistration();
+        }
+        if (RESET_PASSWORD_PATTERN.matches(path)) {
+            return protect.isResetPassword();
+        }
+        if (RESEND_TOKEN_PATTERN.matches(path)) {
+            return protect.isResendRegistrationToken();
+        }
+        return true;
+    }
+
+    /**
+     * Returns the context-relative request path exactly as Spring's {@code PathPattern} engine saw
+     * it for handler mapping and interceptor matching: the {@code RequestPath} the
+     * {@code DispatcherServlet} parsed and cached before invoking interceptors, or an identical
+     * fresh parse of the request when no cached path exists (e.g. direct unit-test invocation).
+     */
+    private PathContainer resolvePathWithinApplication(HttpServletRequest request) {
+        if (ServletRequestPathUtils.hasParsedRequestPath(request)) {
+            return ServletRequestPathUtils.getParsedRequestPath(request).pathWithinApplication();
+        }
+        return ServletRequestPathUtils.parse(request).pathWithinApplication();
     }
 
     private String resolveToken(HttpServletRequest request) {

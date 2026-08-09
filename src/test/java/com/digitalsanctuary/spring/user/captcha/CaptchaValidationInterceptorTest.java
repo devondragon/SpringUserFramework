@@ -155,6 +155,30 @@ class CaptchaValidationInterceptorTest {
     }
 
     @Test
+    void shouldRejectWhenPathCarriesMatrixParameters() throws Exception {
+        // PathPattern matching (used to register this interceptor) strips matrix parameters per
+        // segment, so this request reaches preHandle; enforcement must strip them the same way.
+        MockHttpServletRequest request = postTo(CaptchaValidationInterceptor.REGISTRATION_PATH + ";jsessionid=abc");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertThat(interceptor.preHandle(request, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+        verify(captchaService, never()).verify(anyString(), any());
+    }
+
+    @Test
+    void shouldRejectWhenPathIsPercentEncoded() throws Exception {
+        // PathPattern matching URL-decodes segments before comparing, so /user/%72egistration
+        // reaches preHandle as a registration request; enforcement must decode the same way.
+        MockHttpServletRequest request = postTo("/user/%72egistration");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertThat(interceptor.preHandle(request, response, new Object())).isFalse();
+        assertThat(response.getStatus()).isEqualTo(403);
+        verify(captchaService, never()).verify(anyString(), any());
+    }
+
+    @Test
     void shouldHandleContextPathWhenResolvingAction() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST",
                 "/app" + CaptchaValidationInterceptor.REGISTRATION_PATH);
