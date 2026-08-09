@@ -6,8 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.util.Map;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -23,6 +26,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -116,6 +120,17 @@ class CaptchaProtectionIntegrationTest {
     @Autowired
     private JavaMailSender mailSender;
 
+    /**
+     * The bounded executor {@code MailService} dispatches {@code @Async("dsMailExecutor")} sends on
+     * (e.g. the resetPassword success test's {@code sendForgotPasswordVerificationEmail} call).
+     * Drained in {@link #setUp()} so a straggling send from a previous test method cannot land in
+     * the shared {@link MockMailConfiguration.MockJavaMailSender} capture after it's cleared and
+     * pollute a later reject-path "no email sent" assertion.
+     */
+    @Autowired
+    @Qualifier("dsMailExecutor")
+    private ThreadPoolTaskExecutor dsMailExecutor;
+
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
     private TransactionTemplate txTemplate;
@@ -127,6 +142,12 @@ class CaptchaProtectionIntegrationTest {
         // Unique email per test method; @Execution(SAME_THREAD) serializes methods, so the
         // shared mail capture can be cleared here without racing another method.
         testEmail = "captcha.tester+" + System.nanoTime() + "@example.com";
+        // Drain any in-flight/queued async send left over from a previous test method BEFORE
+        // clearing the capture, so a straggler can't land after clear() and pollute this method's
+        // "no email sent" assertion. junit-platform.properties randomizes method order, so a
+        // preceding success-path test (e.g. shouldAllowResetPasswordWhenTokenValid) may not have
+        // finished its async send by the time this method starts.
+        drainMailExecutor();
         mockMailSender().clear();
         deleteTestUser(testEmail);
     }
@@ -138,6 +159,15 @@ class CaptchaProtectionIntegrationTest {
 
     private MockMailConfiguration.MockJavaMailSender mockMailSender() {
         return (MockMailConfiguration.MockJavaMailSender) mailSender;
+    }
+
+    /**
+     * Waits until {@code dsMailExecutor} has no active or queued tasks, i.e. any async
+     * {@code MailService} send submitted by an earlier test method has fully completed.
+     */
+    private void drainMailExecutor() {
+        Awaitility.await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(25))
+                .until(() -> dsMailExecutor.getActiveCount() == 0 && dsMailExecutor.getThreadPoolExecutor().getQueue().isEmpty());
     }
 
     /**
