@@ -47,6 +47,7 @@ dependencies {
     // Other dependencies (moved to test scope for library)
     implementation 'org.passay:passay:2.0.0'
     implementation 'org.apache.commons:commons-text:1.15.0'
+    compileOnly 'com.digitalsanctuary:ds-spring-cf-turnstile:2.1.0'
     compileOnly 'jakarta.validation:jakarta.validation-api:3.1.1'
     compileOnly 'org.springframework.retry:spring-retry:2.0.13'
 
@@ -70,6 +71,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    testImplementation 'com.digitalsanctuary:ds-spring-cf-turnstile:2.1.0'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.security:spring-security-webauthn'
     testImplementation 'org.springframework.retry:spring-retry:2.0.13'
