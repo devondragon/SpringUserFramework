@@ -31,56 +31,56 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class TurnstileCaptchaService implements CaptchaService {
 
-	private final ObjectProvider<TurnstileValidationService> turnstileServiceProvider;
+    private final ObjectProvider<TurnstileValidationService> turnstileServiceProvider;
 
-	@Override
-	public boolean verify(String token, HttpServletRequest request) {
-		TurnstileValidationService turnstileService = turnstileServiceProvider.getIfAvailable();
-		if (turnstileService == null) {
-			log.error("CAPTCHA is enabled but no TurnstileValidationService bean is available. Failing closed.");
-			return false;
-		}
-		try {
-			String clientIp = turnstileService.getClientIpAddress(request);
-			return turnstileService.validateTurnstileResponse(token, clientIp);
-		} catch (RuntimeException e) {
-			log.error("Unexpected error during Turnstile verification. Failing closed.", e);
-			return false;
-		}
-	}
+    @Override
+    public boolean verify(String token, HttpServletRequest request) {
+        TurnstileValidationService turnstileService = turnstileServiceProvider.getIfAvailable();
+        if (turnstileService == null) {
+            log.error("CAPTCHA is enabled but no TurnstileValidationService bean is available. Failing closed.");
+            return false;
+        }
+        try {
+            String clientIp = turnstileService.getClientIpAddress(request);
+            return turnstileService.validateTurnstileResponse(token, clientIp);
+        } catch (RuntimeException e) {
+            log.error("Unexpected error during Turnstile verification. Failing closed.", e);
+            return false;
+        }
+    }
 
-	@Override
-	public String getSiteKey() {
-		TurnstileValidationService turnstileService = turnstileServiceProvider.getIfAvailable();
-		if (turnstileService == null) {
-			return null;
-		}
-		try {
-			return turnstileService.getTurnstileSitekey();
-		} catch (RuntimeException e) {
-			log.error("Error retrieving Turnstile site key. Failing closed.", e);
-			return null;
-		}
-	}
+    @Override
+    public String getSiteKey() {
+        TurnstileValidationService turnstileService = turnstileServiceProvider.getIfAvailable();
+        if (turnstileService == null) {
+            return null;
+        }
+        try {
+            return turnstileService.getTurnstileSitekey();
+        } catch (RuntimeException e) {
+            log.error("Error retrieving Turnstile site key. Failing closed.", e);
+            return null;
+        }
+    }
 
-	@Override
-	public List<String> configurationWarnings() {
-		TurnstileValidationService turnstileService = turnstileServiceProvider.getIfAvailable();
-		if (turnstileService == null) {
-			return List.of("CAPTCHA is enabled with provider 'turnstile' but no TurnstileValidationService bean"
-					+ " was found. All CAPTCHA-protected requests will be rejected (fail closed). Ensure the"
-					+ " ds-spring-cf-turnstile auto-configuration is active.");
-		}
-		try {
-			if (turnstileService.isUsingTestCredentials()) {
-				return List.of("Turnstile is configured with Cloudflare test credentials. CAPTCHA validation is"
-						+ " running in test mode and provides NO bot protection. Do not use this in production.");
-			}
-		} catch (RuntimeException e) {
-			log.warn("Error querying Turnstile credential configuration. Provider could not be queried.", e);
-			return List.of("Turnstile configuration could not be queried. Verify that the TurnstileValidationService"
-					+ " bean is properly configured and accessible.");
-		}
-		return List.of();
-	}
+    @Override
+    public List<String> configurationWarnings() {
+        TurnstileValidationService turnstileService = turnstileServiceProvider.getIfAvailable();
+        if (turnstileService == null) {
+            return List.of("CAPTCHA is enabled with provider 'turnstile' but no TurnstileValidationService bean"
+                    + " was found. All CAPTCHA-protected requests will be rejected (fail closed). Ensure the"
+                    + " ds-spring-cf-turnstile auto-configuration is active.");
+        }
+        try {
+            if (turnstileService.isUsingTestCredentials()) {
+                return List.of("Turnstile is configured with Cloudflare test credentials. CAPTCHA validation is"
+                        + " running in test mode and provides NO bot protection. Do not use this in production.");
+            }
+        } catch (RuntimeException e) {
+            log.warn("Error querying Turnstile credential configuration. Provider could not be queried.", e);
+            return List.of("Turnstile configuration could not be queried. Verify that the TurnstileValidationService"
+                    + " bean is properly configured and accessible.");
+        }
+        return List.of();
+    }
 }

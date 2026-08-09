@@ -17,30 +17,30 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 public interface CaptchaService {
 
-	/**
-	 * Verifies a CAPTCHA response token. Implementations MUST fail closed: any error (missing
-	 * configuration, provider unreachable, invalid token) returns {@code false}.
-	 *
-	 * @param token the CAPTCHA response token supplied by the client
-	 * @param request the current request, for client IP extraction
-	 * @return true only if the provider positively verified the token
-	 */
-	boolean verify(String token, HttpServletRequest request);
+    /**
+     * Verifies a CAPTCHA response token. Implementations MUST fail closed: any error (missing
+     * configuration, provider unreachable, invalid token) returns {@code false}.
+     *
+     * @param token the CAPTCHA response token supplied by the client
+     * @param request the current request, for client IP extraction
+     * @return true only if the provider positively verified the token
+     */
+    boolean verify(String token, HttpServletRequest request);
 
-	/**
-	 * Returns the public site key for rendering the CAPTCHA widget, or null if not configured.
-	 *
-	 * @return the public site key, or null
-	 */
-	String getSiteKey();
+    /**
+     * Returns the public site key for rendering the CAPTCHA widget, or null if not configured.
+     *
+     * @return the public site key, or null
+     */
+    String getSiteKey();
 
-	/**
-	 * Returns human-readable warnings about the current provider configuration (for example,
-	 * always-pass test credentials). Logged at WARN during startup when CAPTCHA is enabled.
-	 *
-	 * @return warnings to log at startup; empty when the configuration looks production-ready
-	 */
-	default List<String> configurationWarnings() {
-		return List.of();
-	}
+    /**
+     * Returns human-readable warnings about the current provider configuration (for example,
+     * always-pass test credentials). Logged at WARN during startup when CAPTCHA is enabled.
+     *
+     * @return warnings to log at startup; empty when the configuration looks production-ready
+     */
+    default List<String> configurationWarnings() {
+        return List.of();
+    }
 }

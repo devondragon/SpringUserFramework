@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.captcha;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,130 +24,130 @@ import com.digitalsanctuary.cf.turnstile.service.TurnstileValidationService;
 @DisplayName("TurnstileCaptchaService adapter")
 class TurnstileCaptchaServiceTest {
 
-	@Mock
-	private ObjectProvider<TurnstileValidationService> turnstileServiceProvider;
+    @Mock
+    private ObjectProvider<TurnstileValidationService> turnstileServiceProvider;
 
-	@Mock
-	private TurnstileValidationService turnstileValidationService;
+    @Mock
+    private TurnstileValidationService turnstileValidationService;
 
-	private TurnstileCaptchaService captchaService;
+    private TurnstileCaptchaService captchaService;
 
-	@BeforeEach
-	void setUp() {
-		captchaService = new TurnstileCaptchaService(turnstileServiceProvider);
-	}
+    @BeforeEach
+    void setUp() {
+        captchaService = new TurnstileCaptchaService(turnstileServiceProvider);
+    }
 
-	@Test
-	void shouldDelegateToTurnstileWithClientIpWhenServiceAvailable() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		MockHttpServletRequest request = new MockHttpServletRequest();
-		when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
-		when(turnstileValidationService.validateTurnstileResponse("tok-123", "203.0.113.7")).thenReturn(true);
+    @Test
+    void shouldDelegateToTurnstileWithClientIpWhenServiceAvailable() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
+        when(turnstileValidationService.validateTurnstileResponse("tok-123", "203.0.113.7")).thenReturn(true);
 
-		boolean result = captchaService.verify("tok-123", request);
+        boolean result = captchaService.verify("tok-123", request);
 
-		assertThat(result).isTrue();
-		verify(turnstileValidationService).validateTurnstileResponse("tok-123", "203.0.113.7");
-	}
+        assertThat(result).isTrue();
+        verify(turnstileValidationService).validateTurnstileResponse("tok-123", "203.0.113.7");
+    }
 
-	@Test
-	void shouldFailClosedWhenTurnstileValidationFails() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		MockHttpServletRequest request = new MockHttpServletRequest();
-		when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
-		when(turnstileValidationService.validateTurnstileResponse("bad-token", "203.0.113.7")).thenReturn(false);
+    @Test
+    void shouldFailClosedWhenTurnstileValidationFails() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
+        when(turnstileValidationService.validateTurnstileResponse("bad-token", "203.0.113.7")).thenReturn(false);
 
-		assertThat(captchaService.verify("bad-token", request)).isFalse();
-	}
+        assertThat(captchaService.verify("bad-token", request)).isFalse();
+    }
 
-	@Test
-	void shouldFailClosedWhenTurnstileServiceBeanMissing() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
+    @Test
+    void shouldFailClosedWhenTurnstileServiceBeanMissing() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
 
-		assertThat(captchaService.verify("tok-123", new MockHttpServletRequest())).isFalse();
-	}
+        assertThat(captchaService.verify("tok-123", new MockHttpServletRequest())).isFalse();
+    }
 
-	@Test
-	void shouldExposeSitekeyFromTurnstileService() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		when(turnstileValidationService.getTurnstileSitekey()).thenReturn("real-site-key");
+    @Test
+    void shouldExposeSitekeyFromTurnstileService() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.getTurnstileSitekey()).thenReturn("real-site-key");
 
-		assertThat(captchaService.getSiteKey()).isEqualTo("real-site-key");
-	}
+        assertThat(captchaService.getSiteKey()).isEqualTo("real-site-key");
+    }
 
-	@Test
-	void shouldWarnWhenCloudflareTestCredentialsConfigured() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		when(turnstileValidationService.isUsingTestCredentials()).thenReturn(true);
+    @Test
+    void shouldWarnWhenCloudflareTestCredentialsConfigured() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.isUsingTestCredentials()).thenReturn(true);
 
-		List<String> warnings = captchaService.configurationWarnings();
+        List<String> warnings = captchaService.configurationWarnings();
 
-		assertThat(warnings).hasSize(1);
-		assertThat(warnings.get(0)).contains("test");
-	}
+        assertThat(warnings).hasSize(1);
+        assertThat(warnings.get(0)).contains("test");
+    }
 
-	@Test
-	void shouldWarnWhenTurnstileServiceBeanMissing() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
+    @Test
+    void shouldWarnWhenTurnstileServiceBeanMissing() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
 
-		assertThat(captchaService.configurationWarnings())
-				.anySatisfy(warning -> assertThat(warning).contains("fail closed"));
-	}
+        assertThat(captchaService.configurationWarnings())
+                .anySatisfy(warning -> assertThat(warning).contains("fail closed"));
+    }
 
-	@Test
-	void shouldReturnNoWarningsWhenRealCredentialsConfigured() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		when(turnstileValidationService.isUsingTestCredentials()).thenReturn(false);
+    @Test
+    void shouldReturnNoWarningsWhenRealCredentialsConfigured() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.isUsingTestCredentials()).thenReturn(false);
 
-		assertThat(captchaService.configurationWarnings()).isEmpty();
-	}
+        assertThat(captchaService.configurationWarnings()).isEmpty();
+    }
 
-	@Test
-	void shouldReturnNullSiteKeyWhenTurnstileServiceBeanMissing() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
+    @Test
+    void shouldReturnNullSiteKeyWhenTurnstileServiceBeanMissing() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
 
-		assertThat(captchaService.getSiteKey()).isNull();
-	}
+        assertThat(captchaService.getSiteKey()).isNull();
+    }
 
-	@Test
-	void shouldFailClosedWhenGetClientIpAddressThrows() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		MockHttpServletRequest request = new MockHttpServletRequest();
-		when(turnstileValidationService.getClientIpAddress(request))
-				.thenThrow(new RuntimeException("IP extraction failed"));
+    @Test
+    void shouldFailClosedWhenGetClientIpAddressThrows() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        when(turnstileValidationService.getClientIpAddress(request))
+                .thenThrow(new RuntimeException("IP extraction failed"));
 
-		assertThat(captchaService.verify("tok-123", request)).isFalse();
-	}
+        assertThat(captchaService.verify("tok-123", request)).isFalse();
+    }
 
-	@Test
-	void shouldFailClosedWhenValidateTurnstileResponseThrows() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		MockHttpServletRequest request = new MockHttpServletRequest();
-		when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
-		when(turnstileValidationService.validateTurnstileResponse("tok-123", "203.0.113.7"))
-				.thenThrow(new RuntimeException("Validation service unavailable"));
+    @Test
+    void shouldFailClosedWhenValidateTurnstileResponseThrows() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
+        when(turnstileValidationService.validateTurnstileResponse("tok-123", "203.0.113.7"))
+                .thenThrow(new RuntimeException("Validation service unavailable"));
 
-		assertThat(captchaService.verify("tok-123", request)).isFalse();
-	}
+        assertThat(captchaService.verify("tok-123", request)).isFalse();
+    }
 
-	@Test
-	void shouldReturnNullSiteKeyWhenGetTurnstileSitekeyThrows() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		when(turnstileValidationService.getTurnstileSitekey())
-				.thenThrow(new RuntimeException("Could not fetch site key"));
+    @Test
+    void shouldReturnNullSiteKeyWhenGetTurnstileSitekeyThrows() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.getTurnstileSitekey())
+                .thenThrow(new RuntimeException("Could not fetch site key"));
 
-		assertThat(captchaService.getSiteKey()).isNull();
-	}
+        assertThat(captchaService.getSiteKey()).isNull();
+    }
 
-	@Test
-	void shouldWarnWhenIsUsingTestCredentialsThrows() {
-		when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-		when(turnstileValidationService.isUsingTestCredentials())
-				.thenThrow(new RuntimeException("Could not query credentials"));
+    @Test
+    void shouldWarnWhenIsUsingTestCredentialsThrows() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.isUsingTestCredentials())
+                .thenThrow(new RuntimeException("Could not query credentials"));
 
-		List<String> warnings = captchaService.configurationWarnings();
+        List<String> warnings = captchaService.configurationWarnings();
 
-		assertThat(warnings).isNotEmpty();
-		assertThat(warnings.get(0)).contains("could not be queried");
-	}
+        assertThat(warnings).isNotEmpty();
+        assertThat(warnings.get(0)).contains("could not be queried");
+    }
 }
