@@ -141,6 +141,7 @@ com.digitalsanctuary.spring.user
 
 All configuration uses `user.*` prefix in application.yml. Key property groups:
 - `user.security.*` - URIs, default action (allow/deny), bcrypt strength, lockout settings, testHashTime
+- `user.security.captcha.*` - Optional CAPTCHA (Cloudflare Turnstile) on unauthenticated email-sending API actions (enabled, provider, protect.*)
 - `user.registration.*` - Email verification toggle, OAuth provider toggles
 - `user.mail.*` - Email sender settings (fromAddress)
 - `user.audit.*` - Audit logging (logFilePath, flushOnWrite, logEvents, maxQueryResults)
