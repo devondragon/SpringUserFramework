@@ -94,9 +94,9 @@ When neither `appUrl` nor `trustedHosts` is set, links are built from the reques
 
 ### CAPTCHA Protection (Cloudflare Turnstile)
 
-Optional CAPTCHA verification on the framework's unauthenticated, email-sending API actions (`POST /user/registration`, `POST /user/resetPassword`, `POST /user/resendRegistrationToken`). Disabled by default: no CAPTCHA beans are registered and behavior is unchanged until you opt in.
+Optional CAPTCHA verification on the framework's unauthenticated, email-sending API actions (`POST /user/registration`, `POST /user/resetPassword`, `POST /user/resendRegistrationToken`). Disabled by default: no CAPTCHA interceptor or provider beans are registered and behavior is unchanged until you opt in.
 
-- **Enabled (`user.security.captcha.enabled`)**: Master switch. When `false` (default), no CAPTCHA beans are registered and no requests are checked.
+- **Enabled (`user.security.captcha.enabled`)**: Master switch. When `false` (default), no CAPTCHA interceptor or provider beans are registered and no requests are checked.
 - **Provider (`user.security.captcha.provider`)**: The CAPTCHA provider. Only `turnstile` (Cloudflare Turnstile, via the optional `com.digitalsanctuary:ds-spring-cf-turnstile` dependency) is currently supported. Defaults to `turnstile`. Supply your own `CaptchaService` bean to use a different provider; it takes precedence over the built-in one.
 - **Protect Registration (`user.security.captcha.protect.registration`)**: Require CAPTCHA on `POST /user/registration`. Defaults to `true`.
 - **Protect Reset Password (`user.security.captcha.protect.reset-password`)**: Require CAPTCHA on `POST /user/resetPassword`. Defaults to `true`.

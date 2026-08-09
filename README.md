@@ -553,7 +553,7 @@ public AuthenticationEntryPoint authenticationEntryPoint() {
 
 ### CAPTCHA Protection (Cloudflare Turnstile)
 
-The framework can require a CAPTCHA challenge on its three unauthenticated, email-sending API actions — `POST /user/registration`, `POST /user/resetPassword`, and `POST /user/resendRegistrationToken` — to block automated abuse (registration spam, password-reset flooding, verification-email bombing). It is **off by default**: with `user.security.captcha.enabled=false` (the default), no CAPTCHA beans are registered, behavior is byte-identical to previous releases, and no extra dependency is required.
+The framework can require a CAPTCHA challenge on its three unauthenticated, email-sending API actions — `POST /user/registration`, `POST /user/resetPassword`, and `POST /user/resendRegistrationToken` — to block automated abuse (registration spam, password-reset flooding, verification-email bombing). It is **off by default**: with `user.security.captcha.enabled=false` (the default), no CAPTCHA interceptor or provider beans are registered and no requests are checked — behavior is identical to previous releases, and no extra dependency is required.
 
 **Setup**
 
