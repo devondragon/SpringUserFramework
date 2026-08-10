@@ -92,7 +92,7 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
     testImplementation 'org.testcontainers:testcontainers-mariadb:2.0.5'
     testImplementation 'org.testcontainers:testcontainers-postgresql:2.0.5'
-    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.2'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.0'
     testImplementation 'org.assertj:assertj-core:3.27.7'
     // Legacy Jackson 2 (com.fasterxml.jackson) for test JSON utilities. Spring Boot 4 ships Jackson 3
     // (tools.jackson), so the com.fasterxml.jackson APIs these tests use must be declared explicitly
