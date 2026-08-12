@@ -106,6 +106,17 @@ public class MockMailConfiguration {
         }
 
         /**
+         * Get all sent MIME message preparators. This is the list production code actually
+         * populates: {@code MailService} dispatches every email through
+         * {@code send(MimeMessagePreparator)}, so a test asserting "no email was sent" must check
+         * this list. Asserting only {@link #getSentMimeMessages()} / {@link #getSentSimpleMessages()}
+         * is vacuously true, since nothing in main ever calls those overloads.
+         */
+        public List<MimeMessagePreparator> getSentPreparators() {
+            return new ArrayList<>(sentPreparators);
+        }
+
+        /**
          * Clear all captured messages.
          */
         public void clear() {

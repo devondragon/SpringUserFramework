@@ -40,6 +40,7 @@ Check out the [Spring User Framework Demo Application](https://github.com/devond
     - [Account Lockout](#account-lockout)
     - [Audit Logging](#audit-logging)
     - [HTMX Support](#htmx-support)
+    - [CAPTCHA Protection (Cloudflare Turnstile)](#captcha-protection-cloudflare-turnstile)
   - [User Management](#user-management)
     - [Registration](#registration)
     - [Profile Management](#profile-management)
@@ -549,6 +550,140 @@ public AuthenticationEntryPoint authenticationEntryPoint() {
     return new MyCustomAuthenticationEntryPoint();
 }
 ```
+
+### CAPTCHA Protection (Cloudflare Turnstile)
+
+The framework can require a CAPTCHA challenge on its unauthenticated, email-sending API actions — `POST /user/registration`, `POST /user/registration/passwordless`, `POST /user/resetPassword`, and `POST /user/resendRegistrationToken` — to block automated abuse (registration spam, password-reset flooding, verification-email bombing). It is **off by default**: with `user.security.captcha.enabled=false` (the default), no CAPTCHA interceptor or provider beans are registered and no requests are checked — behavior is identical to previous releases, and no extra dependency is required.
+
+**Setup**
+
+Add the Turnstile library to your consuming application and configure your Cloudflare site key/secret:
+
+```groovy
+implementation 'com.digitalsanctuary:ds-spring-cf-turnstile:2.1.0'
+```
+
+```yaml
+ds:
+  cf:
+    turnstile:
+      sitekey: <your-turnstile-site-key>
+      secret: <your-turnstile-secret-key>
+```
+
+Then enable CAPTCHA protection in the framework:
+
+```yaml
+user:
+  security:
+    captcha:
+      enabled: true
+      provider: turnstile
+      protect:
+        registration: true
+        reset-password: true
+        resend-registration-token: true
+```
+
+Each `protect.*` flag can be toggled independently, so you can, for example, protect registration and password reset but leave resend-verification-token open.
+
+**Client contract**
+
+These endpoints consume JSON request bodies, so the CAPTCHA token cannot be added as a form field — it must be sent as either:
+
+- The `X-Captcha-Token` request header (preferred), or
+- The `cf-turnstile-response` query parameter (fallback)
+
+On failure the API returns `HTTP 403` with the same `JSONResponse` shape as other API errors:
+
+```json
+{"success":false,"redirectUrl":null,"code":8,"messages":["CAPTCHA verification failed. Please complete the challenge and try again."],"data":null}
+```
+
+The message text is customizable via the `message.captcha.validation-failed` key in your `messages.properties`.
+
+**Widget rendering**
+
+Consuming applications own their own templates. The framework exposes the configured site key as the `captchaSiteKey` model attribute on MVC controllers (the Turnstile library also offers `${@turnstileValidationService.getTurnstileSitekey()}` for use directly in Thymeleaf). A minimal registration page snippet:
+
+The `data-sitekey` value must be bound by your template engine — `${captchaSiteKey}` in a plain HTML
+attribute is not evaluated and Turnstile would receive the literal text. In Thymeleaf:
+
+```html
+<div class="cf-turnstile" th:attr="data-sitekey=${captchaSiteKey}" data-callback="onCaptchaSolved"></div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+  let captchaToken = null;
+  function onCaptchaSolved(token) {
+    captchaToken = token;
+  }
+  // when submitting the registration API call:
+  async function submitRegistration(registrationPayload) {
+    // Turnstile tokens are single-use and expire (~300s). Don't submit before the challenge
+    // resolves: a null token stringifies to "null", which is non-blank, so it reaches the
+    // provider and comes back as a generic 403 rather than a "complete the challenge" prompt.
+    if (!captchaToken) {
+      return;
+    }
+    const response = await fetch('/user/registration', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Captcha-Token': captchaToken
+      },
+      body: JSON.stringify(registrationPayload)
+    });
+    if (!response.ok) {
+      // The token is now spent; without a reset every retry fails as timeout-or-duplicate.
+      captchaToken = null;
+      turnstile.reset();
+    }
+    return response;
+  }
+</script>
+```
+
+**Fail-closed semantics**
+
+- Enabling CAPTCHA (`enabled=true`) without a resolvable provider — the Turnstile library missing from the classpath, an unrecognized `provider`, or no custom `CaptchaService` bean — fails application startup rather than silently letting requests through unprotected.
+- Enabling CAPTCHA with a provider that resolves but cannot verify anything — no Turnstile secret, no site key, or an absent `TurnstileValidationService` bean — also fails startup. Such a provider rejects every registration, reset, and resend while the application looks healthy, so this is surfaced loudly rather than as a 100% rejection rate in production. Set `user.security.captcha.allow-unusable-provider=true` to start anyway and take a startup ERROR banner instead.
+- If the provider is unreachable or errors at request time, the request is rejected (fail closed), not allowed through.
+- Cloudflare's always-pass test keys (e.g. `1x00000000000000000000AA`) are detected at startup and logged as a prominent `WARN` banner. Never ship test keys to production.
+
+**Scope**
+
+- **Login is deliberately not covered.** Login is handled by a Spring Security filter, not an MVC handler, so it falls outside this interceptor-based approach; per-account lockout (`user.security.failedLoginAttempts`) already provides brute-force protection there. If you want CAPTCHA on login too, enable `ds-spring-cf-turnstile`'s own login filter with `ds.cf.turnstile.login.enabled=true`, or use Cloudflare edge-level challenges.
+- A custom `CaptchaService` bean (see the `com.digitalsanctuary.spring.user.captcha.CaptchaService` SPI) fully replaces the built-in Turnstile provider if you want a different CAPTCHA vendor.
+- Enforcement matches request paths with Spring's default `PathPatternParser`. If your application installs a custom parser via `PathMatchConfigurer#setPatternParser` (for example a case-insensitive one), handler mapping and CAPTCHA enforcement could disagree on exotic path spellings — don't relax path matching on an application that exposes these endpoints.
+
+**Custom providers**
+
+Implement `CaptchaService` and register it as a bean; it takes precedence over the built-in Turnstile provider. The SPI mirrors the `RegistrationGuard` shape used elsewhere in the framework:
+
+```java
+@Component
+public class HCaptchaService implements CaptchaService {
+
+    @Override
+    public CaptchaVerification verify(CaptchaContext context) {
+        try {
+            return client.siteverify(context.token(), context.remoteIp())
+                    ? CaptchaVerification.verified()
+                    : CaptchaVerification.rejected("hcaptcha reported the token invalid");
+        } catch (IOException e) {
+            // Report the failure — the framework decides that this rejects the request.
+            return CaptchaVerification.error("hcaptcha unreachable: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Optional<String> siteKey() {
+        return Optional.of(siteKey);
+    }
+}
+```
+
+`CaptchaContext` carries the `CaptchaAction` being verified, so providers that bind a token to the challenge it was issued for (reCAPTCHA v3 actions) or apply per-action score thresholds can do so. The three-way `CaptchaVerification` outcome means an implementation never has to decide what a provider outage means: report `error(...)` and the framework fails closed. Throwing is safe too — the framework catches it and rejects the request with the same documented 403 body. Implementations must be thread-safe.
 
 ## User Management
 

@@ -75,6 +75,7 @@ The [SpringUserFrameworkDemoApp](https://github.com/devondragon/SpringUserFramew
 com.digitalsanctuary.spring.user
 ├── api/              # REST endpoints (UserAPI)
 ├── audit/            # Audit logging system
+├── captcha/          # Optional CAPTCHA (Turnstile) on unauthenticated email-sending API actions
 ├── controller/       # MVC controllers for HTML pages
 ├── dev/              # Dev login auto-configuration (local profile only)
 ├── dto/              # Data transfer objects
@@ -119,12 +120,13 @@ com.digitalsanctuary.spring.user
 - `BaseSessionProfile<T>` - Session-scoped profile access
 - `UserPreDeleteEvent` - Listen for user deletion to clean up related data
 - `AuthenticationEntryPoint` - Override via `@ConditionalOnMissingBean` to customize session expiry behavior
+- `CaptchaService` - Supply a bean to replace the built-in Turnstile CAPTCHA provider
 
 ### Auto-Configuration
 
-- Entry point: `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` → `UserConfiguration`
+- Entry point: `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` → `UserConfiguration` plus feature auto-configurations (audit mail, CAPTCHA, security beans, security filter chain)
 - `UserAutoConfigurationRegistrar` dynamically registers the library package for entity/repository scanning
-- No conditional annotations — all features load, controlled by `user.*` properties
+- Most features load unconditionally and are controlled by `user.*` properties. The CAPTCHA support (`captcha` package) is the exception: it is gated by `@ConditionalOnProperty`/`@ConditionalOnClass` so it stays inert and dependency-free when disabled.
 
 ### Startup Behavior
 
@@ -141,6 +143,7 @@ com.digitalsanctuary.spring.user
 
 All configuration uses `user.*` prefix in application.yml. Key property groups:
 - `user.security.*` - URIs, default action (allow/deny), bcrypt strength, lockout settings, testHashTime
+- `user.security.captcha.*` - Optional CAPTCHA (Cloudflare Turnstile) on unauthenticated email-sending API actions (enabled, provider, allowUnusableProvider, protect.*)
 - `user.registration.*` - Email verification toggle, OAuth provider toggles
 - `user.mail.*` - Email sender settings (fromAddress)
 - `user.audit.*` - Audit logging (logFilePath, flushOnWrite, logEvents, maxQueryResults)
