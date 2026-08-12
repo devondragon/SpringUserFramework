@@ -109,6 +109,34 @@ Verification and password-reset tokens are **hashed at rest**. The raw token is 
 
 Only one active token per user is kept for each token type: requesting a new password reset or verification email invalidates the previous one.
 
+### Remember-Me ("Stay Signed In")
+
+Disabled by default. Two things are required to make it work, and both are on you as the consumer:
+
+1. Set `user.security.rememberMe.enabled=true` **and** a `user.security.rememberMe.key`. Without a key the feature stays off.
+2. Your login form must post the remember-me request parameter (a checkbox named `remember-me` by default). **Without the parameter, no cookie is ever issued** — enabling the properties alone does nothing visible.
+
+```html
+<input type="checkbox" name="remember-me"> Remember me
+```
+
+- **Enabled (`user.security.rememberMe.enabled`)**: Master switch. Default `false`.
+- **Key (`user.security.rememberMe.key`)**: Secret used to sign remember-me tokens. Required. Keep it stable across restarts and instances — changing it invalidates every outstanding remember-me cookie.
+- **Token Validity (`user.security.rememberMe.tokenValiditySeconds`)**: How long a token stays valid. Default `1209600` (14 days).
+- **Parameter Name (`user.security.rememberMe.rememberMeParameter`)**: Request parameter the login form posts. Default `remember-me`.
+- **Cookie Name (`user.security.rememberMe.rememberMeCookieName`)**: Default `remember-me`.
+- **Secure Cookie (`user.security.rememberMe.useSecureCookie`)**: Unset by default, which means the cookie is marked `Secure` whenever the request that created it used HTTPS. **Behind a TLS-terminating reverse proxy the request reaches the app as plain HTTP**, so the default only works if forwarded-header processing is configured (e.g. `server.forward-headers-strategy=framework` or `native`). If you terminate TLS at a proxy, either configure forwarded headers or set this to `true` explicitly.
+- **Persistent Tokens (`user.security.rememberMe.usePersistentTokens`)**: Default `false` (hash-based cookies). See below.
+
+**Hash-based vs. persistent tokens.** By default remember-me uses Spring Security's hash-based `TokenBasedRememberMeServices`: the cookie is a self-contained signature and nothing is stored server-side. Setting `user.security.rememberMe.usePersistentTokens=true` switches to database-backed tokens (`JdbcTokenRepositoryImpl`), which **requires the `persistent_logins` table** — the DDL is in `db-scripts/`; the library does not create it for you. You can also supply your own `PersistentTokenRepository` bean, which takes precedence.
+
+**Revocation semantics — read this before choosing a mode:**
+
+- **Persistent tokens** are revoked server-side by the library: when a user's sessions are invalidated (account disable/delete, admin-initiated sign-out) and on password change, all of the user's stored tokens are removed. On a self-service password change this includes the current device's token — the current session stays alive, but the user logs in again once it ends.
+- **Hash-based tokens cannot be revoked by admin action.** There is no server-side state; a cookie stays valid until it expires. A password change does invalidate them (the signature embeds the password hash). If "sign this user out everywhere, now" must also kill remember-me cookies, use persistent tokens.
+
+Remember-me works with all of the library's authentication paths (form login, OAuth2/OIDC, passkeys) because they all converge on the same `DSUserDetails` principal. One caveat for OAuth2/OIDC consumers: on a remember-me auto-login, provider claims are not available — `getIdToken()`/`getUserInfo()` return `null` and `getAttributes()` falls back to values from the local `User` entity.
+
 ## WebAuthn / Passkey Settings
 
 Provides passwordless login using biometrics, security keys, or device authentication. **HTTPS is required** for WebAuthn to function.

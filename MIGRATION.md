@@ -6,6 +6,8 @@ This guide covers migrating applications using the Spring User Framework between
 
 - [Migration Guide](#migration-guide)
   - [Table of Contents](#table-of-contents)
+  - [Migrating to 5.2.x](#migrating-to-52x)
+    - [Remember-me completed; two constructors gained parameters](#remember-me-completed-two-constructors-gained-parameters)
   - [Migrating to 5.0.x](#migrating-to-50x)
     - [⚠️ ACTION REQUIRED: Reverse-proxy deployments must configure a canonical app URL](#-action-required-reverse-proxy-deployments-must-configure-a-canonical-app-url)
     - [Database schema: unique token constraint](#database-schema-unique-token-constraint)
@@ -41,6 +43,24 @@ This guide covers migrating applications using the Spring User Framework between
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
   - [Version Compatibility Matrix](#version-compatibility-matrix)
+
+## Migrating to 5.2.x
+
+### Remember-me completed; two constructors gained parameters
+
+Remember-me support is now fully functional (persistent token store, cookie configuration, token
+revocation on session invalidation and password change). See
+[CONFIG.md &rarr; Remember-Me](CONFIG.md#remember-me-stay-signed-in) for setup — note in particular
+that your login form must post the `remember-me` parameter, and that
+`user.security.rememberMe.usePersistentTokens=true` requires the new `persistent_logins` table
+(DDL in `db-scripts/`).
+
+No behavior changes for applications that leave remember-me disabled.
+
+**Breaking for subclasses/direct instantiation only:** `WebSecurityConfig` and
+`SessionInvalidationService` each gained an `ObjectProvider<PersistentTokenRepository>` constructor
+parameter. If you subclass or directly instantiate either (uncommon — most consumers interact with
+them only as Spring beans, which are unaffected), add and pass through the new parameter.
 
 ## Migrating to 5.0.x
 
