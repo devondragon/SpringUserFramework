@@ -2,6 +2,69 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
+## [5.2.0] - 2026-08-12
+
+This release completes remember‑me (“stay signed in”) with real cookies, optional persistent tokens, and revocation on admin sign‑out/password change, and adds an optional, fail‑closed CAPTCHA layer (Turnstile adapter and a provider‑neutral SPI) for unauthenticated, email‑sending APIs. It also closes a CAPTCHA path‑matching bypass and expands docs and tests.
+
+SemVer classification: minor — introduces new public extension points and properties (CAPTCHA SPI, remember‑me options) while keeping defaults inert unless opted in.
+
+### Security
+- CAPTCHA enforcement bypass closed: the CAPTCHA interceptor now matches the same parsed RequestPath and PathPatterns the dispatcher uses, so encoded or matrix‑parameter variants that previously slipped through enforcement can no longer reach handlers without verification. With CAPTCHA enabled, such requests now fail closed (HTTP 403 with JSON body code 8) instead of proceeding.
+- Fail‑closed CAPTCHA by default:
+  - The provider SPI distinguishes VERIFIED vs REJECTED vs ERROR; provider outages or unexpected errors are treated as enforcement failures (HTTP 403, code 8), preventing accidental fail‑open during incidents.
+  - Startup guard: enabled CAPTCHA with no resolvable provider or a provider that reports it cannot verify anything fails application startup by default; see Behavior changes for the opt‑out.
+- Persistent remember‑me token revocation: SessionInvalidationService removes a user’s persistent tokens on both invalidateUserSessions and invalidateSessionsAfterPasswordChange so tokens cannot outlive a global admin sign‑out or a password change.
+- Secret handling: WebSecurityConfig excludes the remember‑me signing key from Lombok‑generated toString() to avoid leaking secrets in logs.
+
+### Breaking Changes
+- For consumers that subclass framework configuration/services only: WebSecurityConfig and SessionInvalidationService constructors now accept ObjectProvider<PersistentTokenRepository>; update subclasses accordingly. Regular consumers (not subclassing) are unaffected.
+
+### Behavior changes (client impact)
+- CAPTCHA enablement and startup behavior:
+  - With user.security.captcha.enabled=true, startup now fails if no provider can verify challenges (missing Turnstile secret/site key, absent bean, or unknown provider). Set user.security.captcha.allow-unusable-provider=true to start with an ERROR banner instead (still fail‑closed at runtime).
+- CAPTCHA‑protected endpoints and client contract (effective only when user.security.captcha.enabled=true):
+  - Protected actions: POST /user/registration, POST /user/registration/passwordless (newly protected), POST /user/resetPassword, and POST /user/resendRegistrationToken.
+  - Clients must send the CAPTCHA token as X-Captcha-Token (preferred) or cf-turnstile-response (query param). Missing/invalid/unverifiable tokens return HTTP 403 with JSON body code 8 and a customizable message.
+- Remember‑me now functional when opted in:
+  - If you enable remember‑me and supply a signing key and your login form posts the configured remember‑me parameter, the framework now issues remember‑me cookies and honors them for subsequent session‑less requests.
+  - Opting into persistent tokens (user.security.rememberMe.usePersistentTokens=true) requires the persistent_logins table; the provided DDL is included in db-scripts (username widened to 255).
+  - Behind TLS‑terminating proxies, ensure the request scheme is correctly inferred so Secure cookies are marked as such (see server.forward-headers-strategy guidance in the docs).
+  - Hash‑based mode has no server‑side state (admin revocation is not possible there); password changes inherently invalidate those cookies via the signature.
+
+### Features
+- Complete remember‑me support:
+  - WebSecurityConfig adds properties (defaulting to Spring Security defaults): user.security.rememberMe.tokenValiditySeconds (1209600 = 14 days), user.security.rememberMe.rememberMeParameter, user.security.rememberMe.rememberMeCookieName (default remember-me), and user.security.rememberMe.useSecureCookie (unset = follow request scheme).
+  - Optional persistent token store: user.security.rememberMe.usePersistentTokens=true contributes a JdbcTokenRepositoryImpl (ConditionalOnMissingBean) backed by the consumer’s DataSource; persistent_logins DDL added.
+  - SessionInvalidationService revokes persistent tokens on invalidateUserSessions and invalidateSessionsAfterPasswordChange; failures are logged and swallowed so primary operations cannot be rolled back or misreported.
+- Optional CAPTCHA with provider‑neutral SPI and Turnstile adapter:
+  - SPI: spring.user.captcha.CaptchaService with CaptchaContext and three‑way CaptchaVerification; actions are defined by CaptchaAction (single source for paths and per‑action toggles).
+  - Auto‑configuration: CaptchaAutoConfiguration wires CaptchaValidationInterceptor for protected actions and exposes the provider’s site key to MVC templates via the captchaSiteKey model attribute.
+  - Properties: user.security.captcha.enabled (default false), user.security.captcha.provider (default turnstile), user.security.captcha.allow-unusable-provider (default false), per‑action toggles user.security.captcha.protect.registration / .passwordless-registration / .reset-password / .resend-registration-token (default true each).
+  - Token transport contract: clients send X-Captcha-Token or cf-turnstile-response; on failure the API responds 403 with JSON body code 8.
+  - Optional dependency: the Turnstile adapter is provided via an optional ds-spring-cf-turnstile dependency; a consumer‑supplied CaptchaService bean takes precedence.
+
+### Fixes
+- Enforced CAPTCHA on path variants to close a matcher‑mismatch bypass: percent‑encoded segments and matrix parameters can no longer disagree with enforcement; unexpected inputs are treated as protected and fail closed (HTTP 403, code 8). StrictHttpFirewall still rejects matrix parameters with 400 by default; if a consumer relaxes it, the interceptor enforces 403.
+
+### Refactoring
+- CAPTCHA SPI redesign and hardening:
+  - CaptchaService.verify now consumes CaptchaContext and returns CaptchaVerification (VERIFIED/REJECTED/ERROR); unknown actions fail closed.
+  - Protected paths moved onto CaptchaAction; rejections publish AuditEvents, log the resolved client IP, and serialize the real JSONResponse.
+
+### Documentation
+- CONFIG.md/README.md: full remember‑me and CAPTCHA configuration, token transport, provider trade‑offs (hash‑based vs persistent), persistent_logins requirement, and proxy/Secure cookie guidance; corrected disabled‑state bean wording and noted custom PathPatternParser caveat.
+- MIGRATION.md: note for the new ObjectProvider<PersistentTokenRepository> constructor parameter on WebSecurityConfig and SessionInvalidationService (subclasses only).
+- Compatibility matrix updated to the 5.1.x framework family.
+
+### Testing
+- RememberMeIntegrationTest and RememberMePersistentTokenIntegrationTest cover cookie issuance, session‑less re‑auth (RememberMeAuthenticationToken), event publishing, password‑change rejection, persistent store gating/override, and revocation on both invalidation paths.
+- RememberMeCustomConfigIntegrationTest validates non‑default parameter/cookie names, validity, and forced Secure flag; RememberMeDisabledByDefaultIntegrationTest proves the default is inert.
+- CAPTCHA integration tests cover protection and per‑action toggles, fail‑closed behavior, provider wiring (no network), advice wiring, and executor drain on reject paths.
+
+### Other Changes
+- Dependency/tooling bumps: com.tngtech.archunit:archunit-junit5 to 1.5.0, org.hibernate.validator:hibernate-validator to 9.1.3.Final, com.github.ben-manes.versions to 0.60.0, Gradle wrapper to 9.7.0.
+- Code style cleanup: standardized indentation in CAPTCHA SPI/adapter.
+
 ## [5.1.1] - 2026-07-24
 
 This release hardens post-login redirect handling so browser auto-probes (e.g., Safari’s /apple-touch-icon.png) can no longer hijack where users land after authentication, and it auto-unprotects common probe paths so they no longer bounce unauthenticated users to the login page. No endpoints, response code contracts, or user.* properties changed.
