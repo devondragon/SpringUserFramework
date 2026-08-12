@@ -57,7 +57,8 @@ public class AuthenticationEventListener {
             }
             log.debug("Authentication success for OAuth2User: {}", username);
         } else if (principal instanceof String) {
-            // Basic authentication or remember-me
+            // Basic authentication. (This library's remember-me does NOT land here: it re-authenticates through
+            // DSUserDetailsService, so its principal is a DSUserDetails and takes the first branch.)
             username = (String) principal;
             log.debug("Authentication success for String principal: {}", username);
         } else {

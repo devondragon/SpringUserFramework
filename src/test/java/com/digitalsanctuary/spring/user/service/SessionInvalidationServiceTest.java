@@ -17,10 +17,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -34,6 +36,9 @@ class SessionInvalidationServiceTest {
 
     @Mock
     private SessionRegistry sessionRegistry;
+
+    @Mock
+    private ObjectProvider<PersistentTokenRepository> persistentTokenRepositoryProvider;
 
     @InjectMocks
     private SessionInvalidationService sessionInvalidationService;
@@ -252,7 +257,7 @@ class SessionInvalidationServiceTest {
         @DisplayName("uses default threshold of 1000")
         void usesDefaultThresholdOf1000() {
             // Given - create a new service without setting threshold (should use default)
-            SessionInvalidationService newService = new SessionInvalidationService(sessionRegistry);
+            SessionInvalidationService newService = new SessionInvalidationService(sessionRegistry, persistentTokenRepositoryProvider);
 
             // Verify the default value is set correctly via reflection
             Integer threshold = (Integer) ReflectionTestUtils.getField(newService, "warnThreshold");
@@ -370,6 +375,78 @@ class SessionInvalidationServiceTest {
 
             assertThat(invalidated).isEqualTo(0);
             verify(sessionRegistry, never()).getAllPrincipals();
+        }
+    }
+
+    @Nested
+    @DisplayName("Remember-Me Token Revocation Tests")
+    class RememberMeTokenRevocationTests {
+
+        @Mock
+        private PersistentTokenRepository persistentTokenRepository;
+
+        @Test
+        @DisplayName("invalidateUserSessions removes the user's persistent remember-me tokens, keyed by email")
+        void invalidateUserSessionsRevokesPersistentTokens() {
+            when(persistentTokenRepositoryProvider.getIfAvailable()).thenReturn(persistentTokenRepository);
+            when(sessionRegistry.getAllPrincipals()).thenReturn(Collections.emptyList());
+
+            sessionInvalidationService.invalidateUserSessions(testUser);
+
+            // Revocation must happen even with zero active sessions: the remember-me cookie alone would otherwise
+            // silently re-authenticate the user on their next request.
+            verify(persistentTokenRepository).removeUserTokens(testUser.getEmail());
+        }
+
+        @Test
+        @DisplayName("invalidateSessionsAfterPasswordChange removes the user's persistent remember-me tokens")
+        void passwordChangeRevokesPersistentTokens() {
+            ReflectionTestUtils.setField(sessionInvalidationService, "keepCurrentSessionOnPasswordChange", true);
+            when(persistentTokenRepositoryProvider.getIfAvailable()).thenReturn(persistentTokenRepository);
+            when(sessionRegistry.getAllPrincipals()).thenReturn(Collections.emptyList());
+
+            sessionInvalidationService.invalidateSessionsAfterPasswordChange(testUser);
+
+            verify(persistentTokenRepository).removeUserTokens(testUser.getEmail());
+        }
+
+        @Test
+        @DisplayName("is a no-op in hash-based mode (no PersistentTokenRepository bean present)")
+        void noOpWithoutPersistentTokenRepository() {
+            // Default hash-based remember-me has no server-side token state; the provider resolves to null.
+            when(persistentTokenRepositoryProvider.getIfAvailable()).thenReturn(null);
+            when(sessionRegistry.getAllPrincipals()).thenReturn(Collections.emptyList());
+
+            int invalidated = sessionInvalidationService.invalidateUserSessions(testUser);
+
+            assertThat(invalidated).isEqualTo(0);
+            verifyNoInteractions(persistentTokenRepository);
+        }
+
+        @Test
+        @DisplayName("does not touch tokens when user is null (no username to key on)")
+        void doesNotRevokeWhenUserIsNull() {
+            sessionInvalidationService.invalidateUserSessions(null);
+
+            verifyNoInteractions(persistentTokenRepositoryProvider);
+        }
+
+        @Test
+        @DisplayName("a repository failure is logged and swallowed - session invalidation still completes")
+        void repositoryFailureDoesNotBreakInvalidation() {
+            // Revocation runs inside password-change transactions and after-commit deletion callbacks; a thrown
+            // DataAccessException there would roll back or misreport the primary operation.
+            when(persistentTokenRepositoryProvider.getIfAvailable()).thenReturn(persistentTokenRepository);
+            doThrow(new RuntimeException("persistent_logins table missing")).when(persistentTokenRepository)
+                    .removeUserTokens(testUser.getEmail());
+            SessionInformation session = mock(SessionInformation.class);
+            when(sessionRegistry.getAllPrincipals()).thenReturn(List.of(testUser));
+            when(sessionRegistry.getAllSessions(testUser, false)).thenReturn(List.of(session));
+
+            int invalidated = sessionInvalidationService.invalidateUserSessions(testUser);
+
+            assertThat(invalidated).isEqualTo(1);
+            verify(session).expireNow();
         }
     }
 }

@@ -778,7 +778,7 @@ The framework includes a complete email verification system:
 Username/password authentication with:
 - Secure password hashing (bcrypt)
 - Account lockout protection
-- Remember-me functionality
+- Remember-me ("stay signed in") with hash-based or database-backed persistent tokens — requires enabling `user.security.rememberMe.*` properties **and** a `remember-me` checkbox on your login form (see [CONFIG.md](CONFIG.md#remember-me-stay-signed-in))
 
 ### WebAuthn / Passkeys
 
