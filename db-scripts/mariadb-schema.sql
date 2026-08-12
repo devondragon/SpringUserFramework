@@ -132,3 +132,15 @@ CREATE TABLE `user_credentials` (
   KEY `FK_user_credentials_entity` (`user_entity_user_id`),
   CONSTRAINT `FK_user_credentials_entity` FOREIGN KEY (`user_entity_user_id`) REFERENCES `user_entities` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Spring Security persistent remember-me tokens (JdbcTokenRepositoryImpl).
+-- Only required when user.security.rememberMe.usePersistentTokens=true.
+-- username holds the user's email, so it is wider than Spring's canonical 64 chars.
+CREATE TABLE `persistent_logins` (
+  `username` VARCHAR(255) NOT NULL,
+  `series` VARCHAR(64) NOT NULL,
+  `token` VARCHAR(64) NOT NULL,
+  `last_used` TIMESTAMP NOT NULL,
+  PRIMARY KEY (`series`),
+  KEY `IDX_persistent_logins_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

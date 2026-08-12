@@ -1,9 +1,11 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -23,6 +25,15 @@ import lombok.extern.slf4j.Slf4j;
  * {@link #invalidateSessionsAfterPasswordChange(User)} applies the self-service password-change policy, which by
  * default preserves and regenerates the user's current session while invalidating their other sessions.</p>
  *
+ * <p><strong>Remember-me tokens:</strong> when a {@link PersistentTokenRepository} bean is present (persistent
+ * remember-me mode), both methods also remove <em>all</em> of the user's stored remember-me tokens &mdash; including,
+ * on a password change, the token of the device the user is currently on (the preserved HTTP session survives; the
+ * user just has to log in again once that session ends). Without this, an expired session would be silently
+ * re-authenticated by the remember-me cookie, and persistent tokens would survive a password change. In the default
+ * hash-based remember-me mode there is no server-side token state to revoke: those cookies cannot be revoked
+ * server-side by admin action, but a password change invalidates them inherently because the cookie signature
+ * embeds the password hash.</p>
+ *
  * <p><strong>Race Condition Note:</strong> This service uses Spring's SessionRegistry to track
  * and invalidate sessions. Due to the nature of the SessionRegistry API, there is an inherent
  * race condition: sessions created after {@link SessionRegistry#getAllPrincipals()} is called
@@ -39,6 +50,9 @@ import lombok.extern.slf4j.Slf4j;
 public class SessionInvalidationService {
 
     private final SessionRegistry sessionRegistry;
+
+    /** Present only in persistent remember-me mode; empty in the default hash-based mode (nothing to revoke server-side). */
+    private final ObjectProvider<PersistentTokenRepository> persistentTokenRepositoryProvider;
 
     /** Threshold for warning about high principal count that may impact performance. */
     @Value("${user.session.invalidation.warn-threshold:1000}")
@@ -97,6 +111,8 @@ public class SessionInvalidationService {
                 }
             }
         }
+
+        revokeRememberMeTokens(user);
 
         log.info("SessionInvalidationService.invalidateUserSessions: invalidated {} sessions for user {} (scanned {} principals)",
                 invalidatedCount, user.getEmail(), principals.size());
@@ -165,6 +181,8 @@ public class SessionInvalidationService {
             regenerateCurrentSession(request, currentSessionId, currentPrincipal, user);
         }
 
+        revokeRememberMeTokens(user);
+
         log.info("SessionInvalidationService.invalidateSessionsAfterPasswordChange: invalidated {} other session(s) for user {}; "
                 + "current session preserved and regenerated: {}", invalidatedCount, user.getEmail(), currentPrincipal != null);
         return invalidatedCount;
@@ -193,6 +211,32 @@ public class SessionInvalidationService {
         } catch (IllegalStateException ex) {
             log.debug("SessionInvalidationService.regenerateCurrentSession: could not regenerate current session for user {}: {}",
                     user.getEmail(), ex.getMessage());
+        }
+    }
+
+    /**
+     * Removes all persistent remember-me tokens for the given user when a {@link PersistentTokenRepository} is
+     * present. Tokens are keyed by the remember-me username, which is {@link DSUserDetails#getUsername()} &mdash; the
+     * user's email. No-op in the default hash-based remember-me mode (no repository bean, no server-side state).
+     *
+     * @param user the user whose remember-me tokens should be removed (non-null; callers null-check first)
+     */
+    private void revokeRememberMeTokens(User user) {
+        PersistentTokenRepository tokenRepository = persistentTokenRepositoryProvider.getIfAvailable();
+        if (tokenRepository == null) {
+            return;
+        }
+        // Failure isolation: this runs inside password-change transactions and after-commit account-deletion
+        // callbacks. A repository failure must not roll back or misreport the primary operation, so it is logged
+        // (loudly) and swallowed. A systematically missing persistent_logins table also surfaces on the first
+        // remember-me login itself (Spring's createNewToken is not wrapped), so this cannot hide misconfiguration.
+        try {
+            tokenRepository.removeUserTokens(user.getEmail());
+            log.debug("SessionInvalidationService.revokeRememberMeTokens: removed persistent remember-me tokens for user {}", user.getEmail());
+        } catch (RuntimeException ex) {
+            log.error("SessionInvalidationService.revokeRememberMeTokens: FAILED to remove persistent remember-me tokens for user {} - "
+                    + "outstanding remember-me cookies for this user remain valid until they expire. If this persists, verify the "
+                    + "persistent_logins table exists and the database is reachable.", user.getEmail(), ex);
         }
     }
 

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -20,6 +21,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
@@ -29,6 +31,7 @@ import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -101,8 +104,26 @@ public class WebSecurityConfig {
 	@Value("${user.security.rememberMe.enabled:false}")
 	private boolean rememberMeEnabled;
 
+	// Excluded from the Lombok-generated toString so the signing secret can never leak through bean logging.
+	@ToString.Exclude
 	@Value("${user.security.rememberMe.key:#{null}}")
 	private String rememberMeKey;
+
+	@Value("${user.security.rememberMe.tokenValiditySeconds:1209600}")
+	private int rememberMeTokenValiditySeconds;
+
+	@Value("${user.security.rememberMe.rememberMeParameter:remember-me}")
+	private String rememberMeParameter;
+
+	@Value("${user.security.rememberMe.rememberMeCookieName:remember-me}")
+	private String rememberMeCookieName;
+
+	/**
+	 * Whether the remember-me cookie is marked {@code Secure}. Left {@code null} (unset) by default so Spring Security's
+	 * own behavior applies: the cookie is secure whenever the request that created it was made over HTTPS.
+	 */
+	@Value("${user.security.rememberMe.useSecureCookie:#{null}}")
+	private Boolean rememberMeUseSecureCookie;
 
 	@Value("${user.dev.auto-login-enabled:false}")
 	private boolean devAutoLoginEnabled;
@@ -118,6 +139,7 @@ public class WebSecurityConfig {
 	private final Environment environment;
 	private final ApplicationEventPublisher applicationEventPublisher;
 	private final RequestCache requestCache;
+	private final ObjectProvider<PersistentTokenRepository> persistentTokenRepositoryProvider;
 
 	/**
 	 * Builds the library's security filter chain for Spring Security.
@@ -151,9 +173,22 @@ public class WebSecurityConfig {
 		// RequestCache bean.
 		http.requestCache(cache -> cache.requestCache(requestCache));
 
-		// Configure remember-me only if explicitly enabled and key is provided
+		// Configure remember-me only if explicitly enabled and key is provided. With no PersistentTokenRepository bean
+		// present this stays on Spring's hash-based TokenBasedRememberMeServices (no server-side state); when a
+		// repository bean exists (e.g. the JdbcTokenRepositoryImpl enabled via user.security.rememberMe.usePersistentTokens,
+		// or a consumer-defined bean) the configurer switches to persistent tokens, which SessionInvalidationService can revoke.
 		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
-			http.rememberMe(rememberMe -> rememberMe.key(rememberMeKey).userDetailsService(userDetailsService));
+			http.rememberMe(rememberMe -> {
+				rememberMe.key(rememberMeKey).userDetailsService(userDetailsService).tokenValiditySeconds(rememberMeTokenValiditySeconds)
+						.rememberMeParameter(rememberMeParameter).rememberMeCookieName(rememberMeCookieName);
+				if (rememberMeUseSecureCookie != null) {
+					rememberMe.useSecureCookie(rememberMeUseSecureCookie);
+				}
+				PersistentTokenRepository tokenRepository = persistentTokenRepositoryProvider.getIfAvailable();
+				if (tokenRepository != null) {
+					rememberMe.tokenRepository(tokenRepository);
+				}
+			});
 		}
 
 		// Use the LogoutSuccessService handler (instead of logoutSuccessUrl) so logout publishes an audit event.

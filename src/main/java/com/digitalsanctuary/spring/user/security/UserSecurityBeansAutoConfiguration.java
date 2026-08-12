@@ -3,8 +3,10 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
+import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
@@ -20,6 +22,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -178,6 +182,32 @@ public class UserSecurityBeansAutoConfiguration {
     @ConditionalOnMissingBean(AuthenticationEventPublisher.class)
     public AuthenticationEventPublisher authenticationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         return new DefaultAuthenticationEventPublisher(applicationEventPublisher);
+    }
+
+    /**
+     * Creates the library's persistent remember-me token store, a {@link JdbcTokenRepositoryImpl} backed by the consuming application's
+     * {@link DataSource}. Only created when {@code user.security.rememberMe.usePersistentTokens=true}, so it is never instantiated unless the
+     * consumer has opted in &mdash; and opting in requires the {@code persistent_logins} table to exist (see {@code db-scripts/}); the repository
+     * does NOT create the table itself. Backs off entirely if the consuming application defines its own {@link PersistentTokenRepository}.
+     *
+     * <p>
+     * When this bean (or a consumer-defined replacement) is present, {@link WebSecurityConfig} switches remember-me from Spring's hash-based
+     * {@code TokenBasedRememberMeServices} to persistent tokens, and
+     * {@link com.digitalsanctuary.spring.user.service.SessionInvalidationService} revokes the stored tokens on session invalidation and password
+     * change. Persistent tokens do not embed the password hash, so without that revocation hook they would survive a password change &mdash; which
+     * is why the store and the revocation ship together.
+     * </p>
+     *
+     * @param dataSource the consuming application's {@link DataSource}
+     * @return the {@link JdbcTokenRepositoryImpl}
+     */
+    @Bean
+    @ConditionalOnProperty(name = "user.security.rememberMe.usePersistentTokens", havingValue = "true")
+    @ConditionalOnMissingBean(PersistentTokenRepository.class)
+    public PersistentTokenRepository persistentTokenRepository(DataSource dataSource) {
+        JdbcTokenRepositoryImpl tokenRepository = new JdbcTokenRepositoryImpl();
+        tokenRepository.setDataSource(dataSource);
+        return tokenRepository;
     }
 
     /**

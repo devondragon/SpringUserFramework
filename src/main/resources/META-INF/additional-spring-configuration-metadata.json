@@ -315,6 +315,35 @@
       "description": "Secret key for remember-me token generation"
     },
     {
+      "name": "user.security.rememberMe.tokenValiditySeconds",
+      "type": "java.lang.Integer",
+      "description": "How long a remember-me token stays valid, in seconds",
+      "defaultValue": 1209600
+    },
+    {
+      "name": "user.security.rememberMe.rememberMeParameter",
+      "type": "java.lang.String",
+      "description": "Request parameter the login form posts to opt into remember-me",
+      "defaultValue": "remember-me"
+    },
+    {
+      "name": "user.security.rememberMe.rememberMeCookieName",
+      "type": "java.lang.String",
+      "description": "Name of the remember-me cookie",
+      "defaultValue": "remember-me"
+    },
+    {
+      "name": "user.security.rememberMe.useSecureCookie",
+      "type": "java.lang.Boolean",
+      "description": "Force the Secure flag on the remember-me cookie. Unset (default) marks the cookie secure only when the request that created it used HTTPS."
+    },
+    {
+      "name": "user.security.rememberMe.usePersistentTokens",
+      "type": "java.lang.Boolean",
+      "description": "Store remember-me tokens in the database (JdbcTokenRepositoryImpl) instead of the default hash-based cookies. Requires the persistent_logins table (see db-scripts). Enables server-side revocation on session invalidation and password change.",
+      "defaultValue": false
+    },
+    {
       "name": "user.security.alwaysUseDefaultTargetUrl",
       "type": "java.lang.Boolean",
       "description": "Always redirect to default target URL after login"
