@@ -4,13 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -22,6 +25,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.rememberme.InMemoryTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.util.AppUrlResolver;
 
@@ -220,6 +226,47 @@ class CoreBeanOverrideTest {
     }
 
     @Nested
+    @DisplayName("PersistentTokenRepository gating (remember-me persistent tokens, #351)")
+    class PersistentTokenRepositoryGating {
+
+        @Test
+        @DisplayName("No PersistentTokenRepository bean when usePersistentTokens is unset (hash-based default)")
+        void absentWhenPropertyUnset() {
+            contextRunner.run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(PersistentTokenRepository.class));
+        }
+
+        @Test
+        @DisplayName("No PersistentTokenRepository bean when usePersistentTokens=false")
+        void absentWhenPropertyFalse() {
+            contextRunner.withPropertyValues("user.security.rememberMe.usePersistentTokens=false")
+                    .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean(PersistentTokenRepository.class));
+        }
+
+        @Test
+        @DisplayName("usePersistentTokens=true creates a JdbcTokenRepositoryImpl wired to the DataSource")
+        void presentWhenPropertyTrue() {
+            contextRunner.withBean(DataSource.class, () -> new DriverManagerDataSource("jdbc:h2:mem:persistentTokenGatingTest"))
+                    .withPropertyValues("user.security.rememberMe.usePersistentTokens=true").run(context -> {
+                        assertThat(context).hasNotFailed().hasSingleBean(PersistentTokenRepository.class);
+                        assertThat(context.getBean(PersistentTokenRepository.class)).isInstanceOf(JdbcTokenRepositoryImpl.class);
+                    });
+        }
+
+        @Test
+        @DisplayName("Consumer PersistentTokenRepository replaces the library's JdbcTokenRepositoryImpl")
+        void consumerPersistentTokenRepositoryWins() {
+            contextRunner.withBean(DataSource.class, () -> new DriverManagerDataSource("jdbc:h2:mem:persistentTokenOverrideTest"))
+                    .withPropertyValues("user.security.rememberMe.usePersistentTokens=true")
+                    .withUserConfiguration(ConsumerPersistentTokenRepositoryConfig.class).run(context -> {
+                        assertThat(context).hasNotFailed().hasSingleBean(PersistentTokenRepository.class);
+                        PersistentTokenRepository active = context.getBean(PersistentTokenRepository.class);
+                        assertThat(active).as("consumer's token repository must win").isSameAs(ConsumerPersistentTokenRepositoryConfig.CONSUMER_REPOSITORY);
+                        assertThat(active).isNotInstanceOf(JdbcTokenRepositoryImpl.class);
+                    });
+        }
+    }
+
+    @Nested
     @DisplayName("Annotation contract on the auto-configuration bean methods")
     class AnnotationContract {
 
@@ -259,6 +306,17 @@ class CoreBeanOverrideTest {
             Method method = UserSecurityBeansAutoConfiguration.class.getMethod("appUrlResolver", String.class, List.class, boolean.class);
             assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
         }
+
+        @Test
+        @DisplayName("persistentTokenRepository() is @ConditionalOnMissingBean AND @ConditionalOnProperty(usePersistentTokens)")
+        void persistentTokenRepositoryIsConditionalAndGated() throws Exception {
+            Method method = UserSecurityBeansAutoConfiguration.class.getMethod("persistentTokenRepository", DataSource.class);
+            assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).as("@ConditionalOnMissingBean must be present").isNotNull();
+            ConditionalOnProperty onProperty = method.getAnnotation(ConditionalOnProperty.class);
+            assertThat(onProperty).as("@ConditionalOnProperty must gate the bean so it is never created without opt-in").isNotNull();
+            assertThat(onProperty.name()).contains("user.security.rememberMe.usePersistentTokens");
+            assertThat(onProperty.havingValue()).isEqualTo("true");
+        }
     }
 
     // ---- Consumer-supplied stand-in configurations. Not @Configuration so the integration tests' component scan does not pick them up. ----
@@ -297,6 +355,15 @@ class CoreBeanOverrideTest {
         @Bean
         DaoAuthenticationProvider consumerAuthProvider() {
             return CONSUMER_PROVIDER;
+        }
+    }
+
+    static class ConsumerPersistentTokenRepositoryConfig {
+        static final PersistentTokenRepository CONSUMER_REPOSITORY = new InMemoryTokenRepositoryImpl();
+
+        @Bean
+        PersistentTokenRepository consumerPersistentTokenRepository() {
+            return CONSUMER_REPOSITORY;
         }
     }
 
