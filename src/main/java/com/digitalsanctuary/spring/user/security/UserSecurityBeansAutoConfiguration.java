@@ -2,8 +2,8 @@ package com.digitalsanctuary.spring.user.security;
 
 import java.util.List;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Value;
 import javax.sql.DataSource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
