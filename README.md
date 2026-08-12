@@ -654,6 +654,7 @@ attribute is not evaluated and Turnstile would receive the literal text. In Thym
 
 - **Login is deliberately not covered.** Login is handled by a Spring Security filter, not an MVC handler, so it falls outside this interceptor-based approach; per-account lockout (`user.security.failedLoginAttempts`) already provides brute-force protection there. If you want CAPTCHA on login too, enable `ds-spring-cf-turnstile`'s own login filter with `ds.cf.turnstile.login.enabled=true`, or use Cloudflare edge-level challenges.
 - A custom `CaptchaService` bean (see the `com.digitalsanctuary.spring.user.captcha.CaptchaService` SPI) fully replaces the built-in Turnstile provider if you want a different CAPTCHA vendor.
+- Enforcement matches request paths with Spring's default `PathPatternParser`. If your application installs a custom parser via `PathMatchConfigurer#setPatternParser` (for example a case-insensitive one), handler mapping and CAPTCHA enforcement could disagree on exotic path spellings — don't relax path matching on an application that exposes these endpoints.
 
 **Custom providers**
 
