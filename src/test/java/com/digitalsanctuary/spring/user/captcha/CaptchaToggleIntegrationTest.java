@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +42,6 @@ import com.digitalsanctuary.spring.user.test.config.MockMailConfiguration;
 import com.digitalsanctuary.spring.user.test.config.OAuth2TestConfiguration;
 import com.digitalsanctuary.spring.user.test.config.SecurityTestConfiguration;
 
-import jakarta.servlet.http.HttpServletRequest;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -52,7 +52,7 @@ import tools.jackson.databind.json.JsonMapper;
  * without a token while the still-protected reset-password action continues to reject.
  *
  * <p>
- * The stub {@link CaptchaService} always returns {@code false} from {@link CaptchaService#verify},
+ * The stub {@link CaptchaService} always rejects from {@link CaptchaService#verify(CaptchaContext)},
  * so no token is ever valid in this class — a passing registration request here can only be
  * explained by the toggle taking registration out of the protected set entirely, not by a token
  * happening to validate.
@@ -87,15 +87,15 @@ class CaptchaToggleIntegrationTest {
         CaptchaService stubCaptchaService() {
             return new CaptchaService() {
                 @Override
-                public boolean verify(String token, HttpServletRequest request) {
+                public CaptchaVerification verify(CaptchaContext context) {
                     // No token is ever valid in this class - the only way a protected action can
                     // succeed without one is if its toggle takes it out of the protected set.
-                    return false;
+                    return CaptchaVerification.rejected("stub rejects every token");
                 }
 
                 @Override
-                public String getSiteKey() {
-                    return "stub-site-key";
+                public Optional<String> siteKey() {
+                    return Optional.of("stub-site-key");
                 }
             };
         }

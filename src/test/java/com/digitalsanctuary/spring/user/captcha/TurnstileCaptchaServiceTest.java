@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.captcha;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,17 +13,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import com.digitalsanctuary.cf.turnstile.config.TurnstileConfigProperties;
 import com.digitalsanctuary.cf.turnstile.service.TurnstileValidationService;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("TurnstileCaptchaService adapter")
 class TurnstileCaptchaServiceTest {
+
+    private static final String CLIENT_IP = "203.0.113.7";
 
     @Mock
     private ObjectProvider<TurnstileValidationService> turnstileServiceProvider;
@@ -30,41 +31,72 @@ class TurnstileCaptchaServiceTest {
     @Mock
     private TurnstileValidationService turnstileValidationService;
 
+    @Mock
+    private ObjectProvider<TurnstileConfigProperties> turnstilePropertiesProvider;
+
     private TurnstileCaptchaService captchaService;
 
     @BeforeEach
     void setUp() {
-        captchaService = new TurnstileCaptchaService(turnstileServiceProvider);
+        captchaService = new TurnstileCaptchaService(turnstileServiceProvider, turnstilePropertiesProvider);
+        // lenient(): only the configurationErrors tests read the properties bean; verify/siteKey
+        // tests legitimately never touch it.
+        lenient().when(turnstilePropertiesProvider.getIfAvailable()).thenReturn(usableProperties());
+    }
+
+    private TurnstileConfigProperties usableProperties() {
+        TurnstileConfigProperties properties = new TurnstileConfigProperties();
+        properties.setSecret("real-secret");
+        properties.setSitekey("real-site-key");
+        return properties;
+    }
+
+    private CaptchaContext contextFor(String token) {
+        return new CaptchaContext(CaptchaAction.REGISTRATION, token, CLIENT_IP, new MockHttpServletRequest());
     }
 
     @Test
-    void shouldDelegateToTurnstileWithClientIpWhenServiceAvailable() {
+    void shouldReportVerifiedWhenTurnstileAcceptsToken() {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
-        when(turnstileValidationService.validateTurnstileResponse("tok-123", "203.0.113.7")).thenReturn(true);
+        when(turnstileValidationService.validateTurnstileResponse("tok-123", CLIENT_IP)).thenReturn(true);
 
-        boolean result = captchaService.verify("tok-123", request);
-
-        assertThat(result).isTrue();
-        verify(turnstileValidationService).validateTurnstileResponse("tok-123", "203.0.113.7");
+        assertThat(captchaService.verify(contextFor("tok-123")).isVerified()).isTrue();
+        // The framework resolves the client IP; the adapter must forward that value rather than
+        // re-deriving one, so provider calls and rejection logs name the same client.
+        verify(turnstileValidationService).validateTurnstileResponse("tok-123", CLIENT_IP);
     }
 
     @Test
-    void shouldFailClosedWhenTurnstileValidationFails() {
+    void shouldReportRejectedWhenTurnstileRejectsToken() {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
-        when(turnstileValidationService.validateTurnstileResponse("bad-token", "203.0.113.7")).thenReturn(false);
+        when(turnstileValidationService.validateTurnstileResponse("bad-token", CLIENT_IP)).thenReturn(false);
 
-        assertThat(captchaService.verify("bad-token", request)).isFalse();
+        CaptchaVerification result = captchaService.verify(contextFor("bad-token"));
+
+        assertThat(result.isVerified()).isFalse();
+        assertThat(result.outcome()).isEqualTo(CaptchaVerification.Outcome.REJECTED);
     }
 
     @Test
-    void shouldFailClosedWhenTurnstileServiceBeanMissing() {
+    void shouldReportErrorWhenTurnstileServiceBeanMissing() {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
 
-        assertThat(captchaService.verify("tok-123", new MockHttpServletRequest())).isFalse();
+        CaptchaVerification result = captchaService.verify(contextFor("tok-123"));
+
+        assertThat(result.isVerified()).isFalse();
+        assertThat(result.outcome()).isEqualTo(CaptchaVerification.Outcome.ERROR);
+    }
+
+    @Test
+    void shouldReportErrorWhenValidateTurnstileResponseThrows() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.validateTurnstileResponse("tok-123", CLIENT_IP))
+                .thenThrow(new RuntimeException("Validation service unavailable"));
+
+        CaptchaVerification result = captchaService.verify(contextFor("tok-123"));
+
+        assertThat(result.isVerified()).isFalse();
+        assertThat(result.outcome()).isEqualTo(CaptchaVerification.Outcome.ERROR);
     }
 
     @Test
@@ -72,7 +104,7 @@ class TurnstileCaptchaServiceTest {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
         when(turnstileValidationService.getTurnstileSitekey()).thenReturn("real-site-key");
 
-        assertThat(captchaService.getSiteKey()).isEqualTo("real-site-key");
+        assertThat(captchaService.siteKey()).contains("real-site-key");
     }
 
     @Test
@@ -87,11 +119,55 @@ class TurnstileCaptchaServiceTest {
     }
 
     @Test
-    void shouldWarnWhenTurnstileServiceBeanMissing() {
+    void shouldReportErrorWhenTurnstileServiceBeanMissingAtStartup() {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
 
+        assertThat(captchaService.configurationErrors())
+                .anySatisfy(error -> assertThat(error).contains("TurnstileValidationService"));
+    }
+
+    @Test
+    void shouldReportErrorWhenSecretMissing() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.getTurnstileSitekey()).thenReturn("real-site-key");
+        TurnstileConfigProperties noSecret = new TurnstileConfigProperties();
+        noSecret.setSitekey("real-site-key");
+        when(turnstilePropertiesProvider.getIfAvailable()).thenReturn(noSecret);
+
+        assertThat(captchaService.configurationErrors())
+                .anySatisfy(error -> assertThat(error).contains("secret"));
+    }
+
+    @Test
+    void shouldReportErrorWhenSiteKeyMissing() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.getTurnstileSitekey()).thenReturn("  ");
+
+        assertThat(captchaService.configurationErrors())
+                .anySatisfy(error -> assertThat(error).contains("site key"));
+    }
+
+    @Test
+    void shouldWarnRatherThanErrorWhenPropertiesBeanAbsent() {
+        // A consumer who excludes the Turnstile auto-configuration and hand-wires a working
+        // TurnstileValidationService has no properties bean. We cannot verify their secret, but
+        // that is not evidence it is broken, so this must not fail startup.
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.getTurnstileSitekey()).thenReturn("real-site-key");
+        when(turnstileValidationService.isUsingTestCredentials()).thenReturn(false);
+        when(turnstilePropertiesProvider.getIfAvailable()).thenReturn(null);
+
+        assertThat(captchaService.configurationErrors()).isEmpty();
         assertThat(captchaService.configurationWarnings())
-                .anySatisfy(warning -> assertThat(warning).contains("fail closed"));
+                .anySatisfy(warning -> assertThat(warning).contains("could not be verified"));
+    }
+
+    @Test
+    void shouldReportNoErrorsWhenFullyConfigured() {
+        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
+        when(turnstileValidationService.getTurnstileSitekey()).thenReturn("real-site-key");
+
+        assertThat(captchaService.configurationErrors()).isEmpty();
     }
 
     @Test
@@ -103,40 +179,19 @@ class TurnstileCaptchaServiceTest {
     }
 
     @Test
-    void shouldReturnNullSiteKeyWhenTurnstileServiceBeanMissing() {
+    void shouldReturnEmptySiteKeyWhenTurnstileServiceBeanMissing() {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(null);
 
-        assertThat(captchaService.getSiteKey()).isNull();
+        assertThat(captchaService.siteKey()).isEmpty();
     }
 
     @Test
-    void shouldFailClosedWhenGetClientIpAddressThrows() {
-        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        when(turnstileValidationService.getClientIpAddress(request))
-                .thenThrow(new RuntimeException("IP extraction failed"));
-
-        assertThat(captchaService.verify("tok-123", request)).isFalse();
-    }
-
-    @Test
-    void shouldFailClosedWhenValidateTurnstileResponseThrows() {
-        when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        when(turnstileValidationService.getClientIpAddress(request)).thenReturn("203.0.113.7");
-        when(turnstileValidationService.validateTurnstileResponse("tok-123", "203.0.113.7"))
-                .thenThrow(new RuntimeException("Validation service unavailable"));
-
-        assertThat(captchaService.verify("tok-123", request)).isFalse();
-    }
-
-    @Test
-    void shouldReturnNullSiteKeyWhenGetTurnstileSitekeyThrows() {
+    void shouldReturnEmptySiteKeyWhenGetTurnstileSitekeyThrows() {
         when(turnstileServiceProvider.getIfAvailable()).thenReturn(turnstileValidationService);
         when(turnstileValidationService.getTurnstileSitekey())
                 .thenThrow(new RuntimeException("Could not fetch site key"));
 
-        assertThat(captchaService.getSiteKey()).isNull();
+        assertThat(captchaService.siteKey()).isEmpty();
     }
 
     @Test

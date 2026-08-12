@@ -3,6 +3,7 @@ package com.digitalsanctuary.spring.user.captcha;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,9 +14,9 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.digitalsanctuary.cf.turnstile.config.TurnstileConfigProperties;
 import com.digitalsanctuary.cf.turnstile.service.TurnstileValidationService;
 
-import jakarta.servlet.http.HttpServletRequest;
 
 @DisplayName("CaptchaAutoConfiguration")
 class CaptchaAutoConfigurationTest {
@@ -23,11 +24,40 @@ class CaptchaAutoConfigurationTest {
     private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(CaptchaAutoConfiguration.class));
 
+    /** A fully usable Turnstile provider: service bean present, secret and site key configured. */
     @Configuration(proxyBeanMethods = false)
     static class TurnstileServiceBeanConfiguration {
         @Bean
         TurnstileValidationService turnstileValidationService() {
-            return Mockito.mock(TurnstileValidationService.class);
+            TurnstileValidationService mock = Mockito.mock(TurnstileValidationService.class);
+            Mockito.when(mock.getTurnstileSitekey()).thenReturn("real-site-key");
+            return mock;
+        }
+
+        @Bean
+        TurnstileConfigProperties turnstileConfigProperties() {
+            TurnstileConfigProperties properties = new TurnstileConfigProperties();
+            properties.setSecret("real-secret");
+            properties.setSitekey("real-site-key");
+            return properties;
+        }
+    }
+
+    /** Turnstile present but unusable: no secret configured, so nothing can ever validate. */
+    @Configuration(proxyBeanMethods = false)
+    static class UnusableTurnstileConfiguration {
+        @Bean
+        TurnstileValidationService turnstileValidationService() {
+            TurnstileValidationService mock = Mockito.mock(TurnstileValidationService.class);
+            Mockito.when(mock.getTurnstileSitekey()).thenReturn("real-site-key");
+            return mock;
+        }
+
+        @Bean
+        TurnstileConfigProperties turnstileConfigProperties() {
+            TurnstileConfigProperties properties = new TurnstileConfigProperties();
+            properties.setSitekey("real-site-key");
+            return properties;
         }
     }
 
@@ -37,7 +67,16 @@ class CaptchaAutoConfigurationTest {
         TurnstileValidationService turnstileValidationService() {
             TurnstileValidationService mock = Mockito.mock(TurnstileValidationService.class);
             Mockito.when(mock.isUsingTestCredentials()).thenReturn(true);
+            Mockito.when(mock.getTurnstileSitekey()).thenReturn("1x00000000000000000000AA");
             return mock;
+        }
+
+        @Bean
+        TurnstileConfigProperties turnstileConfigProperties() {
+            TurnstileConfigProperties properties = new TurnstileConfigProperties();
+            properties.setSecret("1x0000000000000000000000000000000AA");
+            properties.setSitekey("1x00000000000000000000AA");
+            return properties;
         }
     }
 
@@ -47,24 +86,28 @@ class CaptchaAutoConfigurationTest {
         CaptchaService customCaptchaService() {
             return new CaptchaService() {
                 @Override
-                public boolean verify(String token, HttpServletRequest request) {
-                    return true;
+                public CaptchaVerification verify(CaptchaContext context) {
+                    return CaptchaVerification.verified();
                 }
 
                 @Override
-                public String getSiteKey() {
-                    return "custom";
+                public Optional<String> siteKey() {
+                    return Optional.of("custom");
                 }
             };
         }
     }
 
     @Test
-    void shouldRegisterNoCaptchaBeansWhenDisabled() {
+    void shouldRegisterNoInterceptorOrProviderBeansWhenDisabled() {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(CaptchaService.class);
             assertThat(context).doesNotHaveBean(CaptchaValidationInterceptor.class);
+            // CaptchaConfigProperties and CaptchaStartupValidator do register unconditionally; the
+            // validator early-returns when disabled. Asserted so the "no beans at all" reading of
+            // the disabled state doesn't creep back into the docs.
+            assertThat(context).hasSingleBean(CaptchaStartupValidator.class);
         });
     }
 
@@ -95,8 +138,9 @@ class CaptchaAutoConfigurationTest {
                 .withPropertyValues("user.security.captcha.enabled=true")
                 .run(context -> {
                     assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure()).isInstanceOf(IllegalStateException.class)
-                            .hasMessageContaining("CaptchaService");
+                    // @PostConstruct validation surfaces wrapped in BeanCreationException.
+                    assertThat(context.getStartupFailure()).rootCause()
+                            .isInstanceOf(IllegalStateException.class).hasMessageContaining("CaptchaService");
                 });
     }
 
@@ -116,7 +160,32 @@ class CaptchaAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(CaptchaService.class);
-                    assertThat(context.getBean(CaptchaService.class).getSiteKey()).isEqualTo("custom");
+                    assertThat(context.getBean(CaptchaService.class).siteKey()).contains("custom");
+                });
+    }
+
+    @Test
+    void shouldFailStartupWhenProviderCannotVerifyAnything() {
+        // The likeliest production misconfiguration: the library is present and a CaptchaService
+        // resolves, but no secret is set. Without this check the app starts clean and then rejects
+        // 100% of registrations, resets, and resends with no indication why.
+        contextRunner.withUserConfiguration(UnusableTurnstileConfiguration.class)
+                .withPropertyValues("user.security.captcha.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure()).rootCause()
+                            .isInstanceOf(IllegalStateException.class).hasMessageContaining("secret");
+                });
+    }
+
+    @Test
+    void shouldStartWithUnusableProviderWhenExplicitlyAllowed() {
+        contextRunner.withUserConfiguration(UnusableTurnstileConfiguration.class)
+                .withPropertyValues("user.security.captcha.enabled=true",
+                        "user.security.captcha.allow-unusable-provider=true")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(CaptchaService.class);
                 });
     }
 

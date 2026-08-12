@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,7 +40,7 @@ class CaptchaSiteKeyControllerAdviceTest {
     @Test
     void shouldExposeSiteKeyModelAttributeWhenServiceAvailable() throws Exception {
         when(captchaServiceProvider.getIfAvailable()).thenReturn(captchaService);
-        when(captchaService.getSiteKey()).thenReturn("the-site-key");
+        when(captchaService.siteKey()).thenReturn(Optional.of("the-site-key"));
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TestPageController())
                 .setControllerAdvice(new CaptchaSiteKeyControllerAdvice(captchaServiceProvider)).build();
 
@@ -53,5 +55,28 @@ class CaptchaSiteKeyControllerAdviceTest {
         CaptchaSiteKeyControllerAdvice advice = new CaptchaSiteKeyControllerAdvice(captchaServiceProvider);
 
         assertThat(advice.captchaSiteKey()).isNull();
+    }
+
+    @Test
+    void shouldExposeNullSiteKeyWhenProviderHasNoneConfigured() throws Exception {
+        when(captchaServiceProvider.getIfAvailable()).thenReturn(captchaService);
+        when(captchaService.siteKey()).thenReturn(Optional.empty());
+        CaptchaSiteKeyControllerAdvice advice = new CaptchaSiteKeyControllerAdvice(captchaServiceProvider);
+
+        assertThat(advice.captchaSiteKey()).isNull();
+    }
+
+    @Test
+    void shouldRenderPageWithoutSiteKeyWhenProviderThrows() throws Exception {
+        // This advice runs on every @Controller request. A throwing consumer-supplied provider
+        // must degrade to a missing widget, not break rendering of every MVC page in the app.
+        when(captchaServiceProvider.getIfAvailable()).thenReturn(captchaService);
+        when(captchaService.siteKey()).thenThrow(new IllegalStateException("provider exploded"));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TestPageController())
+                .setControllerAdvice(new CaptchaSiteKeyControllerAdvice(captchaServiceProvider)).build();
+
+        mockMvc.perform(get("/captcha-advice-test-page"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("captchaSiteKey", (Object) null));
     }
 }

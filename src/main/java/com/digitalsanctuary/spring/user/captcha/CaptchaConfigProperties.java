@@ -10,7 +10,9 @@ import lombok.Data;
  *
  * <p>
  * Disabled by default: with {@code user.security.captcha.enabled=false} the framework registers no
- * CAPTCHA beans and behavior is identical to previous releases.
+ * CAPTCHA interceptor or provider beans, no requests are inspected, and behavior is identical to
+ * previous releases. This properties class and {@link CaptchaStartupValidator} are always
+ * registered; the validator early-returns when disabled.
  * </p>
  */
 @Data
@@ -18,8 +20,10 @@ import lombok.Data;
 public class CaptchaConfigProperties {
 
     /**
-     * Master switch for CAPTCHA verification. When false (the default), no CAPTCHA beans are
-     * registered and no requests are checked.
+     * Master switch for CAPTCHA verification. When false (the default), no CAPTCHA interceptor or
+     * provider beans are registered and no requests are checked. Read at startup only: changing
+     * this field on the bound bean at runtime does not turn interception on or off, because the
+     * interceptor and provider beans are created conditionally during context refresh.
      */
     private boolean enabled = false;
 
@@ -29,6 +33,15 @@ public class CaptchaConfigProperties {
      * supply their own {@link CaptchaService} bean, which takes precedence.
      */
     private String provider = "turnstile";
+
+    /**
+     * Whether to start even when the configured provider reports it cannot verify anything (see
+     * {@link CaptchaService#configurationErrors()}) — for example a missing Turnstile secret or
+     * site key. False by default: such a provider rejects every request to every protected
+     * endpoint, so failing startup surfaces the misconfiguration instead of shipping an outage
+     * that looks healthy. Set true to boot anyway and take the WARN banner instead.
+     */
+    private boolean allowUnusableProvider = false;
 
     /** Per-action protection toggles, effective only when {@link #enabled} is true. */
     private Protect protect = new Protect();
@@ -43,10 +56,30 @@ public class CaptchaConfigProperties {
         /** Require CAPTCHA on POST /user/registration. */
         private boolean registration = true;
 
+        /** Require CAPTCHA on POST /user/registration/passwordless. */
+        private boolean passwordlessRegistration = true;
+
         /** Require CAPTCHA on POST /user/resetPassword. */
         private boolean resetPassword = true;
 
         /** Require CAPTCHA on POST /user/resendRegistrationToken. */
         private boolean resendRegistrationToken = true;
+
+        /**
+         * Whether the given action requires a CAPTCHA. Unknown actions are treated as protected so
+         * that adding a {@link CaptchaAction} constant without a matching toggle here fails closed
+         * rather than silently leaving the new action unprotected.
+         *
+         * @param action the action to check; must not be null
+         * @return true when the action requires a valid CAPTCHA token
+         */
+        public boolean isProtected(CaptchaAction action) {
+            return switch (action) {
+                case REGISTRATION -> registration;
+                case PASSWORDLESS_REGISTRATION -> passwordlessRegistration;
+                case RESET_PASSWORD -> resetPassword;
+                case RESEND_REGISTRATION_TOKEN -> resendRegistrationToken;
+            };
+        }
     }
 }

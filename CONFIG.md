@@ -98,7 +98,9 @@ Optional CAPTCHA verification on the framework's unauthenticated, email-sending 
 
 - **Enabled (`user.security.captcha.enabled`)**: Master switch. When `false` (default), no CAPTCHA interceptor or provider beans are registered and no requests are checked.
 - **Provider (`user.security.captcha.provider`)**: The CAPTCHA provider. Only `turnstile` (Cloudflare Turnstile, via the optional `com.digitalsanctuary:ds-spring-cf-turnstile` dependency) is currently supported. Defaults to `turnstile`. Supply your own `CaptchaService` bean to use a different provider; it takes precedence over the built-in one.
+- **Allow Unusable Provider (`user.security.captcha.allow-unusable-provider`)**: Whether to start when the provider reports it cannot verify anything (missing Turnstile secret or site key, absent service bean). Defaults to `false` — such a provider rejects every request to every protected endpoint, so startup fails rather than shipping an outage that looks healthy. Set `true` to boot anyway and take a startup ERROR banner instead.
 - **Protect Registration (`user.security.captcha.protect.registration`)**: Require CAPTCHA on `POST /user/registration`. Defaults to `true`.
+- **Protect Passwordless Registration (`user.security.captcha.protect.passwordless-registration`)**: Require CAPTCHA on `POST /user/registration/passwordless`. Defaults to `true`. Only reachable if you have added that path to `user.security.unprotectedURIs` and have a WebAuthn credential service, but it creates an account and sends a verification email for an unauthenticated caller just like the standard registration endpoint.
 - **Protect Reset Password (`user.security.captcha.protect.reset-password`)**: Require CAPTCHA on `POST /user/resetPassword`. Defaults to `true`.
 - **Protect Resend Registration Token (`user.security.captcha.protect.resend-registration-token`)**: Require CAPTCHA on `POST /user/resendRegistrationToken`. Defaults to `true`.
 
@@ -115,7 +117,7 @@ user:
         resend-registration-token: true
 ```
 
-**Client contract**: these endpoints consume JSON bodies, so the CAPTCHA token must be sent in the `X-Captcha-Token` request header (preferred) or the `cf-turnstile-response` query parameter — it cannot be added as a form field. Rejections return `HTTP 403` with a `JSONResponse` body (`code: 8`), customizable via the `message.captcha.validation-failed` message key. The site key is exposed to MVC pages as the `captchaSiteKey` model attribute. See the README's [CAPTCHA Protection](README.md#captcha-protection-cloudflare-turnstile) section for the full client-side contract, fail-closed semantics, and scope notes (login and passwordless registration are not covered).
+**Client contract**: these endpoints consume JSON bodies, so the CAPTCHA token must be sent in the `X-Captcha-Token` request header (preferred) or the `cf-turnstile-response` query parameter — it cannot be added as a form field. Rejections return `HTTP 403` with a `JSONResponse` body (`code: 8`), customizable via the `message.captcha.validation-failed` message key. The site key is exposed to MVC pages as the `captchaSiteKey` model attribute. See the README's [CAPTCHA Protection](README.md#captcha-protection-cloudflare-turnstile) section for the full client-side contract, fail-closed semantics, and scope notes (login is not covered).
 
 ### Passwordless Initial Password Step-Up (SUF-02)
 

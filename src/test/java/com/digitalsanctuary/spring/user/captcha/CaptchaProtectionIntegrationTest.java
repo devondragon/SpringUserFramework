@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -22,6 +23,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
@@ -46,7 +49,6 @@ import com.digitalsanctuary.spring.user.test.config.MockMailConfiguration;
 import com.digitalsanctuary.spring.user.test.config.OAuth2TestConfiguration;
 import com.digitalsanctuary.spring.user.test.config.SecurityTestConfiguration;
 
-import jakarta.servlet.http.HttpServletRequest;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -71,7 +73,26 @@ import tools.jackson.databind.json.JsonMapper;
 @Execution(ExecutionMode.SAME_THREAD)
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:h2:mem:captchaprotectiontest;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
-        "user.security.captcha.enabled=true"
+        "user.security.captcha.enabled=true",
+        // Required for the "sends no email" assertions to mean anything: this defaults to false
+        // (RegistrationListener), so without it the registration path sends no verification email
+        // whether or not CAPTCHA rejects, and every assertNoEmailSent() would pass vacuously.
+        "user.registration.sendVerificationEmail=true",
+        // Lets StubCaptchaConfiguration replace BaseTestConfiguration's no-op event publisher; see
+        // realEventPublisher below.
+        "spring.main.allow-bean-definition-overriding=true",
+        // The passwordless registration endpoint is only reachable once a consumer opens it (its
+        // own javadoc says so), which is exactly the configuration in which it needs CAPTCHA. Set
+        // here rather than in the shared application.properties so no other test class's security
+        // posture changes.
+        // /user/savePassword is listed so shouldNotInterceptUnprotectedEndpointWhenCaptchaEnabled
+        // reaches the MVC layer; it is deliberately NOT CAPTCHA-protected (token-gated, sends no
+        // email), which is exactly what that test pins.
+        // /user/nonexistent is opened so shouldReturnNotFoundForUnknownUserPathWhenCaptchaEnabled
+        // reaches the DispatcherServlet (otherwise Spring Security 302s it to login first).
+        "user.security.unprotectedURIs=/,/index.html,/css/*,/js/*,/img/*,/register.html,/user/registration,"
+                + "/user/registration/passwordless,/user/resendRegistrationToken,/user/resetPassword,"
+                + "/user/savePassword,/user/nonexistent,/user/login"
 })
 @Import({BaseTestConfiguration.class, DatabaseTestConfiguration.class, SecurityTestConfiguration.class,
         OAuth2TestConfiguration.class, MockMailConfiguration.class,
@@ -83,18 +104,34 @@ class CaptchaProtectionIntegrationTest {
 
     @TestConfiguration
     static class StubCaptchaConfiguration {
+
+        /**
+         * Replaces {@link BaseTestConfiguration}'s {@code Mockito.spy(ApplicationEventPublisher.class)},
+         * which silently swallows every published event. With that no-op publisher in place
+         * {@code RegistrationListener} never runs, so no verification email is ever dispatched and
+         * this class's "sends no email" assertions would hold no matter what the interceptor did.
+         * Overrides by bean name (hence {@code allow-bean-definition-overriding} above); the real
+         * publisher is the {@link ApplicationContext} itself.
+         */
+        @Bean
+        @Primary
+        ApplicationEventPublisher testEventPublisher(ApplicationContext applicationContext) {
+            return applicationContext;
+        }
+
         @Bean
         @Primary
         CaptchaService stubCaptchaService() {
             return new CaptchaService() {
                 @Override
-                public boolean verify(String token, HttpServletRequest request) {
-                    return VALID_TOKEN.equals(token);
+                public CaptchaVerification verify(CaptchaContext context) {
+                    return VALID_TOKEN.equals(context.token()) ? CaptchaVerification.verified()
+                            : CaptchaVerification.rejected("stub rejected token");
                 }
 
                 @Override
-                public String getSiteKey() {
-                    return "stub-site-key";
+                public Optional<String> siteKey() {
+                    return Optional.of("stub-site-key");
                 }
             };
         }
@@ -102,6 +139,9 @@ class CaptchaProtectionIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private UserService userService;
@@ -123,10 +163,11 @@ class CaptchaProtectionIntegrationTest {
 
     /**
      * The bounded executor {@code MailService} dispatches {@code @Async("dsMailExecutor")} sends on
-     * (e.g. the resetPassword success test's {@code sendForgotPasswordVerificationEmail} call).
-     * Drained in {@link #setUp()} so a straggling send from a previous test method cannot land in
-     * the shared {@link MockMailConfiguration.MockJavaMailSender} capture after it's cleared and
-     * pollute a later reject-path "no email sent" assertion.
+     * (in this class, the registration verification email sent by
+     * {@link #shouldRegisterWhenTokenValid()}). Drained in {@link #setUp()} so a straggling send
+     * from a previous test method cannot land in the shared
+     * {@link MockMailConfiguration.MockJavaMailSender} capture after it's cleared and pollute a
+     * later reject-path "no email sent" assertion.
      */
     @Autowired
     @Qualifier("dsMailExecutor")
@@ -146,8 +187,8 @@ class CaptchaProtectionIntegrationTest {
         // Drain any in-flight/queued async send left over from a previous test method BEFORE
         // clearing the capture, so a straggler can't land after clear() and pollute this method's
         // "no email sent" assertion. junit-platform.properties randomizes method order, so a
-        // preceding success-path test (e.g. shouldAllowResetPasswordWhenTokenValid) may not have
-        // finished its async send by the time this method starts.
+        // preceding success-path test (shouldRegisterWhenTokenValid) may not have finished its
+        // async send by the time this method starts.
         drainMailExecutor();
         mockMailSender().clear();
         deleteTestUser(testEmail);
@@ -155,6 +196,10 @@ class CaptchaProtectionIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        // Registration dispatches the verification email asynchronously, and that async work
+        // creates a VerificationToken row. Draining first prevents a token being inserted between
+        // deleteByUser and the user delete, which would fail cleanup on the FK constraint.
+        drainMailExecutor();
         deleteTestUser(testEmail);
     }
 
@@ -187,9 +232,28 @@ class CaptchaProtectionIntegrationTest {
         });
     }
 
+    /**
+     * Asserts no email was dispatched. {@code getSentPreparators()} is the load-bearing check:
+     * {@code MailService} sends exclusively via {@code send(MimeMessagePreparator)}, so the MIME and
+     * simple lists are never populated by production code and asserting only those would pass no
+     * matter what. {@link #shouldRegisterWhenTokenValid()} is the positive control proving this
+     * capture actually observes a real send.
+     */
     private void assertNoEmailSent() {
+        assertThat(mockMailSender().getSentPreparators()).isEmpty();
         assertThat(mockMailSender().getSentMimeMessages()).isEmpty();
         assertThat(mockMailSender().getSentSimpleMessages()).isEmpty();
+    }
+
+    /**
+     * Waits for exactly one dispatched email, then asserts no more arrive. Sends are
+     * {@code @Async}, so the assertion has to await rather than read the capture immediately.
+     */
+    private void assertOneEmailSent() {
+        Awaitility.await().atMost(Duration.ofSeconds(5)).pollInterval(Duration.ofMillis(25))
+                .until(() -> mockMailSender().getSentPreparators().size() == 1);
+        drainMailExecutor();
+        assertThat(mockMailSender().getSentPreparators()).hasSize(1);
     }
 
     private String registrationJson() {
@@ -218,6 +282,7 @@ class CaptchaProtectionIntegrationTest {
                 .andExpect(jsonPath("$.code").value(CaptchaValidationInterceptor.ERROR_CODE_CAPTCHA_FAILED));
 
         assertThat(userService.findUserByEmail(testEmail)).isNull();
+        assertNoEmailSent();
     }
 
     @Test
@@ -229,6 +294,9 @@ class CaptchaProtectionIntegrationTest {
 
         User created = userService.findUserByEmail(testEmail);
         assertThat(created).isNotNull();
+        // Positive control for the whole class: proves the mail capture observes a real send, so
+        // the assertNoEmailSent() calls on the reject paths are meaningful rather than vacuous.
+        assertOneEmailSent();
     }
 
     @Test
@@ -272,11 +340,41 @@ class CaptchaProtectionIntegrationTest {
     }
 
     @Test
+    void shouldAcceptTokenFromQueryParameterThroughFullStack() throws Exception {
+        // The cf-turnstile-response query parameter is a documented transport, but a unit test
+        // using MockHttpServletRequest.setParameter cannot distinguish query string from form body.
+        // This proves it works through real parameter parsing on a JSON POST.
+        mockMvc.perform(post("/user/registration?" + CaptchaValidationInterceptor.TOKEN_PARAMETER + "=" + VALID_TOKEN)
+                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(registrationJson()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        assertThat(userService.findUserByEmail(testEmail)).isNotNull();
+    }
+
+    @Test
+    void shouldRejectPasswordlessRegistrationWithoutTokenAndSendNoEmail() throws Exception {
+        // This endpoint also creates an account and sends a verification email for an
+        // unauthenticated caller, so leaving it uncovered would give an abuser a cheaper path
+        // (no password in the payload) to the exact abuse CAPTCHA is here to stop.
+        mockMvc.perform(post("/user/registration/passwordless").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("email", testEmail, "firstName", "Captcha",
+                        "lastName", "Tester"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(CaptchaValidationInterceptor.ERROR_CODE_CAPTCHA_FAILED));
+
+        assertThat(userService.findUserByEmail(testEmail)).isNull();
+        assertNoEmailSent();
+    }
+
+    @Test
     void shouldRejectResendRegistrationTokenWithoutToken() throws Exception {
         mockMvc.perform(post("/user/resendRegistrationToken").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content(registrationJson()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(CaptchaValidationInterceptor.ERROR_CODE_CAPTCHA_FAILED));
+        assertNoEmailSent();
     }
 
     @Test
@@ -286,5 +384,36 @@ class CaptchaProtectionIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of("email", testEmail))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void shouldNotInterceptUnprotectedEndpointWhenCaptchaEnabled() throws Exception {
+        // Pins the interceptor's registration scope: /user/savePassword is unauthenticated and
+        // deliberately not CAPTCHA-protected (it is gated by the emailed reset token, and sends no
+        // email). If registration were ever broadened (e.g. to /user/**), this tokenless POST
+        // would get the CAPTCHA 403 instead of reaching the handler's bean validation (400).
+        mockMvc.perform(post("/user/savePassword").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldReturnNotFoundForUnknownUserPathWhenCaptchaEnabled() throws Exception {
+        // The interceptor's unmatched-path branch fails closed (403) when invoked, so if the
+        // registration patterns ever matched more than the CaptchaAction paths, this would turn
+        // from a plain 404 into a CAPTCHA rejection.
+        mockMvc.perform(post("/user/nonexistent").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldRegisterSiteKeyControllerAdviceWhenCaptchaEnabled() {
+        // The advice is registered by component scan plus @ConditionalOnProperty, not by
+        // CaptchaAutoConfiguration, so no context-runner test can see it; this full context is
+        // the only place its wiring is real. If the class moved out of the scanned package or the
+        // condition changed, consumers' templates would silently lose the captchaSiteKey attribute.
+        CaptchaSiteKeyControllerAdvice advice = applicationContext.getBean(CaptchaSiteKeyControllerAdvice.class);
+        assertThat(advice.captchaSiteKey()).isEqualTo("stub-site-key");
     }
 }
