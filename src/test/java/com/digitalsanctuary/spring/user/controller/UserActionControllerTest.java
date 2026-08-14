@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
 import com.digitalsanctuary.spring.user.service.UserVerificationService;
@@ -21,12 +22,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -50,20 +49,24 @@ class UserActionControllerTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
     
-    @InjectMocks
     private UserActionController userActionController;
-    
+
     private User testUser;
-    
+
     @BeforeEach
     void setUp() {
-        // Set field values using reflection
-        ReflectionTestUtils.setField(userActionController, "registrationPendingURI", "/user/registration-pending.html");
-        ReflectionTestUtils.setField(userActionController, "registrationSuccessURI", "/user/registration-complete.html");
-        ReflectionTestUtils.setField(userActionController, "registrationNewVerificationURI", "/user/request-new-verification-email.html");
-        ReflectionTestUtils.setField(userActionController, "forgotPasswordPendingURI", "/user/forgot-password-pending.html");
-        ReflectionTestUtils.setField(userActionController, "forgotPasswordChangeURI", "/user/forgot-password-change.html");
-        
+        // Real (non-mocked) UserSecurityConfigProperties so getters return the specific URI values these tests
+        // assert against, matching what the removed @Value fields previously held.
+        UserSecurityConfigProperties userSecurityConfig = new UserSecurityConfigProperties();
+        userSecurityConfig.setRegistrationPendingUri("/user/registration-pending.html");
+        userSecurityConfig.setRegistrationSuccessUri("/user/registration-complete.html");
+        userSecurityConfig.setRegistrationNewVerificationUri("/user/request-new-verification-email.html");
+        userSecurityConfig.setForgotPasswordPendingUri("/user/forgot-password-pending.html");
+        userSecurityConfig.setForgotPasswordChangeUri("/user/forgot-password-change.html");
+
+        userActionController =
+                new UserActionController(userService, userVerificationService, messageSource, eventPublisher, userSecurityConfig);
+
         mockMvc = MockMvcBuilders.standaloneSetup(userActionController).build();
         
         testUser = UserTestDataBuilder.aUser()

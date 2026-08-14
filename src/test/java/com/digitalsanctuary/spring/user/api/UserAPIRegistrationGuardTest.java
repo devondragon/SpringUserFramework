@@ -17,14 +17,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.http.MediaType;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -34,6 +32,7 @@ import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -75,14 +74,21 @@ class UserAPIRegistrationGuardTest {
     @Mock
     private AppUrlResolver appUrlResolver;
 
-    @InjectMocks
     private UserAPI userAPI;
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(userAPI, "registrationPendingURI", "/user/registration-pending.html");
-        ReflectionTestUtils.setField(userAPI, "registrationSuccessURI", "/user/registration-complete.html");
-        ReflectionTestUtils.setField(userAPI, "forgotPasswordPendingURI", "/user/forgot-password-pending.html");
+        // Real (non-mocked) UserSecurityConfigProperties so getters return the specific URI values these tests
+        // assert against, matching what the removed @Value fields previously held.
+        UserSecurityConfigProperties userSecurityConfig = new UserSecurityConfigProperties();
+        userSecurityConfig.setRegistrationPendingUri("/user/registration-pending.html");
+        userSecurityConfig.setRegistrationSuccessUri("/user/registration-complete.html");
+        userSecurityConfig.setForgotPasswordPendingUri("/user/forgot-password-pending.html");
+
+        // loginAttemptService and stepUpServiceProvider are not mocked here (no @Mock field), matching the
+        // previous @InjectMocks constructor-injection behavior where unresolved collaborators were left null.
+        userAPI = new UserAPI(userService, userEmailService, messageSource, eventPublisher, passwordPolicyService,
+                webAuthnCredentialManagementServiceProvider, appUrlResolver, null, null, userSecurityConfig);
 
         mockMvc = MockMvcBuilders.standaloneSetup(userAPI).build();
     }

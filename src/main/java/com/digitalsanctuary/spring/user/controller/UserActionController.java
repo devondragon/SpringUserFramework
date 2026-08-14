@@ -2,7 +2,6 @@ package com.digitalsanctuary.spring.user.controller;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Locale;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Controller;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.TokenHasher;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
@@ -46,27 +46,7 @@ public class UserActionController {
 	private final UserVerificationService userVerificationService;
 	private final MessageSource messages;
 	private final ApplicationEventPublisher eventPublisher;
-
-	// URIs configured in application.properties
-	/** The registration pending URI. */
-	@Value("${user.security.registrationPendingURI}")
-	private String registrationPendingURI;
-
-	/** The registration success URI. */
-	@Value("${user.security.registrationSuccessURI}")
-	private String registrationSuccessURI;
-
-	/** The registration new verification URI. */
-	@Value("${user.security.registrationNewVerificationURI}")
-	private String registrationNewVerificationURI;
-
-	/** The forgot password pending URI. */
-	@Value("${user.security.forgotPasswordPendingURI}")
-	private String forgotPasswordPendingURI;
-
-	/** The forgot password change URI. */
-	@Value("${user.security.forgotPasswordChangeURI}")
-	private String forgotPasswordChangeURI;
+	private final UserSecurityConfigProperties userSecurityConfig;
 
 	/**
 	 * Validate a forgot password token link from an email, and if valid, show the
@@ -98,7 +78,7 @@ public class UserActionController {
 		eventPublisher.publishEvent(changePasswordAuditEvent);
 		if (valid) {
 			model.addAttribute("token", token);
-			String redirectString = "redirect:" + forgotPasswordChangeURI;
+			String redirectString = "redirect:" + userSecurityConfig.getForgotPasswordChangeUri();
 			return new ModelAndView(redirectString, model);
 		} else {
 			String messageKey = AUTH_MESSAGE_PREFIX + result.getValue();
@@ -144,7 +124,7 @@ public class UserActionController {
 
 			model.addAttribute("message", messages.getMessage("message.account.verified", null, locale));
 			log.debug("UserAPI.confirmRegistration: account verified and user logged in!");
-			String redirectString = "redirect:" + registrationSuccessURI;
+			String redirectString = "redirect:" + userSecurityConfig.getRegistrationSuccessUri();
 			return new ModelAndView(redirectString, model);
 		}
 
@@ -152,7 +132,7 @@ public class UserActionController {
 		model.addAttribute("expired", result == TokenValidationResult.EXPIRED);
 		model.addAttribute("token", token);
 		log.debug("UserAPI.confirmRegistration: failed.  Token not found or expired.");
-		String redirectString = "redirect:" + registrationNewVerificationURI;
+		String redirectString = "redirect:" + userSecurityConfig.getRegistrationNewVerificationUri();
 		return new ModelAndView(redirectString, model);
 	}
 }

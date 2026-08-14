@@ -29,6 +29,7 @@ import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
 import com.digitalsanctuary.spring.user.security.StepUpService;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import com.digitalsanctuary.spring.user.event.OnRegistrationCompleteEvent;
@@ -51,7 +52,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
@@ -113,8 +113,10 @@ public class UserAPIUnitTest {
     @Mock
     private LoginAttemptService loginAttemptService;
 
-    @InjectMocks
     private UserAPI userAPI;
+
+    /** Real (non-mocked) config properties, mutated directly by tests that need to flip a flag mid-test. */
+    private UserSecurityConfigProperties userSecurityConfig;
 
     private User testUser;
     private UserDto testUserDto;
@@ -147,11 +149,20 @@ public class UserAPIUnitTest {
 
         testUserDetails = new DSUserDetails(testUser);
 
-        // Set field values using reflection
-        ReflectionTestUtils.setField(userAPI, "registrationPendingURI", "/user/registration-pending.html");
-        ReflectionTestUtils.setField(userAPI, "registrationSuccessURI", "/user/registration-complete.html");
-        ReflectionTestUtils.setField(userAPI, "forgotPasswordPendingURI", "/user/forgot-password-pending.html");
-        
+        // Real (non-mocked) UserSecurityConfigProperties so getters return the specific URI values these tests
+        // assert against, matching what the removed @Value fields previously held.
+        userSecurityConfig = new UserSecurityConfigProperties();
+        userSecurityConfig.setRegistrationPendingUri("/user/registration-pending.html");
+        userSecurityConfig.setRegistrationSuccessUri("/user/registration-complete.html");
+        userSecurityConfig.setForgotPasswordPendingUri("/user/forgot-password-pending.html");
+
+        // webAuthnCredentialManagementServiceProvider and stepUpServiceProvider are not mocked here (no @Mock
+        // field), matching the previous @InjectMocks constructor-injection behavior where unresolved
+        // collaborators were left null. Individual tests below override stepUpServiceProvider via
+        // ReflectionTestUtils as needed.
+        userAPI = new UserAPI(userService, userEmailService, messageSource, eventPublisher, passwordPolicyService,
+                null, appUrlResolver, loginAttemptService, null, userSecurityConfig);
+
         // Build MockMvc with standalone setup, custom argument resolver, and exception handler
         mockMvc = MockMvcBuilders.standaloneSetup(userAPI)
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
@@ -710,7 +721,7 @@ public class UserAPIUnitTest {
             when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
             when(userService.hasPassword(testUser)).thenReturn(false);
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(null));
-            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", true);
+            userSecurityConfig.setAllowInitialPasswordSetWithoutStepUp(true);
             when(passwordPolicyService.validate(eq(testUser), eq("NewValidPass1!"), eq(testUser.getEmail()), any(Locale.class)))
                     .thenReturn(List.of());
 
@@ -817,7 +828,7 @@ public class UserAPIUnitTest {
         @DisplayName("warns at startup when no StepUpService bean and the opt-in flag is false")
         void warnsWhenDisabledByDefault() {
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", providerOf(null));
-            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", false);
+            userSecurityConfig.setAllowInitialPasswordSetWithoutStepUp(false);
 
             userAPI.warnIfInitialPasswordSetDisabled();
 
@@ -828,7 +839,7 @@ public class UserAPIUnitTest {
         @DisplayName("does not warn when a StepUpService bean is present")
         void doesNotWarnWhenStepUpServicePresent() {
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", providerOf(mock(StepUpService.class)));
-            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", false);
+            userSecurityConfig.setAllowInitialPasswordSetWithoutStepUp(false);
 
             userAPI.warnIfInitialPasswordSetDisabled();
 
@@ -839,7 +850,7 @@ public class UserAPIUnitTest {
         @DisplayName("does not warn when the opt-in flag is enabled")
         void doesNotWarnWhenFlagEnabled() {
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", providerOf(null));
-            ReflectionTestUtils.setField(userAPI, "allowInitialPasswordSetWithoutStepUp", true);
+            userSecurityConfig.setAllowInitialPasswordSetWithoutStepUp(true);
 
             userAPI.warnIfInitialPasswordSetDisabled();
 

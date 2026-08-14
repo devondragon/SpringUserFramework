@@ -5,7 +5,6 @@ import java.util.Locale;
 import java.util.Optional;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
@@ -34,6 +33,7 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.security.StepUpService;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.PasswordPolicyService;
@@ -96,23 +96,7 @@ public class UserAPI {
 	private final LoginAttemptService loginAttemptService;
 	/** Optional consumer-provided step-up (re-)authentication service; see {@link StepUpService} (SUF-02). */
 	private final ObjectProvider<StepUpService> stepUpServiceProvider;
-
-	@Value("${user.security.registrationPendingURI}")
-	private String registrationPendingURI;
-
-	@Value("${user.security.registrationSuccessURI}")
-	private String registrationSuccessURI;
-
-	@Value("${user.security.forgotPasswordPendingURI}")
-	private String forgotPasswordPendingURI;
-
-	/**
-	 * SUF-02: controls the fallback behavior of {@code /user/setPassword} when no {@link StepUpService} bean is present.
-	 * When {@code false} (the default), setting an initial password on a passwordless account is disabled unless a
-	 * {@link StepUpService} is provided; set to {@code true} to explicitly allow the session-only behavior.
-	 */
-	@Value("${user.security.allowInitialPasswordSetWithoutStepUp:false}")
-	private boolean allowInitialPasswordSetWithoutStepUp;
+	private final UserSecurityConfigProperties userSecurityConfig;
 
 	/**
 	 * SUF-02: warn at startup when {@code POST /user/setPassword} is disabled by default &mdash; i.e. no
@@ -124,7 +108,7 @@ public class UserAPI {
 	 */
 	@PostConstruct
 	void warnIfInitialPasswordSetDisabled() {
-		if (stepUpServiceProvider.getIfAvailable() == null && !allowInitialPasswordSetWithoutStepUp) {
+		if (stepUpServiceProvider.getIfAvailable() == null && !userSecurityConfig.isAllowInitialPasswordSetWithoutStepUp()) {
 			log.warn("UserAPI: POST /user/setPassword is disabled by default - no StepUpService bean is configured and "
 					+ "user.security.allowInitialPasswordSetWithoutStepUp is false, so passwordless (passkey-only) accounts "
 					+ "cannot set an initial password (every request returns HTTP 403). Provide a StepUpService bean to "
@@ -168,7 +152,7 @@ public class UserAPI {
 			publishRegistrationEvent(registeredUser, request);
 			logAuditEvent("Registration", "Success", "Registration Successful", registeredUser, request);
 
-			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
+			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : userSecurityConfig.getRegistrationPendingUri();
 
 			return buildSuccessResponse(REGISTRATION_GENERIC_MESSAGE, nextURL);
 		} catch (RegistrationDeniedException ex) {
@@ -187,7 +171,7 @@ public class UserAPI {
 			// without skipping auto-login for legitimate new users.
 			log.warn("User already exists with email: {}", userDto.getEmail());
 			logAuditEvent("Registration", "Failure", "User Already Exists", null, request);
-			return buildSuccessResponse(REGISTRATION_GENERIC_MESSAGE, registrationPendingURI);
+			return buildSuccessResponse(REGISTRATION_GENERIC_MESSAGE, userSecurityConfig.getRegistrationPendingUri());
 		} catch (Exception ex) {
 			log.error("Unexpected error during registration.", ex);
 			logAuditEvent("Registration", "Failure", ex.getMessage(), null, request);
@@ -222,7 +206,7 @@ public class UserAPI {
 			userEmailService.sendRegistrationVerificationEmail(user, appUrlResolver.resolveAppUrl(request));
 			logAuditEvent("Resend Reg Token", "Success", "Verification Email Resent", user, request);
 		}
-		return buildSuccessResponse(RESEND_GENERIC_MESSAGE, registrationPendingURI);
+		return buildSuccessResponse(RESEND_GENERIC_MESSAGE, userSecurityConfig.getRegistrationPendingUri());
 	}
 
 	/**
@@ -273,7 +257,7 @@ public class UserAPI {
 			userEmailService.sendForgotPasswordVerificationEmail(user, appUrlResolver.resolveAppUrl(request));
 			logAuditEvent("Reset Password", "Success", "Password reset email sent", user, request);
 		}
-		return buildSuccessResponse("If account exists, password reset email has been sent!", forgotPasswordPendingURI);
+		return buildSuccessResponse("If account exists, password reset email has been sent!", userSecurityConfig.getForgotPasswordPendingUri());
 	}
 
 	/**
@@ -514,7 +498,7 @@ public class UserAPI {
 			publishRegistrationEvent(registeredUser, request);
 			logAuditEvent("PasswordlessRegistration", "Success", "Passwordless registration successful", registeredUser, request);
 
-			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : registrationPendingURI;
+			String nextURL = registeredUser.isEnabled() ? handleAutoLogin(registeredUser) : userSecurityConfig.getRegistrationPendingUri();
 
 			return buildSuccessResponse("Registration Successful!", nextURL);
 		} catch (RegistrationDeniedException ex) {
@@ -535,7 +519,7 @@ public class UserAPI {
 			// without skipping auto-login for legitimate new users.
 			log.warn("User already exists with email: {}", dto.getEmail());
 			logAuditEvent("PasswordlessRegistration", "Failure", "User Already Exists", null, request);
-			return buildSuccessResponse("Registration Successful!", registrationPendingURI);
+			return buildSuccessResponse("Registration Successful!", userSecurityConfig.getRegistrationPendingUri());
 		} catch (Exception ex) {
 			log.error("Unexpected error during passwordless registration.", ex);
 			logAuditEvent("PasswordlessRegistration", "Failure", ex.getMessage(), null, request);
@@ -591,7 +575,7 @@ public class UserAPI {
 					return buildErrorResponse(messages.getMessage("message.set-password.step-up-required", null,
 							"Additional verification is required to set a password.", locale), 6, HttpStatus.UNAUTHORIZED);
 				}
-			} else if (!allowInitialPasswordSetWithoutStepUp) {
+			} else if (!userSecurityConfig.isAllowInitialPasswordSetWithoutStepUp()) {
 				logAuditEvent("SetPassword", "Failure", "Initial password set disabled (no step-up configured)", user, request);
 				// Distinct code (7) from the step-up-denied branch (6) so callers can tell "disabled on this server" (403)
 				// apart from "step-up verification failed" (401).
@@ -655,7 +639,7 @@ public class UserAPI {
 	 */
 	private String handleAutoLogin(User user) {
 		userService.authWithoutPassword(user);
-		return registrationSuccessURI;
+		return userSecurityConfig.getRegistrationSuccessUri();
 	}
 
 	/**
