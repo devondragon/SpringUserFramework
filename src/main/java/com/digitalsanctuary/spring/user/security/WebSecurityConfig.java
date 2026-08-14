@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.security;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,6 @@ import com.digitalsanctuary.spring.user.service.LogoutSuccessService;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
-import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -50,80 +48,8 @@ public class WebSecurityConfig {
 	private static final String DEFAULT_ACTION_DENY = "deny";
 	private static final String DEFAULT_ACTION_ALLOW = "allow";
 
-	@Value("${user.security.defaultAction}")
-	private String defaultAction;
-
-	@Value("${user.security.protectedURIs}")
-	private String protectedURIsProperty;
-
-	@Value("${user.security.unprotectedURIs}")
-	private String unprotectedURIsProperty;
-
-	@Value("${user.security.disableCSRFURIs}")
-	private String disableCSRFURIsProperty;
-
-	@Value("${user.security.loginPageURI}")
-	private String loginPageURI;
-
-	@Value("${user.security.loginActionURI}")
-	private String loginActionURI;
-
-	@Value("${user.security.loginSuccessURI}")
-	private String loginSuccessURI;
-
-	@Value("${user.security.logoutActionURI}")
-	private String logoutActionURI;
-
-	@Value("${user.security.logoutSuccessURI}")
-	private String logoutSuccessURI;
-
-	@Value("${user.security.registrationURI}")
-	private String registrationURI;
-
-	@Value("${user.security.registrationPendingURI}")
-	private String registrationPendingURI;
-
-	@Value("${user.security.registrationSuccessURI}")
-	private String registrationSuccessURI;
-
-	@Value("${user.security.forgotPasswordURI}")
-	private String forgotPasswordURI;
-
-	@Value("${user.security.forgotPasswordPendingURI}")
-	private String forgotPasswordPendingURI;
-
-	@Value("${user.security.forgotPasswordChangeURI}")
-	private String forgotPasswordChangeURI;
-
-	@Value("${user.security.registrationNewVerificationURI}")
-	private String registrationNewVerificationURI;
-
 	@Value("${spring.security.oauth2.enabled:false}")
 	private boolean oauth2Enabled;
-
-	@Value("${user.security.rememberMe.enabled:false}")
-	private boolean rememberMeEnabled;
-
-	// Excluded from the Lombok-generated toString so the signing secret can never leak through bean logging.
-	@ToString.Exclude
-	@Value("${user.security.rememberMe.key:#{null}}")
-	private String rememberMeKey;
-
-	@Value("${user.security.rememberMe.tokenValiditySeconds:1209600}")
-	private int rememberMeTokenValiditySeconds;
-
-	@Value("${user.security.rememberMe.rememberMeParameter:remember-me}")
-	private String rememberMeParameter;
-
-	@Value("${user.security.rememberMe.rememberMeCookieName:remember-me}")
-	private String rememberMeCookieName;
-
-	/**
-	 * Whether the remember-me cookie is marked {@code Secure}. Left {@code null} (unset) by default so Spring Security's
-	 * own behavior applies: the cookie is secure whenever the request that created it was made over HTTPS.
-	 */
-	@Value("${user.security.rememberMe.useSecureCookie:#{null}}")
-	private Boolean rememberMeUseSecureCookie;
 
 	@Value("${user.dev.auto-login-enabled:false}")
 	private boolean devAutoLoginEnabled;
@@ -140,6 +66,8 @@ public class WebSecurityConfig {
 	private final ApplicationEventPublisher applicationEventPublisher;
 	private final RequestCache requestCache;
 	private final ObjectProvider<PersistentTokenRepository> persistentTokenRepositoryProvider;
+	private final UserSecurityConfigProperties userSecurityConfig;
+	private final RememberMeConfigProperties rememberMeConfig;
 
 	/**
 	 * Builds the library's security filter chain for Spring Security.
@@ -156,13 +84,13 @@ public class WebSecurityConfig {
 	 * @throws Exception if there is an issue creating the SecurityFilterChain
 	 */
 	public SecurityFilterChain buildSecurityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry) throws Exception {
-		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", getDefaultAction());
-		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", Arrays.toString(getUnprotectedURIsArray()));
+		log.debug("WebSecurityConfig.configure: user.security.defaultAction: {}", userSecurityConfig.getDefaultAction());
+		log.debug("WebSecurityConfig.configure: unprotectedURIs: {}", userSecurityConfig.getUnprotectedUris());
 		List<String> unprotectedURIs = getUnprotectedURIsList();
 		log.debug("WebSecurityConfig.configure: enhanced unprotectedURIs: {}", unprotectedURIs.toString());
 
-		http.formLogin(
-				formLogin -> formLogin.loginPage(loginPageURI).loginProcessingUrl(loginActionURI).successHandler(loginSuccessService).permitAll());
+		http.formLogin(formLogin -> formLogin.loginPage(userSecurityConfig.getLoginPageUri())
+				.loginProcessingUrl(userSecurityConfig.getLoginActionUri()).successHandler(loginSuccessService).permitAll());
 
 		// Always configure exception handling with the injected entry point (HTMX-aware by default)
 		http.exceptionHandling(handling -> handling.authenticationEntryPoint(authenticationEntryPoint));
@@ -177,12 +105,15 @@ public class WebSecurityConfig {
 		// present this stays on Spring's hash-based TokenBasedRememberMeServices (no server-side state); when a
 		// repository bean exists (e.g. the JdbcTokenRepositoryImpl enabled via user.security.rememberMe.usePersistentTokens,
 		// or a consumer-defined bean) the configurer switches to persistent tokens, which SessionInvalidationService can revoke.
-		if (rememberMeEnabled && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
+		String rememberMeKey = rememberMeConfig.getKey();
+		if (rememberMeConfig.isEnabled() && rememberMeKey != null && !rememberMeKey.trim().isEmpty()) {
 			http.rememberMe(rememberMe -> {
-				rememberMe.key(rememberMeKey).userDetailsService(userDetailsService).tokenValiditySeconds(rememberMeTokenValiditySeconds)
-						.rememberMeParameter(rememberMeParameter).rememberMeCookieName(rememberMeCookieName);
-				if (rememberMeUseSecureCookie != null) {
-					rememberMe.useSecureCookie(rememberMeUseSecureCookie);
+				rememberMe.key(rememberMeKey).userDetailsService(userDetailsService)
+						.tokenValiditySeconds(rememberMeConfig.getTokenValiditySeconds())
+						.rememberMeParameter(rememberMeConfig.getRememberMeParameter())
+						.rememberMeCookieName(rememberMeConfig.getRememberMeCookieName());
+				if (rememberMeConfig.getUseSecureCookie() != null) {
+					rememberMe.useSecureCookie(rememberMeConfig.getUseSecureCookie());
 				}
 				PersistentTokenRepository tokenRepository = persistentTokenRepositoryProvider.getIfAvailable();
 				if (tokenRepository != null) {
@@ -193,8 +124,8 @@ public class WebSecurityConfig {
 
 		// Use the LogoutSuccessService handler (instead of logoutSuccessUrl) so logout publishes an audit event.
 		// The handler still redirects to logoutSuccessURI (see LogoutSuccessService.onLogoutSuccess).
-		http.logout(logout -> logout.logoutUrl(logoutActionURI).logoutSuccessHandler(logoutSuccessService).invalidateHttpSession(true)
-				.deleteCookies("JSESSIONID"));
+		http.logout(logout -> logout.logoutUrl(userSecurityConfig.getLogoutActionUri()).logoutSuccessHandler(logoutSuccessService)
+				.invalidateHttpSession(true).deleteCookies("JSESSIONID"));
 
 		// Register sessions in the SessionRegistry so SessionInvalidationService and concurrent-session
 		// features actually work. maximumSessions(-1) = unlimited concurrent sessions, but still tracked
@@ -203,8 +134,7 @@ public class WebSecurityConfig {
 		http.sessionManagement(session -> session.maximumSessions(-1).sessionRegistry(sessionRegistry));
 
 		// If we have URIs to disable CSRF validation on, do so here
-		String[] baseDisableCSRFURIs = getDisableCSRFURIsArray();
-		List<String> csrfIgnoreList = new ArrayList<>(Arrays.asList(baseDisableCSRFURIs));
+		List<String> csrfIgnoreList = new ArrayList<>(userSecurityConfig.getDisableCsrfUris());
 		if (devAutoLoginEnabled && environment.matchesProfiles("local")) {
 			csrfIgnoreList.add("/dev/**");
 		}
@@ -230,13 +160,15 @@ public class WebSecurityConfig {
 		}
 
 		// Configure authorization rules based on the default action
-		if (DEFAULT_ACTION_DENY.equals(getDefaultAction())) {
+		String defaultAction = userSecurityConfig.getDefaultAction();
+		if (DEFAULT_ACTION_DENY.equals(defaultAction)) {
 			// Allow access to unprotected URIs and require authentication for all other requests
 			http.authorizeHttpRequests(
 					(authorize) -> authorize.requestMatchers(unprotectedURIs.toArray(new String[0])).permitAll().anyRequest().authenticated());
-		} else if (DEFAULT_ACTION_ALLOW.equals(getDefaultAction())) {
+		} else if (DEFAULT_ACTION_ALLOW.equals(defaultAction)) {
 			// Require authentication for protected URIs and allow access to all other requests
-			http.authorizeHttpRequests((authorize) -> authorize.requestMatchers(getProtectedURIsArray()).authenticated().anyRequest().permitAll());
+			http.authorizeHttpRequests((authorize) -> authorize
+					.requestMatchers(userSecurityConfig.getProtectedUris().toArray(new String[0])).authenticated().anyRequest().permitAll());
 		} else {
 			// Log an error and deny access to all resources if the default action is not set correctly
 			log.error(
@@ -259,6 +191,7 @@ public class WebSecurityConfig {
 		// The failure handler stores only a GENERIC message in the session for the UI (raw exception messages can
 		// leak account emails from Locked/Disabled exceptions and the registered provider from conflict errors);
 		// the real detail is logged server-side by the handler itself.
+		String loginPageURI = userSecurityConfig.getLoginPageUri();
 		http.oauth2Login(o -> o.loginPage(loginPageURI).successHandler(loginSuccessService)
 				.failureHandler(new SanitizingOAuth2AuthenticationFailureHandler(loginPageURI)).userInfoEndpoint(userInfo -> {
 					userInfo.userService(dsOAuth2UserService);
@@ -345,7 +278,7 @@ public class WebSecurityConfig {
 	private List<String> getUnprotectedURIsList() {
 		// Add the required user pages and actions to the unprotected URIs from configuration
 		List<String> unprotectedURIs = new ArrayList<String>();
-		unprotectedURIs.addAll(Arrays.asList(getUnprotectedURIsArray()));
+		unprotectedURIs.addAll(userSecurityConfig.getUnprotectedUris());
 		// Auto-unprotect the always-public paths that browsers and crawlers probe automatically without any markup
 		// referencing them. Because this widens the permitAll surface for EVERY consumer (who never opted in), the
 		// patterns are deliberately scoped to exactly the auto-probed paths, not a broad prefix:
@@ -364,16 +297,16 @@ public class WebSecurityConfig {
 		unprotectedURIs.add("/apple-touch-icon*.png");
 		unprotectedURIs.add("/favicon.*");
 		unprotectedURIs.add("/.well-known/**");
-		unprotectedURIs.add(loginPageURI);
-		unprotectedURIs.add(loginActionURI);
-		unprotectedURIs.add(logoutSuccessURI);
-		unprotectedURIs.add(registrationURI);
-		unprotectedURIs.add(registrationPendingURI);
-		unprotectedURIs.add(registrationNewVerificationURI);
-		unprotectedURIs.add(forgotPasswordURI);
-		unprotectedURIs.add(registrationSuccessURI);
-		unprotectedURIs.add(forgotPasswordPendingURI);
-		unprotectedURIs.add(forgotPasswordChangeURI);
+		unprotectedURIs.add(userSecurityConfig.getLoginPageUri());
+		unprotectedURIs.add(userSecurityConfig.getLoginActionUri());
+		unprotectedURIs.add(userSecurityConfig.getLogoutSuccessUri());
+		unprotectedURIs.add(userSecurityConfig.getRegistrationUri());
+		unprotectedURIs.add(userSecurityConfig.getRegistrationPendingUri());
+		unprotectedURIs.add(userSecurityConfig.getRegistrationNewVerificationUri());
+		unprotectedURIs.add(userSecurityConfig.getForgotPasswordUri());
+		unprotectedURIs.add(userSecurityConfig.getRegistrationSuccessUri());
+		unprotectedURIs.add(userSecurityConfig.getForgotPasswordPendingUri());
+		unprotectedURIs.add(userSecurityConfig.getForgotPasswordChangeUri());
 		if (devAutoLoginEnabled && environment.matchesProfiles("local")) {
 			unprotectedURIs.add("/dev/**");
 		}
@@ -401,46 +334,6 @@ public class WebSecurityConfig {
 		if (uri != null && !uri.isBlank()) {
 			uris.add(uri);
 		}
-	}
-
-	/**
-	 * Helper method to split comma-separated property values and filter out empty strings.
-	 *
-	 * @param property the comma-separated property value
-	 * @return array of non-empty strings
-	 */
-	private String[] splitAndFilterProperty(String property) {
-		if (property == null || property.trim().isEmpty()) {
-			return new String[0];
-		}
-		return Arrays.stream(property.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toArray(String[]::new);
-	}
-
-	/**
-	 * Get the protected URIs array with empty values filtered out.
-	 *
-	 * @return array of protected URI patterns
-	 */
-	private String[] getProtectedURIsArray() {
-		return splitAndFilterProperty(protectedURIsProperty);
-	}
-
-	/**
-	 * Get the unprotected URIs array with empty values filtered out.
-	 *
-	 * @return array of unprotected URI patterns
-	 */
-	private String[] getUnprotectedURIsArray() {
-		return splitAndFilterProperty(unprotectedURIsProperty);
-	}
-
-	/**
-	 * Get the disable CSRF URIs array with empty values filtered out.
-	 *
-	 * @return array of URI patterns to disable CSRF protection for
-	 */
-	private String[] getDisableCSRFURIsArray() {
-		return splitAndFilterProperty(disableCSRFURIsProperty);
 	}
 
 }
