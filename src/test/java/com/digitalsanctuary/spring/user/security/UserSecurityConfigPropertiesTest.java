@@ -29,11 +29,16 @@ class UserSecurityConfigPropertiesTest {
             assertThat(p.getBcryptStrength()).isEqualTo(12);
             assertThat(p.getAppUrl()).isEqualTo("");
             assertThat(p.getTokenHashSecret()).isNull();
+            assertThat(p.getProtectedUris()).containsExactly("/protected.html");
+            assertThat(p.getUnprotectedUris()).containsExactly("/", "/index.html", "/favicon.ico", "/css/*",
+                    "/js/*", "/img/*", "/user/registration", "/user/resendRegistrationToken",
+                    "/user/resetPassword", "/user/registrationConfirm", "/user/changePassword",
+                    "/user/savePassword", "/oauth2/authorization/*", "/login", "/error");
         });
     }
 
     @Test
-    void shouldBindLegacyCamelCaseUriKeys() {
+    void shouldBindLegacyCamelCaseUriKeysWhenSetWithOldSpelling() {
         contextRunner.withPropertyValues("user.security.loginPageURI=/custom/login").run(context -> {
             assertThat(context.getBean(UserSecurityConfigProperties.class).getLoginPageUri())
                     .isEqualTo("/custom/login");
@@ -41,7 +46,7 @@ class UserSecurityConfigPropertiesTest {
     }
 
     @Test
-    void shouldDropBlankSegmentsFromUriLists() {
+    void shouldDropBlankSegmentsWhenBindingUriLists() {
         contextRunner.withPropertyValues("user.security.unprotectedURIs=/a,,/b,").run(context -> {
             assertThat(context.getBean(UserSecurityConfigProperties.class).getUnprotectedUris())
                     .containsExactly("/a", "/b");
@@ -49,7 +54,7 @@ class UserSecurityConfigPropertiesTest {
     }
 
     @Test
-    void shouldReturnEmptyListForBlankUriListProperty() {
+    void shouldReturnEmptyListWhenUriListPropertyBlank() {
         contextRunner.withPropertyValues("user.security.disableCSRFURIs=").run(context -> {
             assertThat(context.getBean(UserSecurityConfigProperties.class).getDisableCsrfUris()).isEmpty();
         });
