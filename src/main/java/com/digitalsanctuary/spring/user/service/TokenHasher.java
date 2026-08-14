@@ -5,9 +5,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -53,11 +53,11 @@ public class TokenHasher {
     /**
      * Instantiates a new token hasher.
      *
-     * @param tokenHashSecret the optional secret used to key the HMAC; may be {@code null} or blank,
-     *        in which case plain SHA-256 is used
+     * @param userSecurityConfig the user security configuration properties, whose {@code tokenHashSecret}
+     *        may be {@code null} or blank, in which case plain SHA-256 is used
      */
-    public TokenHasher(@Value("${user.security.tokenHashSecret:#{null}}") final String tokenHashSecret) {
-        this.tokenHashSecret = tokenHashSecret;
+    public TokenHasher(final UserSecurityConfigProperties userSecurityConfig) {
+        this.tokenHashSecret = userSecurityConfig.getTokenHashSecret();
         if (StringUtils.hasText(tokenHashSecret)) {
             log.debug("TokenHasher initialized with a configured secret (HMAC-SHA-256).");
         } else {

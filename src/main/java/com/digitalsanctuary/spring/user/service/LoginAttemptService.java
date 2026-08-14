@@ -1,11 +1,11 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.util.Date;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,16 +32,8 @@ public class LoginAttemptService {
 
 	final private UserRepository userRepository;
 
-	/** The max failed login attempts on a given account before it is locked. A value of 0 will disable locking accounts based on failed logins. */
-	@Value("${user.security.failedLoginAttempts}")
-	private int maxFailedLoginAttempts;
-
-	/**
-	 * The account lockout duration. A value less than 0 means accounts can only be unlocked by action, not duration. A value of 0 means account
-	 * lockouts are disabled. A value greater than 0 is the number of minutes that an account will stay locked before automatically unlocking.
-	 */
-	@Value("${user.security.accountLockoutDuration}")
-	private int accountLockoutDuration;
+	/** The user security configuration properties. */
+	final private UserSecurityConfigProperties userSecurityConfig;
 
 	/**
 	 * Login succeeded, reset failed login attempts.
@@ -68,7 +60,7 @@ public class LoginAttemptService {
 	@Transactional
 	public void loginFailed(final String email) {
 		log.debug("Login attempt failed for user: {}", email);
-		if (maxFailedLoginAttempts > 0) {
+		if (userSecurityConfig.getFailedLoginAttempts() > 0) {
 			// Atomically increment the counter via a single DB UPDATE to avoid the lost-update race that a read-modify-write would suffer under
 			// concurrent failed logins (which could let an attacker evade lockout).
 			int updated = userRepository.incrementFailedAttempts(email);
@@ -78,7 +70,7 @@ public class LoginAttemptService {
 			}
 			// Re-read the fresh user; thanks to clearAutomatically on the bulk update, this reflects the true incremented count from the database.
 			User user = userRepository.findByEmail(email);
-			if (user != null && user.getFailedLoginAttempts() >= maxFailedLoginAttempts && !user.isLocked()) {
+			if (user != null && user.getFailedLoginAttempts() >= userSecurityConfig.getFailedLoginAttempts() && !user.isLocked()) {
 				// Setting locked is idempotent if two threads both observe the threshold; the COUNTER is what must not lose updates.
 				user.setLocked(true);
 				user.setLockedDate(new Date());
@@ -117,12 +109,12 @@ public class LoginAttemptService {
 	 */
 	public User checkIfUserShouldBeUnlocked(User user) {
 		log.debug("Checking if user should be unlocked: {}", user.getEmail());
-		if (user.isLocked() && user.getLockedDate() != null && accountLockoutDuration >= 0) {
+		if (user.isLocked() && user.getLockedDate() != null && userSecurityConfig.getAccountLockoutDuration() >= 0) {
 			Date lockedDate = user.getLockedDate();
 			Date now = new Date();
 			long diff = now.getTime() - lockedDate.getTime();
 			long diffMinutes = diff / (60 * 1000);
-			if (diffMinutes >= accountLockoutDuration) {
+			if (diffMinutes >= userSecurityConfig.getAccountLockoutDuration()) {
 				log.debug("User should be unlocked: {}", user.getEmail());
 				user.setLocked(false);
 				user.setLockedDate(null);

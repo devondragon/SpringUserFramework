@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
@@ -10,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +34,9 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	/** The event publisher. */
 	private final ApplicationEventPublisher eventPublisher;
 
+	/** The user security configuration properties. */
+	private final UserSecurityConfigProperties userSecurityConfig;
+
 	/**
 	 * Constructs the login success handler and wires in the application's effective {@link RequestCache}.
 	 *
@@ -48,19 +51,14 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 	 *
 	 * @param eventPublisher the application event publisher used to emit login audit events
 	 * @param requestCache the effective {@link RequestCache} bean (the library's hardened default, or a consumer override)
+	 * @param userSecurityConfig the user security configuration properties
 	 */
-	public LoginSuccessService(ApplicationEventPublisher eventPublisher, RequestCache requestCache) {
+	public LoginSuccessService(ApplicationEventPublisher eventPublisher, RequestCache requestCache,
+			UserSecurityConfigProperties userSecurityConfig) {
 		this.eventPublisher = eventPublisher;
+		this.userSecurityConfig = userSecurityConfig;
 		super.setRequestCache(requestCache);
 	}
-
-	/** The login success uri. */
-	@Value("${user.security.loginSuccessURI}")
-	private String loginSuccessUri;
-
-	/** Whether to always use the default target URL or respect saved requests for better UX. */
-	@Value("${user.security.alwaysUseDefaultTargetUrl:false}")
-	private boolean alwaysUseDefaultTargetUrl;
 
 	/**
 	 * On authentication success.
@@ -120,8 +118,8 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 		log.debug("Initial targetUrl from super.determineTargetUrl: {}", targetUrl);
 
 		if (StringUtils.isEmptyOrWhitespace(targetUrl) || StringUtils.equals(targetUrl, "/")) {
-			targetUrl = loginSuccessUri;
-			log.debug("Using configured loginSuccessUri: {}", loginSuccessUri);
+			targetUrl = userSecurityConfig.getLoginSuccessUri();
+			log.debug("Using configured loginSuccessUri: {}", targetUrl);
 			this.setDefaultTargetUrl(targetUrl);
 			log.debug("LoginSuccessService.onAuthenticationSuccess: set defaultTargetUrl to: {}", this.getDefaultTargetUrl());
 		} else {
@@ -129,7 +127,7 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 		}
 
 		// Set the alwaysUseDefaultTargetUrl based on configuration
-		this.setAlwaysUseDefaultTargetUrl(alwaysUseDefaultTargetUrl);
+		this.setAlwaysUseDefaultTargetUrl(userSecurityConfig.isAlwaysUseDefaultTargetUrl());
 		log.debug("AlwaysUseDefaultTargetUrl set to: {} (configurable behavior)", this.isAlwaysUseDefaultTargetUrl());
 
 		// Check if there's a redirect URL in the request parameters (common in OAuth2 flows)

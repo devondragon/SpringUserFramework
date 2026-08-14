@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 
 @ExtendWith(MockitoExtension.class)
 class LoginAttemptServiceTest {
@@ -22,6 +23,8 @@ class LoginAttemptServiceTest {
     private UserRepository userRepository;
 
     private LoginAttemptService loginAttemptService;
+
+    private UserSecurityConfigProperties userSecurityConfig;
 
     private final int failedLoginAttempts = 10; // Assuming these are the values in your application.properties
     private final int accountLockoutDuration = 1; // Assuming these are the values in your application.properties
@@ -36,10 +39,11 @@ class LoginAttemptServiceTest {
         testUser.setFailedLoginAttempts(0);
         testUser.setLocked(false);
 
-        // Manually construct the service with mocked dependencies
-        loginAttemptService = new LoginAttemptService(userRepository);
-        loginAttemptService.setMaxFailedLoginAttempts(failedLoginAttempts);
-        loginAttemptService.setAccountLockoutDuration(accountLockoutDuration);
+        // Manually construct the service with mocked/real dependencies
+        userSecurityConfig = new UserSecurityConfigProperties();
+        userSecurityConfig.setFailedLoginAttempts(failedLoginAttempts);
+        userSecurityConfig.setAccountLockoutDuration(accountLockoutDuration);
+        loginAttemptService = new LoginAttemptService(userRepository, userSecurityConfig);
     }
 
     @Test
@@ -100,7 +104,7 @@ class LoginAttemptServiceTest {
 
     @Test
     void loginFailed_doesNothingWhenLockoutDisabled() {
-        loginAttemptService.setMaxFailedLoginAttempts(0);
+        userSecurityConfig.setFailedLoginAttempts(0);
 
         loginAttemptService.loginFailed(testUser.getEmail());
 
@@ -146,7 +150,7 @@ class LoginAttemptServiceTest {
     void checkIfUserShouldBeUnlocked_adminOnlyUnlockKeepsLockedDespitePastLockedDate() {
         // A negative accountLockoutDuration means the account can ONLY be unlocked by an administrator,
         // never automatically by elapsed time — even with a lockedDate far in the past.
-        loginAttemptService.setAccountLockoutDuration(-1);
+        userSecurityConfig.setAccountLockoutDuration(-1);
         testUser.setLocked(true);
         testUser.setLockedDate(new Date(System.currentTimeMillis() - 60L * 60 * 1000)); // locked an hour ago
 
@@ -161,7 +165,7 @@ class LoginAttemptServiceTest {
     @Test
     void isLocked_adminOnlyUnlockKeepsUserLockedDespitePastLockedDate() {
         // End-to-end through isLocked(): with admin-only unlock, a long-locked user stays locked.
-        loginAttemptService.setAccountLockoutDuration(-1);
+        userSecurityConfig.setAccountLockoutDuration(-1);
         testUser.setLocked(true);
         testUser.setLockedDate(new Date(System.currentTimeMillis() - 60L * 60 * 1000));
         when(userRepository.findByEmail(anyString())).thenReturn(testUser);

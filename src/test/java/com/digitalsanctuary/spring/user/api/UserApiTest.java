@@ -35,8 +35,8 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
-import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.TokenHasher;
 import com.digitalsanctuary.spring.user.service.UserEmailService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -312,7 +312,7 @@ class UserApiTest {
     class UpdatePassword {
 
         @Autowired
-        private LoginAttemptService loginAttemptService;
+        private UserSecurityConfigProperties userSecurityConfig;
 
         @Test
         @DisplayName("Repeated wrong old passwords lock the account through the real lockout wiring, and the lock is then enforced")
@@ -322,7 +322,7 @@ class UserApiTest {
             // threshold, and the isLocked() guard — actually enforces lockout, not just that the controller calls a mock.
             User user = userService.registerNewUserAccount(baseTestUser);
             DSUserDetails principal = new DSUserDetails(user);
-            int maxAttempts = loginAttemptService.getMaxFailedLoginAttempts();
+            int maxAttempts = userSecurityConfig.getFailedLoginAttempts();
             assertThat(maxAttempts).as("test profile must have account lockout enabled").isGreaterThan(0);
 
             Map<String, String> wrong = Map.of("oldPassword", "WrongOldPass9!", "newPassword", NEW_VALID_PASSWORD);
