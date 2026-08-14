@@ -36,6 +36,27 @@ public class LoginAttemptService {
 	final private UserSecurityConfigProperties userSecurityConfig;
 
 	/**
+	 * The configured maximum number of failed login attempts before an account is locked
+	 * ({@code user.security.failedLoginAttempts}). Retained as a public accessor for backward
+	 * compatibility with consumers that read it directly.
+	 *
+	 * @return the configured maximum failed login attempts
+	 */
+	public int getMaxFailedLoginAttempts() {
+		return userSecurityConfig.getFailedLoginAttempts();
+	}
+
+	/**
+	 * The configured account lockout duration in minutes ({@code user.security.accountLockoutDuration}).
+	 * Retained as a public accessor for backward compatibility with consumers that read it directly.
+	 *
+	 * @return the configured account lockout duration in minutes
+	 */
+	public int getAccountLockoutDuration() {
+		return userSecurityConfig.getAccountLockoutDuration();
+	}
+
+	/**
 	 * Login succeeded, reset failed login attempts.
 	 *
 	 * @param email the email address of the user

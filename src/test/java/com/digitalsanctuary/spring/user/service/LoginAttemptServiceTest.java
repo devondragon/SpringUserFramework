@@ -47,6 +47,15 @@ class LoginAttemptServiceTest {
     }
 
     @Test
+    void shouldExposeConfiguredThresholdsWhenAccessorsCalled() {
+        // Backward-compatibility accessors retained after the user.security @ConfigurationProperties migration.
+        assertThat(loginAttemptService.getMaxFailedLoginAttempts())
+                .isEqualTo(userSecurityConfig.getFailedLoginAttempts());
+        assertThat(loginAttemptService.getAccountLockoutDuration())
+                .isEqualTo(userSecurityConfig.getAccountLockoutDuration());
+    }
+
+    @Test
     void loginSucceeded_resetsFailedAttempts() {
         when(userRepository.findByEmail(anyString())).thenReturn(testUser);
 
