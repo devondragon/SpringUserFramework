@@ -139,6 +139,12 @@
       "type": "java.lang.Boolean",
       "description": "Enable the library's Spring Security method-level security (@EnableMethodSecurity). Set to false if the consuming application already enables method security globally to avoid double-activation.",
       "defaultValue": true
+    },
+    {
+      "name": "user.security.expose-uris-to-model",
+      "type": "java.lang.Boolean",
+      "description": "Expose the user.security.* page/action URIs (plus user.copyrightFirstYear) as the secret-free userSecurity model attribute on every @Controller request, so templates can reference e.g. ${userSecurity.loginPageUri} instead of SpEL bean access, which Thymeleaf 3.1.5 forbids in restricted (layout-decorated) contexts. Set to false to disable the advice entirely.",
+      "defaultValue": true
     }
   ]
 }
