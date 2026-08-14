@@ -1,11 +1,15 @@
 package com.digitalsanctuary.spring.user;
 
+import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
+import com.digitalsanctuary.spring.user.security.RememberMeConfigProperties;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.TypeExcludeFilter;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
@@ -38,6 +42,12 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 @ComponentScan(basePackages = "com.digitalsanctuary.spring.user",
         excludeFilters = {@ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
                 @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class)})
+// The user.security.* properties beans are registered here — on the class that owns the component scan their
+// consumers come from — rather than on UserSecurityBeansAutoConfiguration, so excluding that auto-configuration
+// (the supported way to take over its overridable beans wholesale) does not also remove the properties beans that
+// ~14 component-scanned services and configurations inject.
+@EnableConfigurationProperties({UserSecurityConfigProperties.class, PasswordPolicyConfigProperties.class,
+        RememberMeConfigProperties.class})
 @Import(UserAutoConfigurationRegistrar.class)
 public class UserConfiguration {
 

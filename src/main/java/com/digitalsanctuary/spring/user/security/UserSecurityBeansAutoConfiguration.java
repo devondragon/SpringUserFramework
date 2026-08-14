@@ -6,7 +6,6 @@ import javax.sql.DataSource;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
@@ -68,8 +67,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @AutoConfiguration(after = UserConfiguration.class)
-@EnableConfigurationProperties({UserSecurityConfigProperties.class, PasswordPolicyConfigProperties.class,
-        RememberMeConfigProperties.class})
 @RequiredArgsConstructor
 public class UserSecurityBeansAutoConfiguration {
 
@@ -186,7 +183,8 @@ public class UserSecurityBeansAutoConfiguration {
 
     /**
      * Creates the library's persistent remember-me token store, a {@link JdbcTokenRepositoryImpl} backed by the consuming application's
-     * {@link DataSource}. Only created when {@code user.security.rememberMe.usePersistentTokens=true}, so it is never instantiated unless the
+     * {@link DataSource}. Only created when {@code user.security.remember-me.use-persistent-tokens=true} (the camelCase spelling
+     * {@code user.security.rememberMe.usePersistentTokens} is equally accepted via relaxed matching), so it is never instantiated unless the
      * consumer has opted in &mdash; and opting in requires the {@code persistent_logins} table to exist (see {@code db-scripts/}); the repository
      * does NOT create the table itself. Backs off entirely if the consuming application defines its own {@link PersistentTokenRepository}.
      *
@@ -202,7 +200,9 @@ public class UserSecurityBeansAutoConfiguration {
      * @return the {@link JdbcTokenRepositoryImpl}
      */
     @Bean
-    @ConditionalOnProperty(name = "user.security.rememberMe.usePersistentTokens", havingValue = "true")
+    // The canonical kebab-case name relaxed-matches every spelling of the key (kebab, camelCase, env var); a
+    // camelCase name here would only exact-match the literal camelCase key, silently ignoring kebab config.
+    @ConditionalOnProperty(name = "user.security.remember-me.use-persistent-tokens", havingValue = "true")
     @ConditionalOnMissingBean(PersistentTokenRepository.class)
     public PersistentTokenRepository persistentTokenRepository(DataSource dataSource) {
         JdbcTokenRepositoryImpl tokenRepository = new JdbcTokenRepositoryImpl();
@@ -309,10 +309,11 @@ public class UserSecurityBeansAutoConfiguration {
     @ConditionalOnMissingBean(AppUrlResolver.class)
     public AppUrlResolver appUrlResolver() {
         String appUrl = userSecurityConfig.getAppUrl();
+        // getTrustedHosts() returns a normalized copy (trimmed, blanks dropped), so non-empty means configured.
         List<String> trustedHosts = userSecurityConfig.getTrustedHosts();
         boolean requireCanonicalAppUrl = userSecurityConfig.isRequireCanonicalAppUrl();
         boolean appUrlConfigured = appUrl != null && !appUrl.isBlank();
-        boolean trustedHostsConfigured = trustedHosts != null && trustedHosts.stream().anyMatch(h -> h != null && !h.isBlank());
+        boolean trustedHostsConfigured = !trustedHosts.isEmpty();
         if (!appUrlConfigured && !trustedHostsConfigured) {
             if (requireCanonicalAppUrl) {
                 throw new IllegalStateException("user.security.requireCanonicalAppUrl is enabled but neither user.security.appUrl nor "

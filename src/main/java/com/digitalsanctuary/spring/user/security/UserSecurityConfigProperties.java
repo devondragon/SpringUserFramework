@@ -4,7 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.Data;
 import lombok.ToString;
 
@@ -13,24 +16,39 @@ import lombok.ToString;
  * security scalars. Password policy and remember-me live in their own classes
  * ({@link PasswordPolicyConfigProperties}, {@link RememberMeConfigProperties}).
  *
- * <p>Defaults mirror the shipped {@code config/dsspringuserconfig.properties}. The camelCase key spellings
- * (e.g. {@code user.security.loginPageURI}) are canonical; relaxed binding also accepts kebab-case.</p>
+ * <p>Defaults mirror the shipped {@code config/dsspringuserconfig.properties} where that file sets a value.
+ * Use the camelCase key spellings (e.g. {@code user.security.loginPageURI}): relaxed binding also accepts
+ * kebab-case for this bean, but the framework's {@code @GetMapping} placeholders resolve only the exact
+ * camelCase key, so a kebab-only override would move the security configuration without moving the mapped
+ * controller. {@link UriPlaceholderParityValidator} fails startup if the two ever diverge.</p>
+ *
+ * <p>The URI-list getters ({@code getProtectedUris()}, {@code getUnprotectedUris()}, {@code getDisableCsrfUris()},
+ * {@code getTrustedHosts()}) return immutable, normalized copies: entries are trimmed and blank entries dropped,
+ * and mutating the returned list throws rather than silently doing nothing.</p>
+ *
+ * <p>Range constraints (e.g. on {@code bcryptStrength}) are enforced at startup when a Bean Validation
+ * implementation is on the classpath (e.g. {@code spring-boot-starter-validation}); without one they are
+ * documentation only.</p>
  */
 @Data
+@Validated
 @ConfigurationProperties(prefix = "user.security")
 public class UserSecurityConfigProperties {
 
-    /** Default filter-chain action for URIs not otherwise matched: {@code deny} or {@code allow}. */
+    /**
+     * Default filter-chain action for URIs not otherwise matched: "deny" or "allow". Any other value fails
+     * closed: the filter chain denies all requests and logs an error, forcing intentional configuration.
+     */
     private String defaultAction = "deny";
-    /** Comma-delimited URIs protected by Spring Security when defaultAction is allow. */
+    /** URIs protected by Spring Security when defaultAction is allow (comma-delimited in .properties files). */
     private List<String> protectedUris = new ArrayList<>(List.of("/protected.html"));
-    /** Comma-delimited URIs not protected by Spring Security when defaultAction is deny. */
+    /** URIs not protected by Spring Security when defaultAction is deny (comma-delimited in .properties files). */
     private List<String> unprotectedUris =
             new ArrayList<>(List.of("/", "/index.html", "/favicon.ico", "/css/*", "/js/*", "/img/*",
                     "/user/registration", "/user/resendRegistrationToken", "/user/resetPassword",
                     "/user/registrationConfirm", "/user/changePassword", "/user/savePassword",
                     "/oauth2/authorization/*", "/login", "/error"));
-    /** Comma-delimited URIs exempt from CSRF protection. Empty by default. */
+    /** URIs exempt from CSRF protection (comma-delimited in .properties files). Empty by default. */
     private List<String> disableCsrfUris = new ArrayList<>();
 
     /** The URI for the login page. */
@@ -43,7 +61,7 @@ public class UserSecurityConfigProperties {
     private String logoutActionUri = "/user/logout";
     /** The URI for the logout success page. */
     private String logoutSuccessUri = "/index.html?messageKey=message.logout.success";
-    /** Whether to always redirect to loginSuccessUri or use saved requests (default: false for better UX). */
+    /** Whether to always redirect to loginSuccessUri after login instead of honoring the saved request. */
     private boolean alwaysUseDefaultTargetUrl = false;
     /** The URI for the registration page. */
     private String registrationUri = "/user/register.html";
@@ -70,26 +88,57 @@ public class UserSecurityConfigProperties {
     /** The URI for the change password action. */
     private String changePasswordUri = "/user/changePassword";
 
-    /** Password hash strength (bcrypt log rounds). */
+    /**
+     * Whether to expose the page/action URIs (plus user.copyrightFirstYear) as the secret-free userSecurity
+     * model attribute on controller requests, so templates can reference e.g. userSecurity.loginPageUri instead
+     * of SpEL bean access, which Thymeleaf 3.1.5 forbids in restricted (layout-decorated) contexts. Set to false
+     * to disable the advice entirely.
+     */
+    private boolean exposeUrisToModel = true;
+
+    /** Password hash strength (bcrypt log rounds). Valid bcrypt range is 4-31. */
+    @Min(4)
+    @Max(31)
     private int bcryptStrength = 12;
-    /** Maximum failed login attempts before account lockout. */
+    /** Maximum failed login attempts before account lockout. 0 disables lockout. */
+    @Min(0)
     private int failedLoginAttempts = 10;
-    /** Account lockout duration in minutes. */
+    /** Account lockout duration in minutes. 0 disables the lockout window; a negative value locks the account until an administrator unlocks it. */
     private int accountLockoutDuration = 30;
     /** Password reset token validity duration in minutes. */
+    @Min(1)
     private int passwordResetTokenValidityMinutes = 1440;
-    /** Whether to require canonical app URL for redirect validation. */
+    /**
+     * When true, fail startup unless user.security.appUrl or a non-empty user.security.trustedHosts is
+     * configured, so security email links (password reset, verification) can never derive their authority from a
+     * spoofable Host header (CWE-640). When false (default), the library logs a startup warning instead of failing.
+     */
     private boolean requireCanonicalAppUrl = false;
     /** Whether to perform hash time tests during startup. */
     private boolean testHashTime = true;
-    /** Whether to allow initial password set without step-up authentication. */
+    /**
+     * Controls the fallback behavior of POST /user/setPassword when no StepUpService bean is present. When false
+     * (default), setting an initial password on a passwordless (passkey-only) account is disabled (HTTP 403)
+     * unless a StepUpService is provided; set to true to explicitly allow the session-only behavior (SUF-02).
+     */
     private boolean allowInitialPasswordSetWithoutStepUp = false;
-    /** Base application URL for redirect validation and email links. */
+    /**
+     * Canonical base URL for security email links (password reset, verification). STRONGLY recommended in
+     * production to prevent Host-header poisoning (CWE-640). When set, X-Forwarded-Host is ignored.
+     */
     private String appUrl = "";
-    /** List of trusted hosts for redirect validation. */
+    /**
+     * When user.security.appUrl is not set, X-Forwarded-Host and the ordinary request host are honored for
+     * security email links only when they appear in this allow-list; a non-allow-listed host falls back to the
+     * first entry (comma-delimited in .properties files).
+     */
     private List<String> trustedHosts = new ArrayList<>();
 
-    /** HMAC secret used to hash password-reset tokens at rest. Excluded from {@code toString}. */
+    /**
+     * Optional secret used to key the at-rest hashing (HMAC-SHA-256) of verification and password-reset tokens.
+     * If unset, plain SHA-256 is used (adequate because the tokens are high-entropy); setting a secret adds
+     * defense-in-depth against a database-only compromise. Excluded from toString output.
+     */
     @ToString.Exclude
     private String tokenHashSecret;
 
@@ -105,9 +154,13 @@ public class UserSecurityConfigProperties {
         return filterBlank(disableCsrfUris);
     }
 
+    public List<String> getTrustedHosts() {
+        return filterBlank(trustedHosts);
+    }
+
     private static List<String> filterBlank(List<String> values) {
         if (values == null) {
-            return new ArrayList<>();
+            return List.of();
         }
         List<String> filtered = new ArrayList<>(values.size());
         for (String value : values) {
@@ -115,6 +168,6 @@ public class UserSecurityConfigProperties {
                 filtered.add(value.trim());
             }
         }
-        return filtered;
+        return List.copyOf(filtered);
     }
 }

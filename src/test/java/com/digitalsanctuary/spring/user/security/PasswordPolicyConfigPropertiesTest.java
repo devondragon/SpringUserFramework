@@ -42,4 +42,34 @@ class PasswordPolicyConfigPropertiesTest {
             assertThat(p.getHistoryCount()).isEqualTo(5);
         });
     }
+
+    // These startup-failure tests exercise Bean Validation on the bound properties, which is active because
+    // hibernate-validator is on the test classpath. In a consuming app without a validator the constraints are
+    // inert (documented on the class); with one, an impossible policy fails startup with the property named.
+    @Test
+    void shouldFailStartupWhenMinLengthExceedsMaxLength() {
+        contextRunner.withPropertyValues("user.security.password.min-length=20",
+                "user.security.password.max-length=10").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).rootCause()
+                    .hasMessageContaining("minLength must be less than or equal to maxLength");
+        });
+    }
+
+    @Test
+    void shouldFailStartupWhenRequireSpecialWithEmptySpecialChars() {
+        contextRunner.withPropertyValues("user.security.password.special-chars=").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).rootCause()
+                    .hasMessageContaining("specialChars must not be empty");
+        });
+    }
+
+    @Test
+    void shouldFailStartupWhenSimilarityThresholdOutsideRange() {
+        contextRunner.withPropertyValues("user.security.password.similarity-threshold=150").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("similarityThreshold");
+        });
+    }
 }

@@ -9,9 +9,12 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 
 /**
- * Exposes {@link UserSecurityUriView} as the {@code userSecurity} model attribute on every {@code @Controller}
- * request, so consuming templates read framework URIs without SpEL bean access. Registered by default; opt out
- * with {@code user.security.expose-uris-to-model=false}. {@code userSecurity} is a reserved model-attribute name.
+ * Exposes {@link UserSecurityUriView} as the {@code userSecurity} model attribute so consuming templates read
+ * framework URIs without SpEL bean access. Applies to every {@code @Controller} request — including
+ * {@code @RestController} handlers, which are meta-annotated with {@code @Controller}; for those the model is
+ * simply discarded with the response body unaffected. Registered by default; opt out with
+ * {@code user.security.expose-uris-to-model=false} (bound as {@code exposeUrisToModel} on
+ * {@link UserSecurityConfigProperties}). {@code userSecurity} is a reserved model-attribute name.
  */
 @ConditionalOnProperty(name = "user.security.expose-uris-to-model", havingValue = "true", matchIfMissing = true)
 @ControllerAdvice(annotations = Controller.class)

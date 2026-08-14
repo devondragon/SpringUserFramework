@@ -19,8 +19,10 @@ public class RememberMeConfigProperties {
     private boolean enabled = false;
 
     /**
-     * The remember-me signing key. Excluded from {@code toString} so the secret never leaks through bean logging.
-     * When null, Spring Security generates an ephemeral key at startup.
+     * The remember-me signing key. Excluded from toString output so the secret never leaks through bean logging.
+     * Required when enabled=true: without a non-blank key, remember-me is not configured at all (the framework
+     * logs a warning and skips it). Keep the key stable across restarts and instances; changing it invalidates
+     * all outstanding remember-me cookies.
      */
     @ToString.Exclude
     private String key;
@@ -35,7 +37,7 @@ public class RememberMeConfigProperties {
     private String rememberMeCookieName = "remember-me";
 
     /**
-     * Whether the remember-me cookie is marked {@code Secure}. Left null (unset) by default so Spring Security's own
+     * Whether the remember-me cookie is marked Secure. Left null (unset) by default so Spring Security's own
      * behavior applies: the cookie is secure whenever the request that created it was made over HTTPS.
      */
     private Boolean useSecureCookie;

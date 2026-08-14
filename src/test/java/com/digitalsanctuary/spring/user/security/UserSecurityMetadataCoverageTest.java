@@ -21,7 +21,7 @@ class UserSecurityMetadataCoverageTest {
     }
 
     @Test
-    void generatedMetadataContainsEveryRetiredKey() throws Exception {
+    void shouldContainEveryRetiredKeyWhenMetadataIsGenerated() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         List<String> legacy = mapper.readValue(
                 new ClassPathResource("metadata/legacy-user-security-keys.json").getInputStream(),
@@ -32,7 +32,8 @@ class UserSecurityMetadataCoverageTest {
         Set<String> generatedNames = generated.get("properties").findValuesAsText("name").stream()
                 .map(UserSecurityMetadataCoverageTest::canonical).collect(Collectors.toSet());
 
-        assertThat(legacy.stream().map(UserSecurityMetadataCoverageTest::canonical))
-                .allMatch(generatedNames::contains);
+        // containsAll (not allMatch) so a failure names the missing keys instead of reporting "false".
+        assertThat(generatedNames)
+                .containsAll(legacy.stream().map(UserSecurityMetadataCoverageTest::canonical).toList());
     }
 }

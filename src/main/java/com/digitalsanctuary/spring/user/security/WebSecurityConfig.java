@@ -33,9 +33,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The WebSecurityConfig class is a Spring Boot configuration class that provides properties for configuring the web security. This class is used to
- * define properties that control the behavior of the web security, such as the default action for protected URIs and the URIs that are protected or
- * unprotected.
+ * Builds the library's Spring Security filter chain: form login, logout, remember-me, session registry wiring,
+ * CSRF exemptions, OAuth2/WebAuthn/MFA setup, and the authorization rules derived from
+ * {@code user.security.defaultAction} and the protected/unprotected URI lists. All {@code user.security.*} values
+ * are read from {@link UserSecurityConfigProperties} and {@link RememberMeConfigProperties}; the resulting chain
+ * is exposed as a bean by {@link WebSecurityFilterChainAutoConfiguration}, which backs off when the consuming
+ * application defines its own {@link SecurityFilterChain}.
  */
 @Slf4j
 @Data
@@ -118,8 +121,14 @@ public class WebSecurityConfig {
 				PersistentTokenRepository tokenRepository = persistentTokenRepositoryProvider.getIfAvailable();
 				if (tokenRepository != null) {
 					rememberMe.tokenRepository(tokenRepository);
+				} else if (rememberMeConfig.isUsePersistentTokens()) {
+					log.warn("WebSecurityConfig: user.security.rememberMe.usePersistentTokens=true but no PersistentTokenRepository bean is "
+							+ "present; falling back to hash-based remember-me tokens, which SessionInvalidationService cannot revoke.");
 				}
 			});
+		} else if (rememberMeConfig.isEnabled()) {
+			log.warn("WebSecurityConfig: user.security.rememberMe.enabled=true but no user.security.rememberMe.key is configured; "
+					+ "remember-me is NOT configured. Set a stable signing key to activate it.");
 		}
 
 		// Use the LogoutSuccessService handler (instead of logoutSuccessUrl) so logout publishes an audit event.

@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,32 @@ class UserSecurityConfigPropertiesTest {
     void shouldReturnEmptyListWhenUriListPropertyBlank() {
         contextRunner.withPropertyValues("user.security.disableCSRFURIs=").run(context -> {
             assertThat(context.getBean(UserSecurityConfigProperties.class).getDisableCsrfUris()).isEmpty();
+        });
+    }
+
+    @Test
+    void shouldNormalizeTrustedHostsWhenBindingBlankAndPaddedEntries() {
+        contextRunner.withPropertyValues("user.security.trustedHosts= app.example.com ,,www.example.com ")
+                .run(context -> {
+                    assertThat(context.getBean(UserSecurityConfigProperties.class).getTrustedHosts())
+                            .containsExactly("app.example.com", "www.example.com");
+                });
+    }
+
+    @Test
+    void shouldReturnImmutableListsWhenReadingUriGetters() {
+        UserSecurityConfigProperties p = new UserSecurityConfigProperties();
+        assertThatThrownBy(() -> p.getUnprotectedUris().add("/x"))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> p.getTrustedHosts().add("evil.example"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void shouldFailStartupWhenBcryptStrengthOutsideValidRange() {
+        contextRunner.withPropertyValues("user.security.bcryptStrength=50").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("bcryptStrength");
         });
     }
 }

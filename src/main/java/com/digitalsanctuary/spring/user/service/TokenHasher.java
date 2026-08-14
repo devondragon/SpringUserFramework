@@ -61,7 +61,9 @@ public class TokenHasher {
         if (StringUtils.hasText(tokenHashSecret)) {
             log.debug("TokenHasher initialized with a configured secret (HMAC-SHA-256).");
         } else {
-            log.debug("TokenHasher initialized without a secret (plain SHA-256). "
+            // INFO (not DEBUG) so the security-relevant fallback is visible in production logs; not WARN because
+            // unkeyed SHA-256 is an acceptable configuration for these high-entropy tokens (see class JavaDoc).
+            log.info("TokenHasher initialized without a secret (plain SHA-256). "
                     + "Set user.security.tokenHashSecret for keyed hashing.");
         }
     }

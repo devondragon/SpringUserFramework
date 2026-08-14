@@ -48,15 +48,38 @@ class UserSecurityDefaultsParityTest {
                 .isEqualTo(p.getProperty("user.security.password.similarity-threshold"));
     }
 
-    @Test
-    void shouldEqualInitializersWhenBindingShippedFile() throws Exception {
+    private static MockEnvironment shippedEnvironment() throws Exception {
         MockEnvironment env = new MockEnvironment();
         new ResourcePropertySource(new ClassPathResource("config/dsspringuserconfig.properties")).getSource()
                 .forEach((k, v) -> env.setProperty(k, String.valueOf(v)));
+        return env;
+    }
+
+    // Lombok @Data equals compares via the getters, so these whole-object assertions cover every field of each
+    // class — any drift between a field initializer and the shipped file (or a new field added to only one of
+    // the two) fails here, not just the handful of sampled fields.
+    @Test
+    void shouldEqualInitializersWhenBindingShippedFile() throws Exception {
+        MockEnvironment env = shippedEnvironment();
         UserSecurityConfigProperties bound = Binder.get(env)
                 .bind("user.security", UserSecurityConfigProperties.class).get();
-        assertThat(bound.getLoginPageUri()).isEqualTo(new UserSecurityConfigProperties().getLoginPageUri());
-        assertThat(bound.getBcryptStrength()).isEqualTo(new UserSecurityConfigProperties().getBcryptStrength());
+        assertThat(bound).isEqualTo(new UserSecurityConfigProperties());
+    }
+
+    @Test
+    void shouldEqualPasswordInitializersWhenBindingShippedFile() throws Exception {
+        MockEnvironment env = shippedEnvironment();
+        PasswordPolicyConfigProperties bound = Binder.get(env)
+                .bind("user.security.password", PasswordPolicyConfigProperties.class).get();
+        assertThat(bound).isEqualTo(new PasswordPolicyConfigProperties());
+    }
+
+    @Test
+    void shouldEqualRememberMeInitializersWhenBindingShippedFile() throws Exception {
+        MockEnvironment env = shippedEnvironment();
+        RememberMeConfigProperties bound = Binder.get(env)
+                .bind("user.security.remember-me", RememberMeConfigProperties.class).get();
+        assertThat(bound).isEqualTo(new RememberMeConfigProperties());
     }
 
     @Test
