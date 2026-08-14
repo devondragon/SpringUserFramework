@@ -2,6 +2,8 @@ package com.digitalsanctuary.spring.user.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import org.junit.jupiter.api.DisplayName;
@@ -68,5 +70,35 @@ class UserSecurityDefaultsParityTest {
         assertThat(bean.getRememberMeCookieName()).isEqualTo(p.getProperty("user.security.rememberMe.rememberMeCookieName"));
         assertThat(String.valueOf(bean.isUsePersistentTokens()))
                 .isEqualTo(p.getProperty("user.security.rememberMe.usePersistentTokens"));
+    }
+
+    @Test
+    void shouldMatchShippedFileWhenBindingUriListFields() throws Exception {
+        Properties p = shipped();
+        UserSecurityConfigProperties bean = new UserSecurityConfigProperties();
+
+        List<String> expectedUnprotectedUris = splitAndTrim(p.getProperty("user.security.unprotectedURIs"));
+        assertThat(bean.getUnprotectedUris()).isEqualTo(expectedUnprotectedUris);
+
+        List<String> expectedProtectedUris = splitAndTrim(p.getProperty("user.security.protectedURIs"));
+        assertThat(bean.getProtectedUris()).isEqualTo(expectedProtectedUris);
+
+        List<String> expectedDisableCsrfUris = splitAndTrim(p.getProperty("user.security.disableCSRFURIs"));
+        assertThat(expectedDisableCsrfUris).isEmpty();
+        assertThat(bean.getDisableCsrfUris()).isEmpty();
+    }
+
+    private static List<String> splitAndTrim(String value) {
+        List<String> result = new ArrayList<>();
+        if (value == null || value.isBlank()) {
+            return result;
+        }
+        for (String segment : value.split(",")) {
+            String trimmed = segment.trim();
+            if (!trimmed.isBlank()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
     }
 }
