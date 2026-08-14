@@ -5,7 +5,11 @@ All notable changes to this project are documented here. This project follows [S
 ## [Unreleased]
 
 ### Refactoring
-- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer action required. `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`) are removed; they had no callers outside the framework. Constructors of the migrated consumers now take the typed properties objects (relevant only if you instantiate or subclass them directly — see MIGRATION.md).
+- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer configuration action required.
+
+### Breaking Changes
+- For consumers that subclass or directly instantiate framework components only (Spring-injected beans are unaffected): the migrated `user.security.*` consumers now take the typed properties objects in their constructors — `TokenHasher(UserSecurityConfigProperties)` replaces `TokenHasher(String)`, `LoginSuccessService` gained a `UserSecurityConfigProperties` parameter, and the Lombok-generated constructors of `UserAPI`, `UserActionController`, `LoginAttemptService`, `LogoutSuccessService`, `UserEmailService`, `UserService`, `PasswordPolicyService`, `WebSecurityConfig`, and `HtmxAwareAuthenticationEntryPointConfiguration` changed accordingly. See MIGRATION.md.
+- `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`, `getUnprotectedURIsProperty()`) are removed. They were byproducts of the removed `@Value` fields, returned raw property strings, and had no callers outside the framework; read the values from `UserSecurityConfigProperties` instead.
 
 ### Features
 - New `${userSecurity}` model attribute exposes the configured page/action URIs to Thymeleaf templates (e.g. `${userSecurity.loginPageUri}`) without SpEL bean access. Registered by default; opt out with `user.security.expose-uris-to-model=false`.
