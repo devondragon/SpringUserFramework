@@ -20,7 +20,7 @@ class UriPlaceholderParityTest {
     }
 
     @Test
-    void placeholderKeyValuesEqualBeanGetters() {
+    void shouldEqualBeanGetterWhenEnvironmentResolvesCamelCaseKey() {
         // Keys used as @GetMapping/@RequestMapping/@ConditionalOnProperty placeholders elsewhere in the framework.
         Map<String, java.util.function.Function<UserSecurityConfigProperties, String>> mappingKeys = Map.of(
                 "user.security.loginPageURI", UserSecurityConfigProperties::getLoginPageUri,
