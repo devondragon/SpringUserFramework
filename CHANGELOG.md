@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
+## [Unreleased]
+
+### Refactoring
+- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer action required. `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`) are removed; they had no callers outside the framework.
+
+### Features
+- New `${userSecurity}` model attribute exposes the configured page/action URIs to Thymeleaf templates (e.g. `${userSecurity.loginPageUri}`) without SpEL bean access. Registered by default; opt out with `user.security.expose-uris-to-model=false`.
+
 ## [5.2.0] - 2026-08-12
 
 This release completes remember‑me (“stay signed in”) with real cookies, optional persistent tokens, and revocation on admin sign‑out/password change, and adds an optional, fail‑closed CAPTCHA layer (Turnstile adapter and a provider‑neutral SPI) for unauthenticated, email‑sending APIs. It also closes a CAPTCHA path‑matching bypass and expands docs and tests.

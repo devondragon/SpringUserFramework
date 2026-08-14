@@ -7,6 +7,7 @@ This guide covers migrating applications using the Spring User Framework between
 - [Migration Guide](#migration-guide)
   - [Table of Contents](#table-of-contents)
   - [Migrating to 5.2.x](#migrating-to-52x)
+    - [`user.security.*` moved to typed configuration properties (no action required)](#usersecurity-moved-to-typed-configuration-properties-no-action-required)
     - [Remember-me completed; two constructors gained parameters](#remember-me-completed-two-constructors-gained-parameters)
   - [Migrating to 5.0.x](#migrating-to-50x)
     - [⚠️ ACTION REQUIRED: Reverse-proxy deployments must configure a canonical app URL](#-action-required-reverse-proxy-deployments-must-configure-a-canonical-app-url)
@@ -45,6 +46,18 @@ This guide covers migrating applications using the Spring User Framework between
   - [Version Compatibility Matrix](#version-compatibility-matrix)
 
 ## Migrating to 5.2.x
+
+### `user.security.*` moved to typed configuration properties (no action required)
+
+`user.security.*` (page/action URIs, URI lists, and security scalars) is now bound to a typed
+`@ConfigurationProperties` class (`UserSecurityConfigProperties`) instead of individual `@Value`
+fields. **Config keys are unchanged** — nothing to update in `application.yml`/`.properties`.
+
+A new `${userSecurity.*}` template attribute is available (e.g. `${userSecurity.loginPageUri}`,
+`${userSecurity.registrationUri}`). If your templates currently read these values via
+`${@environment.getProperty('user.security.*')}`, you can switch to `${userSecurity.*}` — and on
+Spring Boot 4.1.0+ you **must**, since Thymeleaf 3.1.5 rejects the SpEL bean-access form
+(`@environment...`) in restricted (layout-decorated) template contexts.
 
 ### Remember-me completed; two constructors gained parameters
 
