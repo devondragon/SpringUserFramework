@@ -23,7 +23,7 @@ class UserSecurityDefaultsParityTest {
     }
 
     @Test
-    void flatFieldInitializersMatchShippedFile() throws Exception {
+    void shouldMatchShippedFileWhenBindingFlatFields() throws Exception {
         Properties p = shipped();
         UserSecurityConfigProperties bean = new UserSecurityConfigProperties();
         assertThat(bean.getLoginPageUri()).isEqualTo(p.getProperty("user.security.loginPageURI"));
@@ -36,7 +36,7 @@ class UserSecurityDefaultsParityTest {
     }
 
     @Test
-    void passwordFieldInitializersMatchShippedFile() throws Exception {
+    void shouldMatchShippedFileWhenBindingPasswordFields() throws Exception {
         Properties p = shipped();
         PasswordPolicyConfigProperties bean = new PasswordPolicyConfigProperties();
         assertThat(String.valueOf(bean.getMinLength())).isEqualTo(p.getProperty("user.security.password.min-length"));
@@ -47,7 +47,7 @@ class UserSecurityDefaultsParityTest {
     }
 
     @Test
-    void bindingTheShippedFileYieldsTheSameValuesAsTheInitializers() throws Exception {
+    void shouldEqualInitializersWhenBindingShippedFile() throws Exception {
         MockEnvironment env = new MockEnvironment();
         new ResourcePropertySource(new ClassPathResource("config/dsspringuserconfig.properties")).getSource()
                 .forEach((k, v) -> env.setProperty(k, String.valueOf(v)));
@@ -55,5 +55,18 @@ class UserSecurityDefaultsParityTest {
                 .bind("user.security", UserSecurityConfigProperties.class).get();
         assertThat(bound.getLoginPageUri()).isEqualTo(new UserSecurityConfigProperties().getLoginPageUri());
         assertThat(bound.getBcryptStrength()).isEqualTo(new UserSecurityConfigProperties().getBcryptStrength());
+    }
+
+    @Test
+    void shouldMatchShippedFileWhenBindingRememberMeFields() throws Exception {
+        Properties p = shipped();
+        RememberMeConfigProperties bean = new RememberMeConfigProperties();
+        assertThat(String.valueOf(bean.isEnabled())).isEqualTo(p.getProperty("user.security.rememberMe.enabled"));
+        assertThat(String.valueOf(bean.getTokenValiditySeconds()))
+                .isEqualTo(p.getProperty("user.security.rememberMe.tokenValiditySeconds"));
+        assertThat(bean.getRememberMeParameter()).isEqualTo(p.getProperty("user.security.rememberMe.rememberMeParameter"));
+        assertThat(bean.getRememberMeCookieName()).isEqualTo(p.getProperty("user.security.rememberMe.rememberMeCookieName"));
+        assertThat(String.valueOf(bean.isUsePersistentTokens()))
+                .isEqualTo(p.getProperty("user.security.rememberMe.usePersistentTokens"));
     }
 }
