@@ -3,7 +3,6 @@ package com.digitalsanctuary.spring.user.security;
 import java.util.List;
 import java.util.Set;
 import javax.sql.DataSource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -76,9 +75,7 @@ public class UserSecurityBeansAutoConfiguration {
 
     private final UserDetailsService userDetailsService;
     private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
-
-    @Value("${user.security.bcryptStrength:10}")
-    private int bcryptStrength;
+    private final UserSecurityConfigProperties userSecurityConfig;
 
     /**
      * Creates the library's default {@link PasswordEncoder}, a {@link BCryptPasswordEncoder} using the configured {@code user.security.bcryptStrength}.
@@ -89,7 +86,7 @@ public class UserSecurityBeansAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(PasswordEncoder.class)
     public PasswordEncoder encoder() {
-        return new BCryptPasswordEncoder(bcryptStrength);
+        return new BCryptPasswordEncoder(userSecurityConfig.getBcryptStrength());
     }
 
     /**
@@ -306,16 +303,14 @@ public class UserSecurityBeansAutoConfiguration {
      * {@code user.security.requireCanonicalAppUrl=true} makes it fail startup instead, so an operator who wants a hard guarantee can opt into fail-fast.
      * </p>
      *
-     * @param appUrl the configured canonical base URL, or {@code null} when unset
-     * @param trustedHosts the allow-listed hosts (empty when unset)
-     * @param requireCanonicalAppUrl when {@code true}, fail startup unless {@code appUrl} or a non-empty {@code trustedHosts} is configured
      * @return the default {@link AppUrlResolver}
      */
     @Bean
     @ConditionalOnMissingBean(AppUrlResolver.class)
-    public AppUrlResolver appUrlResolver(@Value("${user.security.appUrl:#{null}}") String appUrl,
-            @Value("${user.security.trustedHosts:}") List<String> trustedHosts,
-            @Value("${user.security.requireCanonicalAppUrl:false}") boolean requireCanonicalAppUrl) {
+    public AppUrlResolver appUrlResolver() {
+        String appUrl = userSecurityConfig.getAppUrl();
+        List<String> trustedHosts = userSecurityConfig.getTrustedHosts();
+        boolean requireCanonicalAppUrl = userSecurityConfig.isRequireCanonicalAppUrl();
         boolean appUrlConfigured = appUrl != null && !appUrl.isBlank();
         boolean trustedHostsConfigured = trustedHosts != null && trustedHosts.stream().anyMatch(h -> h != null && !h.isBlank());
         if (!appUrlConfigured && !trustedHostsConfigured) {

@@ -303,7 +303,7 @@ class CoreBeanOverrideTest {
         @Test
         @DisplayName("appUrlResolver() is @ConditionalOnMissingBean")
         void appUrlResolverIsConditional() throws Exception {
-            Method method = UserSecurityBeansAutoConfiguration.class.getMethod("appUrlResolver", String.class, List.class, boolean.class);
+            Method method = UserSecurityBeansAutoConfiguration.class.getMethod("appUrlResolver");
             assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
         }
 
