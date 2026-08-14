@@ -3,6 +3,7 @@
 **Date:** 2026-08-13
 **Repo:** `SpringUserFramework` (library)
 **Status:** Approved design — pending implementation plan
+**Tracking issue:** `#355`
 **Motivating issue:** `SpringUserFrameworkDemoApp#82` (Boot 4.1.0 / Thymeleaf 3.1.5 breaks the demo's `${@environment.getProperty('user.security.*')}` template idiom)
 
 ## 1. Problem
