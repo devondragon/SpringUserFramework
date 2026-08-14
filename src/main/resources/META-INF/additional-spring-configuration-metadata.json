@@ -37,176 +37,9 @@
       "description": "Cron expression for token purge schedule"
     },
     {
-      "name": "user.security.appUrl",
-      "type": "java.lang.String",
-      "description": "Canonical base URL for security email links (password reset, verification). STRONGLY recommended in production to prevent Host-header poisoning (CWE-640). When set, X-Forwarded-Host is ignored."
-    },
-    {
-      "name": "user.security.trustedHosts",
-      "type": "java.util.List<java.lang.String>",
-      "description": "When user.security.appUrl is not set, X-Forwarded-Host is honored only for hosts in this comma-separated allowlist; otherwise the container's own server name is used."
-    },
-    {
-      "name": "user.security.requireCanonicalAppUrl",
-      "type": "java.lang.Boolean",
-      "description": "When true, fail startup unless user.security.appUrl or a non-empty user.security.trustedHosts is configured, so security email links (password reset, verification) can never derive their authority from a spoofable Host header (CWE-640). When false (default), the library logs a startup warning instead of failing.",
-      "defaultValue": false
-    },
-    {
-      "name": "user.security.allowInitialPasswordSetWithoutStepUp",
-      "type": "java.lang.Boolean",
-      "description": "Controls the fallback behavior of POST /user/setPassword when no StepUpService bean is present. When false (default), setting an initial password on a passwordless (passkey-only) account is disabled (HTTP 403) unless a StepUpService is provided; set to true to explicitly allow the session-only behavior (SUF-02).",
-      "defaultValue": false
-    },
-    {
-      "name": "user.security.loginActionURI",
-      "type": "java.lang.String",
-      "description": "URI for login form submission"
-    },
-    {
-      "name": "user.security.protectedURIs",
-      "type": "java.lang.String",
-      "description": "Comma-delimited list of URIs that require authentication"
-    },
-    {
-      "name": "user.security.unprotectedURIs",
-      "type": "java.lang.String",
-      "description": "Comma-delimited list of URIs that don't require authentication"
-    },
-    {
-      "name": "user.security.logoutActionURI",
-      "type": "java.lang.String",
-      "description": "URI for logout action"
-    },
-    {
-      "name": "user.security.loginPageURI",
-      "type": "java.lang.String",
-      "description": "URI for login page"
-    },
-    {
-      "name": "user.security.logoutSuccessURI",
-      "type": "java.lang.String",
-      "description": "URI to redirect to after successful logout"
-    },
-    {
-      "name": "user.security.registrationSuccessURI",
-      "type": "java.lang.String",
-      "description": "URI for registration success page"
-    },
-    {
-      "name": "user.security.loginSuccessURI",
-      "type": "java.lang.String",
-      "description": "URI to redirect to after successful login"
-    },
-    {
-      "name": "user.security.registrationNewVerificationURI",
-      "type": "java.lang.String",
-      "description": "URI for requesting new verification email"
-    },
-    {
       "name": "user.mail.fromAddress",
       "type": "java.lang.String",
       "description": "From address for emails sent by the system"
-    },
-    {
-      "name": "user.security.failedLoginAttempts",
-      "type": "java.lang.Integer",
-      "description": "Number of allowed failed login attempts before account lockout"
-    },
-    {
-      "name": "user.security.updateUserURI",
-      "type": "java.lang.String",
-      "description": "URI for user profile update page"
-    },
-    {
-      "name": "user.security.forgotPasswordPendingURI",
-      "type": "java.lang.String",
-      "description": "URI for forgot password pending page"
-    },
-    {
-      "name": "user.security.defaultAction",
-      "type": "java.lang.String",
-      "description": "Default security action (allow or deny) for URIs not explicitly configured"
-    },
-    {
-      "name": "user.security.registrationURI",
-      "type": "java.lang.String",
-      "description": "URI for registration page"
-    },
-    {
-      "name": "user.security.disableCSRFURIs",
-      "type": "java.lang.String",
-      "description": "Comma-delimited list of URIs that should not be protected by CSRF protection"
-    },
-    {
-      "name": "user.security.registrationPendingURI",
-      "type": "java.lang.String",
-      "description": "URI for registration pending verification page"
-    },
-    {
-      "name": "user.security.forgotPasswordURI",
-      "type": "java.lang.String",
-      "description": "URI for forgot password page"
-    },
-    {
-      "name": "user.security.forgotPasswordChangeURI",
-      "type": "java.lang.String",
-      "description": "URI for password change page after reset"
-    },
-    {
-      "name": "user.security.password.enabled",
-      "type": "java.lang.String",
-      "description": "Enable/disable password policy enforcement"
-    },
-    {
-      "name": "user.security.password.min-length",
-      "type": "java.lang.String",
-      "description": "Minimum password length"
-    },
-    {
-      "name": "user.security.password.max-length",
-      "type": "java.lang.String",
-      "description": "Maximum password length"
-    },
-     {
-      "name": "user.security.password.require-uppercase",
-      "type": "java.lang.String",
-      "description": "Require at least one uppercase character"
-    },
-     {
-      "name": "user.security.password.require-lowercase",
-      "type": "java.lang.String",
-      "description": "Require at least one lowercase character"
-    },
-     {
-      "name": "user.security.password.require-digit",
-      "type": "java.lang.String",
-      "description": "Require at least one digit"
-    },
-     {
-      "name": "user.security.password.require-special",
-      "type": "java.lang.String",
-      "description": "Require at least one special character"
-    },
-     {
-      "name": "user.security.password.special-chars",
-      "type": "java.lang.String",
-      "description": "Allowed special characters"
-    },
-     {
-      "name": "user.security.password.prevent-common-passwords",
-      "type": "java.lang.String",
-      "description": "Prevent use of common passwords (dictionary check)"
-    },
-     {
-      "name": "user.security.password.history-count",
-      "type": "java.lang.String",
-      "description": "Number of previous passwords to prevent reuse"
-    },
-     {
-      "name": "user.security.password.similarity-threshold",
-      "type": "java.lang.String",
-      "description": "Percentage of similarity allowed with username/email"
     },
     {
       "name": "hibernate.globally_quoted_identifiers",
@@ -258,31 +91,10 @@
       "defaultValue": 5
     },
     {
-      "name": "user.security.bcryptStrength",
-      "type": "java.lang.Integer",
-      "description": "BCrypt hash strength (4-31, default 10)"
-    },
-    {
-      "name": "user.security.tokenHashSecret",
-      "type": "java.lang.String",
-      "description": "Optional secret used to key the at-rest hashing (HMAC-SHA-256) of verification and password-reset tokens. If unset, plain SHA-256 is used. Setting a secret adds defense-in-depth against a database-only compromise."
-    },
-    {
-      "name": "user.security.passwordResetTokenValidityMinutes",
-      "type": "java.lang.Integer",
-      "description": "Lifetime in minutes of a password reset token before it expires. Default 1440 (24 hours).",
-      "defaultValue": 1440
-    },
-    {
       "name": "user.registration.verificationTokenValidityMinutes",
       "type": "java.lang.Integer",
       "description": "Lifetime in minutes of a registration verification token before it expires. Default 1440 (24 hours).",
       "defaultValue": 1440
-    },
-    {
-      "name": "user.security.testHashTime",
-      "type": "java.lang.Boolean",
-      "description": "Test BCrypt hash time on startup"
     },
     {
       "name": "spring.security.oauth2.enabled",
@@ -298,55 +110,6 @@
       "name": "user.actuallyDeleteAccount",
       "type": "java.lang.Boolean",
       "description": "Actually delete user accounts (true) or just disable them (false)"
-    },
-    {
-      "name": "user.security.accountLockoutDuration",
-      "type": "java.lang.Integer",
-      "description": "Account lockout duration in minutes"
-    },
-    {
-      "name": "user.security.rememberMe.enabled",
-      "type": "java.lang.Boolean",
-      "description": "Enable remember-me functionality"
-    },
-    {
-      "name": "user.security.rememberMe.key",
-      "type": "java.lang.String",
-      "description": "Secret key for remember-me token generation"
-    },
-    {
-      "name": "user.security.rememberMe.tokenValiditySeconds",
-      "type": "java.lang.Integer",
-      "description": "How long a remember-me token stays valid, in seconds",
-      "defaultValue": 1209600
-    },
-    {
-      "name": "user.security.rememberMe.rememberMeParameter",
-      "type": "java.lang.String",
-      "description": "Request parameter the login form posts to opt into remember-me",
-      "defaultValue": "remember-me"
-    },
-    {
-      "name": "user.security.rememberMe.rememberMeCookieName",
-      "type": "java.lang.String",
-      "description": "Name of the remember-me cookie",
-      "defaultValue": "remember-me"
-    },
-    {
-      "name": "user.security.rememberMe.useSecureCookie",
-      "type": "java.lang.Boolean",
-      "description": "Force the Secure flag on the remember-me cookie. Unset (default) marks the cookie secure only when the request that created it used HTTPS."
-    },
-    {
-      "name": "user.security.rememberMe.usePersistentTokens",
-      "type": "java.lang.Boolean",
-      "description": "Store remember-me tokens in the database (JdbcTokenRepositoryImpl) instead of the default hash-based cookies. Requires the persistent_logins table (see db-scripts). Enables server-side revocation on session invalidation and password change.",
-      "defaultValue": false
-    },
-    {
-      "name": "user.security.alwaysUseDefaultTargetUrl",
-      "type": "java.lang.Boolean",
-      "description": "Always redirect to default target URL after login"
     },
     {
       "name": "user.web.globalUserModelOptIn",
