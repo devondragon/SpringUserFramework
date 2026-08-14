@@ -7,7 +7,7 @@ This guide covers migrating applications using the Spring User Framework between
 - [Migration Guide](#migration-guide)
   - [Table of Contents](#table-of-contents)
   - [Migrating to 5.2.x](#migrating-to-52x)
-    - [`user.security.*` moved to typed configuration properties (no action required)](#usersecurity-moved-to-typed-configuration-properties-no-action-required)
+    - [`user.security.*` moved to typed configuration properties (config keys unchanged)](#usersecurity-moved-to-typed-configuration-properties-config-keys-unchanged)
     - [Remember-me completed; two constructors gained parameters](#remember-me-completed-two-constructors-gained-parameters)
   - [Migrating to 5.0.x](#migrating-to-50x)
     - [⚠️ ACTION REQUIRED: Reverse-proxy deployments must configure a canonical app URL](#-action-required-reverse-proxy-deployments-must-configure-a-canonical-app-url)
@@ -47,7 +47,7 @@ This guide covers migrating applications using the Spring User Framework between
 
 ## Migrating to 5.2.x
 
-### `user.security.*` moved to typed configuration properties (no action required)
+### `user.security.*` moved to typed configuration properties (config keys unchanged)
 
 `user.security.*` (page/action URIs, URI lists, and security scalars) is now bound to a typed
 `@ConfigurationProperties` class (`UserSecurityConfigProperties`) instead of individual `@Value`
@@ -58,6 +58,25 @@ A new `${userSecurity.*}` template attribute is available (e.g. `${userSecurity.
 `${@environment.getProperty('user.security.*')}`, you can switch to `${userSecurity.*}` — and on
 Spring Boot 4.1.0+ you **must**, since Thymeleaf 3.1.5 rejects the SpEL bean-access form
 (`@environment...`) in restricted (layout-decorated) template contexts.
+
+**New startup checks.** The framework now fails startup (with the offending keys named) when a
+`user.security.*` URI is set with a kebab-case or environment-variable spelling that the typed
+configuration accepts but the framework's request-mapping placeholders do not — a state that
+previously split the security configuration from the mapped controllers silently. Use the camelCase
+spellings shown in CONFIG.md. Additionally, when a Bean Validation implementation is on your
+classpath, out-of-range values (bcrypt strength outside 4–31, password-policy `minLength >
+maxLength`, `similarityThreshold` outside 0–100, `requireSpecial` with empty `specialChars`) now
+fail startup as named configuration errors instead of misbehaving at runtime.
+
+**Breaking for direct instantiation/subclassing only** (Spring-injected beans are unaffected): the
+`user.security.*` consumers now take the typed properties objects in their constructors —
+`TokenHasher(UserSecurityConfigProperties)` replaces `TokenHasher(String)`, `LoginSuccessService`
+gained a `UserSecurityConfigProperties` parameter, and the Lombok-generated constructors of
+`UserAPI`, `UserActionController`, `LoginAttemptService`, `LogoutSuccessService`,
+`UserEmailService`, `UserService`, `PasswordPolicyService`, `WebSecurityConfig`, and
+`HtmxAwareAuthenticationEntryPointConfiguration` changed accordingly. Also note the code-level
+fallback for `user.security.bcryptStrength` is now 12 (previously a dead `@Value` default of 10 that
+the shipped configuration file always overrode with 12 — effective behavior is unchanged).
 
 ### Remember-me completed; two constructors gained parameters
 

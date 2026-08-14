@@ -5,10 +5,16 @@ All notable changes to this project are documented here. This project follows [S
 ## [Unreleased]
 
 ### Refactoring
-- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer action required. `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`) are removed; they had no callers outside the framework.
+- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer action required. `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`) are removed; they had no callers outside the framework. Constructors of the migrated consumers now take the typed properties objects (relevant only if you instantiate or subclass them directly — see MIGRATION.md).
 
 ### Features
 - New `${userSecurity}` model attribute exposes the configured page/action URIs to Thymeleaf templates (e.g. `${userSecurity.loginPageUri}`) without SpEL bean access. Registered by default; opt out with `user.security.expose-uris-to-model=false`.
+- Startup check: a `user.security.*` URI set with a kebab-case or environment-variable spelling (which the typed configuration accepts but request-mapping placeholders do not) now fails startup with the offending keys named, instead of silently splitting the security configuration from the mapped controllers.
+- Startup validation of configuration ranges (bcrypt strength 4–31, password-policy `minLength <= maxLength`, `similarityThreshold` 0–100, non-empty `specialChars` when required) when a Bean Validation implementation is on the classpath.
+- Remember-me enabled without a signing key, and `usePersistentTokens=true` without a `PersistentTokenRepository` bean, now log explicit warnings instead of silently skipping/downgrading.
+
+### Fixed
+- `user.security.rememberMe.usePersistentTokens` was only honored in its exact camelCase spelling; the kebab-case spelling advertised by the generated configuration metadata (`user.security.remember-me.use-persistent-tokens`) bound the properties bean but never created the persistent-token repository, silently downgrading remember-me to hash-based tokens (which cannot be revoked server-side). The condition now accepts every relaxed spelling.
 
 ## [5.2.0] - 2026-08-12
 

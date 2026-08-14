@@ -78,7 +78,9 @@ user:
 
 ## Security Settings
 
-`user.security.*` is bound to a typed `@ConfigurationProperties` class (`UserSecurityConfigProperties`). The **camelCase key spellings shown below are canonical** (e.g. `user.security.loginPageURI`, `user.security.registrationConfirmURI`) — relaxed binding also accepts kebab-case (`user.security.login-page-uri`), but the framework's `@GetMapping`/`@RequestMapping` placeholders resolve the exact camelCase key, so setting only the kebab spelling for a URI property leaves the mapped controller pointed at the default URI while the bean reports your override. Stick to camelCase for anything under `user.security.*`.
+`user.security.*` is bound to a typed `@ConfigurationProperties` class (`UserSecurityConfigProperties`). The **camelCase key spellings shown below are canonical** (e.g. `user.security.loginPageURI`, `user.security.registrationConfirmURI`) — relaxed binding also accepts kebab-case (`user.security.login-page-uri`), but the framework's `@GetMapping`/`@RequestMapping` placeholders resolve the exact camelCase key, so a kebab-only spelling for a URI property would move the security configuration without moving the mapped controller. The framework fails startup with the offending keys named if the two ever diverge, so this cannot happen silently. Stick to camelCase for anything under `user.security.*`.
+
+Range and cross-field checks on these properties (bcrypt strength 4–31, password-policy `minLength <= maxLength`, and similar) are validated at startup when a Bean Validation implementation (e.g. `spring-boot-starter-validation`) is on your classpath; without one they are unenforced.
 
 Page and action URIs configured here are also exposed to Thymeleaf templates as the `${userSecurity}` model attribute (e.g. `${userSecurity.loginPageUri}`), registered on every `@Controller` request. Disable it with `user.security.expose-uris-to-model=false` if you don't use it.
 
