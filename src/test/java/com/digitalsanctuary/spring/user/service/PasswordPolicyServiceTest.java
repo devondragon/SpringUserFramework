@@ -21,6 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordHistoryRepository;
+import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
 
 @ExtendWith(MockitoExtension.class)
 class PasswordPolicyServiceTest {
@@ -34,13 +35,16 @@ class PasswordPolicyServiceTest {
     @Mock
     private MessageSource messages;
 
+    private PasswordPolicyConfigProperties passwordPolicy;
+
     private PasswordPolicyService service;
 
     private static final Locale LOCALE = Locale.ENGLISH;
 
     @BeforeEach
     void setUp() {
-        service = new PasswordPolicyService(passwordHistoryRepository, passwordEncoder, messages);
+        passwordPolicy = new PasswordPolicyConfigProperties();
+        service = new PasswordPolicyService(passwordHistoryRepository, passwordEncoder, messages, passwordPolicy);
 
         // Default message resolver: return the error code as-is for deterministic
         // assertions
@@ -48,22 +52,22 @@ class PasswordPolicyServiceTest {
         // .thenAnswer(inv -> inv.getArgument(0, String.class));
 
         // Baseline config (can be overridden per test)
-        ReflectionTestUtils.setField(service, "enabled", true);
-        ReflectionTestUtils.setField(service, "minLength", 8);
-        ReflectionTestUtils.setField(service, "maxLength", 128);
-        ReflectionTestUtils.setField(service, "requireUppercase", true);
-        ReflectionTestUtils.setField(service, "requireLowercase", true);
-        ReflectionTestUtils.setField(service, "requireDigit", true);
-        ReflectionTestUtils.setField(service, "requireSpecial", true);
-        ReflectionTestUtils.setField(service, "specialChars", "!@#$%^&*()_-+={}[]|:;<>,.?");
-        ReflectionTestUtils.setField(service, "preventCommonPasswords", false);
-        ReflectionTestUtils.setField(service, "historyCount", 0);
-        ReflectionTestUtils.setField(service, "similarityThreshold", 0);
+        passwordPolicy.setEnabled(true);
+        passwordPolicy.setMinLength(8);
+        passwordPolicy.setMaxLength(128);
+        passwordPolicy.setRequireUppercase(true);
+        passwordPolicy.setRequireLowercase(true);
+        passwordPolicy.setRequireDigit(true);
+        passwordPolicy.setRequireSpecial(true);
+        passwordPolicy.setSpecialChars("!@#$%^&*()_-+={}[]|:;<>,.?");
+        passwordPolicy.setPreventCommonPasswords(false);
+        passwordPolicy.setHistoryCount(0);
+        passwordPolicy.setSimilarityThreshold(0);
     }
 
     @Test
     void validate_returnsEmpty_whenPolicyDisabled() {
-        ReflectionTestUtils.setField(service, "enabled", false);
+        passwordPolicy.setEnabled(false);
 
         List<String> errors = service.validate(null, "anything", null, LOCALE);
 
@@ -77,8 +81,8 @@ class PasswordPolicyServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
 
         // Keep only length rule active (the test password already satisfies the others)
-        ReflectionTestUtils.setField(service, "minLength", 8);
-        ReflectionTestUtils.setField(service, "maxLength", 128);
+        passwordPolicy.setMinLength(8);
+        passwordPolicy.setMaxLength(128);
 
         // "Ab1@" = 4 chars; still contains upper/lower/digit/special so only TOO_SHORT
         // should fail
@@ -93,7 +97,7 @@ class PasswordPolicyServiceTest {
         when(messages.getMessage(anyString(), any(), eq(LOCALE)))
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
 
-        ReflectionTestUtils.setField(service, "maxLength", 5);
+        passwordPolicy.setMaxLength(5);
 
         // 8 chars => should trigger TOO_LONG; other rules satisfied
         List<String> errors = service.validate(null, "Abcdef1@", null, LOCALE);
@@ -107,11 +111,11 @@ class PasswordPolicyServiceTest {
         when(messages.getMessage(anyString(), any(), eq(LOCALE)))
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
         // Isolate uppercase rule
-        ReflectionTestUtils.setField(service, "requireUppercase", true);
-        ReflectionTestUtils.setField(service, "requireLowercase", false);
-        ReflectionTestUtils.setField(service, "requireDigit", false);
-        ReflectionTestUtils.setField(service, "requireSpecial", false);
-        ReflectionTestUtils.setField(service, "minLength", 1);
+        passwordPolicy.setRequireUppercase(true);
+        passwordPolicy.setRequireLowercase(false);
+        passwordPolicy.setRequireDigit(false);
+        passwordPolicy.setRequireSpecial(false);
+        passwordPolicy.setMinLength(1);
 
         List<String> errors = service.validate(null, "abc123!", null, LOCALE);
 
@@ -124,11 +128,11 @@ class PasswordPolicyServiceTest {
         when(messages.getMessage(anyString(), any(), eq(LOCALE)))
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
 
-        ReflectionTestUtils.setField(service, "requireUppercase", false);
-        ReflectionTestUtils.setField(service, "requireLowercase", true);
-        ReflectionTestUtils.setField(service, "requireDigit", false);
-        ReflectionTestUtils.setField(service, "requireSpecial", false);
-        ReflectionTestUtils.setField(service, "minLength", 1);
+        passwordPolicy.setRequireUppercase(false);
+        passwordPolicy.setRequireLowercase(true);
+        passwordPolicy.setRequireDigit(false);
+        passwordPolicy.setRequireSpecial(false);
+        passwordPolicy.setMinLength(1);
 
         List<String> errors = service.validate(null, "ABC123!", null, LOCALE);
 
@@ -140,11 +144,11 @@ class PasswordPolicyServiceTest {
     void validate_requiresDigit() {
         when(messages.getMessage(anyString(), any(), eq(LOCALE)))
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
-        ReflectionTestUtils.setField(service, "requireUppercase", false);
-        ReflectionTestUtils.setField(service, "requireLowercase", false);
-        ReflectionTestUtils.setField(service, "requireDigit", true);
-        ReflectionTestUtils.setField(service, "requireSpecial", false);
-        ReflectionTestUtils.setField(service, "minLength", 1);
+        passwordPolicy.setRequireUppercase(false);
+        passwordPolicy.setRequireLowercase(false);
+        passwordPolicy.setRequireDigit(true);
+        passwordPolicy.setRequireSpecial(false);
+        passwordPolicy.setMinLength(1);
 
         List<String> errors = service.validate(null, "Abcdef@", null, LOCALE);
 
@@ -157,12 +161,12 @@ class PasswordPolicyServiceTest {
         when(messages.getMessage(anyString(), any(), eq(LOCALE)))
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
         // Only require special; restrict allowed specials to "!@#"
-        ReflectionTestUtils.setField(service, "requireUppercase", false);
-        ReflectionTestUtils.setField(service, "requireLowercase", false);
-        ReflectionTestUtils.setField(service, "requireDigit", false);
-        ReflectionTestUtils.setField(service, "requireSpecial", true);
-        ReflectionTestUtils.setField(service, "specialChars", "!@#");
-        ReflectionTestUtils.setField(service, "minLength", 1);
+        passwordPolicy.setRequireUppercase(false);
+        passwordPolicy.setRequireLowercase(false);
+        passwordPolicy.setRequireDigit(false);
+        passwordPolicy.setRequireSpecial(true);
+        passwordPolicy.setSpecialChars("!@#");
+        passwordPolicy.setMinLength(1);
 
         // Uses '$' which is NOT in allowed set => INSUFFICIENT_SPECIAL
         List<String> errors = service.validate(null, "abc1$", null, LOCALE);
@@ -176,13 +180,13 @@ class PasswordPolicyServiceTest {
         when(messages.getMessage(anyString(), any(), eq(LOCALE)))
                 .thenAnswer(inv -> inv.getArgument(0, String.class));
         // Disable other rules so we only see the dictionary error
-        ReflectionTestUtils.setField(service, "requireUppercase", false);
-        ReflectionTestUtils.setField(service, "requireLowercase", false);
-        ReflectionTestUtils.setField(service, "requireDigit", false);
-        ReflectionTestUtils.setField(service, "requireSpecial", false);
-        ReflectionTestUtils.setField(service, "minLength", 1);
+        passwordPolicy.setRequireUppercase(false);
+        passwordPolicy.setRequireLowercase(false);
+        passwordPolicy.setRequireDigit(false);
+        passwordPolicy.setRequireSpecial(false);
+        passwordPolicy.setMinLength(1);
 
-        ReflectionTestUtils.setField(service, "preventCommonPasswords", true);
+        passwordPolicy.setPreventCommonPasswords(true);
 
         // Provide an in-memory dictionary and invoke @PostConstruct
         // String dict = "password\n123456\nqwerty\n";
@@ -200,7 +204,7 @@ class PasswordPolicyServiceTest {
     @Test
     void validate_rejectsPasswordReuse_whenInHistory() {
 
-        ReflectionTestUtils.setField(service, "historyCount", 3);
+        passwordPolicy.setHistoryCount(3);
 
         User user = new User();
         user.setEmail("test@example.com");
@@ -223,7 +227,7 @@ class PasswordPolicyServiceTest {
 
     @Test
     void validate_allowsNewPassword_whenNotInHistory() {
-        ReflectionTestUtils.setField(service, "historyCount", 3);
+        passwordPolicy.setHistoryCount(3);
 
         User user = new User();
         user.setEmail("test@example.com");
@@ -242,14 +246,14 @@ class PasswordPolicyServiceTest {
     @Test
     void validate_rejectsWhenSimilarityAboveThreshold() {
         // Turn off other constraints to isolate similarity check
-        ReflectionTestUtils.setField(service, "requireUppercase", false);
-        ReflectionTestUtils.setField(service, "requireLowercase", false);
-        ReflectionTestUtils.setField(service, "requireDigit", false);
-        ReflectionTestUtils.setField(service, "requireSpecial", false);
-        ReflectionTestUtils.setField(service, "minLength", 1);
-        ReflectionTestUtils.setField(service, "historyCount", 0);
-        ReflectionTestUtils.setField(service, "preventCommonPasswords", false);
-        ReflectionTestUtils.setField(service, "similarityThreshold", 80);
+        passwordPolicy.setRequireUppercase(false);
+        passwordPolicy.setRequireLowercase(false);
+        passwordPolicy.setRequireDigit(false);
+        passwordPolicy.setRequireSpecial(false);
+        passwordPolicy.setMinLength(1);
+        passwordPolicy.setHistoryCount(0);
+        passwordPolicy.setPreventCommonPasswords(false);
+        passwordPolicy.setSimilarityThreshold(80);
 
         when(messages.getMessage(eq("password.error.similarity"), any(), eq(LOCALE)))
                 .thenReturn("password.error.similarity");
@@ -264,14 +268,14 @@ class PasswordPolicyServiceTest {
     @Test
     void validate_allowsPassword_whenNotSimilar() {
         // Same setup but use a very different password
-        ReflectionTestUtils.setField(service, "requireUppercase", false);
-        ReflectionTestUtils.setField(service, "requireLowercase", false);
-        ReflectionTestUtils.setField(service, "requireDigit", false);
-        ReflectionTestUtils.setField(service, "requireSpecial", false);
-        ReflectionTestUtils.setField(service, "minLength", 1);
-        ReflectionTestUtils.setField(service, "historyCount", 0);
-        ReflectionTestUtils.setField(service, "preventCommonPasswords", false);
-        ReflectionTestUtils.setField(service, "similarityThreshold", 80);
+        passwordPolicy.setRequireUppercase(false);
+        passwordPolicy.setRequireLowercase(false);
+        passwordPolicy.setRequireDigit(false);
+        passwordPolicy.setRequireSpecial(false);
+        passwordPolicy.setMinLength(1);
+        passwordPolicy.setHistoryCount(0);
+        passwordPolicy.setPreventCommonPasswords(false);
+        passwordPolicy.setSimilarityThreshold(80);
 
         List<String> errors = service.validate(null, "CompletelyDifferent123!", null, LOCALE);
 

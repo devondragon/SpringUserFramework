@@ -31,6 +31,7 @@ import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.registration.RegistrationSource;
+import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 
 /**
@@ -67,6 +68,8 @@ class UserServiceRegistrationGuardTest {
     private AuthorityService authorityService;
     @Mock
     private PasswordHistoryRepository passwordHistoryRepository;
+    @Mock
+    private PasswordPolicyConfigProperties passwordPolicy;
     @Mock
     private SessionInvalidationService sessionInvalidationService;
     @Mock

@@ -63,6 +63,7 @@ import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
 import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
+import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.RoleTestDataBuilder;
 import com.digitalsanctuary.spring.user.test.builders.TokenTestDataBuilder;
@@ -97,6 +98,8 @@ public class UserServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private PasswordHistoryRepository passwordHistoryRepository;
+    @Mock
+    private PasswordPolicyConfigProperties passwordPolicy;
     @Mock
     private SessionInvalidationService sessionInvalidationService;
     @Mock

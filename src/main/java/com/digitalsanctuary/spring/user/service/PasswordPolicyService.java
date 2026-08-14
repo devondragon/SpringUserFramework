@@ -28,6 +28,7 @@ import org.springframework.util.StringUtils;
 
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordHistoryRepository;
+import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
 
 import jakarta.annotation.PostConstruct;
 
@@ -57,39 +58,6 @@ import java.util.Optional;
 @Service("dsPasswordPolicyService")
 public class PasswordPolicyService {
 
-    @Value("${user.security.password.enabled}")
-    private boolean enabled;
-
-    @Value("${user.security.password.min-length}")
-    private int minLength;
-
-    @Value("${user.security.password.max-length}")
-    private int maxLength;
-
-    @Value("${user.security.password.require-uppercase}")
-    private boolean requireUppercase;
-
-    @Value("${user.security.password.require-lowercase}")
-    private boolean requireLowercase;
-
-    @Value("${user.security.password.require-digit}")
-    private boolean requireDigit;
-
-    @Value("${user.security.password.require-special}")
-    private boolean requireSpecial;
-
-    @Value("${user.security.password.special-chars}")
-    private String specialChars;
-
-    @Value("${user.security.password.prevent-common-passwords}")
-    private boolean preventCommonPasswords;
-
-    @Value("${user.security.password.history-count}")
-    private int historyCount;
-
-    @Value("${user.security.password.similarity-threshold}")
-    private int similarityThreshold;
-
     @Value("classpath:common_passwords.txt")
     private Resource commonPasswordsResource;
 
@@ -98,10 +66,11 @@ public class PasswordPolicyService {
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final PasswordEncoder passwordEncoder;
     private final MessageSource messages;
+    private final PasswordPolicyConfigProperties passwordPolicy;
 
     @PostConstruct
     private void initCommonPasswords() {
-        if (preventCommonPasswords) {
+        if (passwordPolicy.isPreventCommonPasswords()) {
             log.debug("Initializing common passwords dictionary from file");
             try (
                     Reader reader = new BufferedReader(
@@ -135,7 +104,7 @@ public class PasswordPolicyService {
      * @return list of error messages if validation fails, empty if valid
      */
     public List<String> validate(User user, String password, String usernameOrEmail, Locale locale) {
-        if (!enabled) {
+        if (!passwordPolicy.isEnabled()) {
             log.debug("Password policy enforcement is disabled. Skipping validation.");
             return List.of();
         }
@@ -168,24 +137,24 @@ public class PasswordPolicyService {
         List<Rule> rules = new ArrayList<>();
 
         // Length rule
-        rules.add(new LengthRule(minLength, maxLength));
+        rules.add(new LengthRule(passwordPolicy.getMinLength(), passwordPolicy.getMaxLength()));
 
         // Character rules
-        if (requireUppercase) {
+        if (passwordPolicy.isRequireUppercase()) {
             rules.add(new CharacterRule(EnglishCharacterData.UpperCase, 1));
         }
-        if (requireLowercase) {
+        if (passwordPolicy.isRequireLowercase()) {
             rules.add(new CharacterRule(EnglishCharacterData.LowerCase, 1));
         }
-        if (requireDigit) {
+        if (passwordPolicy.isRequireDigit()) {
             rules.add(new CharacterRule(EnglishCharacterData.Digit, 1));
         }
-        if (requireSpecial) {
+        if (passwordPolicy.isRequireSpecial()) {
             rules.add(createSpecialCharacterRule());
         }
 
         // Common Passwords Dictionary Rule
-        if (preventCommonPasswords && commonPasswordRule != null) {
+        if (passwordPolicy.isPreventCommonPasswords() && commonPasswordRule != null) {
             rules.add(commonPasswordRule);
         }
 
@@ -206,7 +175,7 @@ public class PasswordPolicyService {
 
             @Override
             public String getCharacters() {
-                return specialChars;
+                return passwordPolicy.getSpecialChars();
             }
         };
         return new CharacterRule(specialCharacterData, 1);
@@ -221,17 +190,17 @@ public class PasswordPolicyService {
      * @return Optional containing error message if password was reused, empty otherwise
      */
     private Optional<String> checkPasswordHistory(User user, String password, Locale locale) {
-        if (user == null || historyCount <= 0) {
+        if (user == null || passwordPolicy.getHistoryCount() <= 0) {
             return Optional.empty();
         }
 
         List<String> oldHashes = passwordHistoryRepository.findRecentPasswordHashes(user,
-                PageRequest.of(0, historyCount));
+                PageRequest.of(0, passwordPolicy.getHistoryCount()));
 
         for (String hash : oldHashes) {
             if (passwordEncoder.matches(password, hash)) {
                 String msg = messages.getMessage("password.error.history.reuse",
-                        new Object[] { historyCount }, locale);
+                        new Object[] { passwordPolicy.getHistoryCount() }, locale);
                 log.debug("Password rejected: matches historical password");
                 return Optional.of(msg);
             }
@@ -249,7 +218,7 @@ public class PasswordPolicyService {
      * @return Optional containing error message if too similar, empty otherwise
      */
     private Optional<String> checkPasswordSimilarity(String password, String usernameOrEmail, Locale locale) {
-        if (!StringUtils.hasText(usernameOrEmail) || similarityThreshold <= 0) {
+        if (!StringUtils.hasText(usernameOrEmail) || passwordPolicy.getSimilarityThreshold() <= 0) {
             return Optional.empty();
         }
 
@@ -264,7 +233,7 @@ public class PasswordPolicyService {
         double similarityPercent = (100.0 * (maxLength - distance)) / maxLength;
         log.debug("Password similarity to username/email: {}%", similarityPercent);
 
-        if (similarityPercent >= similarityThreshold) {
+        if (similarityPercent >= passwordPolicy.getSimilarityThreshold()) {
             String msg = messages.getMessage("password.error.similarity",
                     new Object[] { String.format("%.2f", similarityPercent) }, locale);
             return Optional.of(msg);
