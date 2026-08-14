@@ -34,7 +34,7 @@ class RememberMeConfigPropertiesTest {
     }
 
     @Test
-    void shouldBindLegacyCamelCaseKeysViaRelaxedBinding() {
+    void shouldBindLegacyCamelCaseKeysWhenRelaxedBindingApplies() {
         contextRunner.withPropertyValues("user.security.rememberMe.enabled=true",
                 "user.security.rememberMe.tokenValiditySeconds=60",
                 "user.security.rememberMe.useSecureCookie=true").run(context -> {
