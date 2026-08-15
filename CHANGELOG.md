@@ -6,7 +6,7 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [5.3.0] - 2026-08-14
 
-This release types the user.security.* configuration into strongly-typed @ConfigurationProperties, adds a secret-free ${userSecurity} model attribute for templates, and makes misconfigurations loud at startup. It also fixes a rare registration deadlock/misreport and a remember‑me kebab‑case binding regression, and restores two public LoginAttemptService accessors.
+This release types the user.security.* configuration into strongly-typed @ConfigurationProperties, adds a secret-free ${userSecurity} model attribute for templates, and makes misconfigurations loud at startup. It also fixes a rare registration deadlock that could silently lose a registration behind a success page, and makes the kebab-case spelling of the remember‑me persistent-tokens option work (previously only the exact camelCase key did).
 
 SemVer classification: minor — adds a new template attribute and startup validation while keeping all config keys stable; constructor signature changes affect only consumers that directly instantiate or subclass framework components.
 
@@ -24,7 +24,7 @@ SemVer classification: minor — adds a new template attribute and startup valid
 - Remember‑me configuration clarity:
   - Enabling remember‑me without a signing key, or setting usePersistentTokens=true without a PersistentTokenRepository bean, now logs explicit warnings (previously silent skip/downgrade).
   - Apps using the kebab-case property user.security.remember-me.use-persistent-tokens now get a PersistentTokenRepository as intended; previously only the exact camelCase key user.security.rememberMe.usePersistentTokens triggered the condition, silently downgrading to hash-based tokens (no server-side revocation).
-- Registration error semantics under rare database serialization failures: transient deadlocks during POST /user/registration are now retried in a fresh transaction (up to 3 attempts). A genuine same-email race still returns HTTP 409 (anti-enumeration). If retries are exhausted, the API now surfaces an error (HTTP 500) instead of a false success.
+- Registration error semantics under rare database serialization failures: transient deadlocks during POST /user/registration are now retried in a fresh transaction (up to 5 attempts with jittered backoff). A genuine same-email race still returns HTTP 409 (anti-enumeration). If retries are exhausted, the API now surfaces an error (HTTP 500) instead of a false success.
 
 ### Features
 - Typed configuration for user.security.*:
@@ -32,9 +32,8 @@ SemVer classification: minor — adds a new template attribute and startup valid
 - Template convenience: a secret-free ${userSecurity} model attribute (UserSecurityUriView via UserSecurityUriControllerAdvice) exposes the configured page/action URIs to Thymeleaf without SpEL bean access. Enabled by default; opt out with user.security.expose-uris-to-model=false.
 
 ### Fixes
-- Registration deadlock/misreport fixed: concurrent registrations of different emails could deadlock under SERIALIZABLE; the victim was misreported as “user already exists,” rendering the registration‑pending page while no account was created and no email sent. Serialization failures are now retried in a fresh transaction (up to 3 attempts); true duplicates still yield HTTP 409 (anti‑enumeration), and exhausted retries now return HTTP 500 instead of a false success.
+- Registration deadlock/misreport fixed: concurrent registrations of different emails could deadlock under SERIALIZABLE; the victim was misreported as “user already exists,” rendering the registration‑pending page while no account was created and no email sent. Serialization failures are now retried in a fresh transaction (up to 5 attempts with jittered backoff); true duplicates still yield HTTP 409 (anti‑enumeration), and exhausted retries now return HTTP 500 instead of a false success. Affects all prior versions.
 - Remember‑me kebab‑case binding honored: the persistent-token repository condition now uses the canonical kebab key user.security.remember-me.use-persistent-tokens and matches all relaxed spellings. Previously, only the exact camelCase user.security.rememberMe.usePersistentTokens created the repository; kebab-case silently fell back to hash‑based tokens.
-- Public accessors restored for consumers reading lockout settings: LoginAttemptService.getMaxFailedLoginAttempts() and getAccountLockoutDuration() are reintroduced, delegating to UserSecurityConfigProperties.
 
 ### Refactoring
 - Internal refactor of user.security.* to typed @ConfigurationProperties: UserSecurityConfigProperties (page/action URIs, URI lists, security scalars), PasswordPolicyConfigProperties, and RememberMeConfigProperties. Config keys are unchanged — no consumer configuration action required.
