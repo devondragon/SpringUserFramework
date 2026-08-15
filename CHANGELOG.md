@@ -4,22 +4,55 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
-### Refactoring
-- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer configuration action required.
+## [5.3.0] - 2026-08-14
+
+This release types the user.security.* configuration into strongly-typed @ConfigurationProperties, adds a secret-free ${userSecurity} model attribute for templates, and makes misconfigurations loud at startup. It also fixes a rare registration deadlock/misreport and a remember‑me kebab‑case binding regression, and restores two public LoginAttemptService accessors.
+
+SemVer classification: minor — adds a new template attribute and startup validation while keeping all config keys stable; constructor signature changes affect only consumers that directly instantiate or subclass framework components.
 
 ### Breaking Changes
-- For consumers that subclass or directly instantiate framework components only (Spring-injected beans are unaffected): the migrated `user.security.*` consumers now take the typed properties objects in their constructors — `TokenHasher(UserSecurityConfigProperties)` replaces `TokenHasher(String)`, `LoginSuccessService` gained a `UserSecurityConfigProperties` parameter, and the Lombok-generated constructors of `UserAPI`, `UserActionController`, `LoginAttemptService`, `LogoutSuccessService`, `UserEmailService`, `UserService`, `PasswordPolicyService`, `WebSecurityConfig`, and `HtmxAwareAuthenticationEntryPointConfiguration` changed accordingly. See MIGRATION.md.
-- `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`, `getUnprotectedURIsProperty()`) are removed. They were byproducts of the removed `@Value` fields, returned raw property strings, and had no callers outside the framework; read the values from `UserSecurityConfigProperties` instead.
+- For consumers that subclass or directly instantiate framework components only (Spring-injected beans are unaffected): constructors now take typed properties objects. Update the following:
+  - TokenHasher(UserSecurityConfigProperties) replaces TokenHasher(String).
+  - LoginSuccessService gained a UserSecurityConfigProperties parameter.
+  - Lombok-generated constructors changed for: UserAPI, UserActionController, LoginAttemptService, LogoutSuccessService, UserEmailService, UserService, PasswordPolicyService, WebSecurityConfig, and HtmxAwareAuthenticationEntryPointConfiguration. See MIGRATION.md.
+- WebSecurityConfig’s previously @Data-generated public URI getters (e.g., getLoginPageURI(), getUnprotectedURIsProperty()) were removed; read values from UserSecurityConfigProperties instead.
+
+### Behavior changes (client impact)
+- Startup guards:
+  - Kebab-case or environment-variable spellings for user.security.* URIs that bind successfully to the typed properties but do not match the camelCase @GetMapping placeholders now fail startup with the offending keys named (UriPlaceholderParityValidator). Use the canonical camelCase keys for controller-mapped placeholders.
+  - When a Bean Validation implementation is on the classpath, invalid configuration now fails startup with the property named: bcrypt strength must be 4–31; password policy requires minLength <= maxLength, similarityThreshold 0–100, and non-empty specialChars when required.
+- Remember‑me configuration clarity:
+  - Enabling remember‑me without a signing key, or setting usePersistentTokens=true without a PersistentTokenRepository bean, now logs explicit warnings (previously silent skip/downgrade).
+  - Apps using the kebab-case property user.security.remember-me.use-persistent-tokens now get a PersistentTokenRepository as intended; previously only the exact camelCase key user.security.rememberMe.usePersistentTokens triggered the condition, silently downgrading to hash-based tokens (no server-side revocation).
+- Registration error semantics under rare database serialization failures: transient deadlocks during POST /user/registration are now retried in a fresh transaction (up to 3 attempts). A genuine same-email race still returns HTTP 409 (anti-enumeration). If retries are exhausted, the API now surfaces an error (HTTP 500) instead of a false success.
 
 ### Features
-- New `${userSecurity}` model attribute exposes the configured page/action URIs to Thymeleaf templates (e.g. `${userSecurity.loginPageUri}`) without SpEL bean access. Registered by default; opt out with `user.security.expose-uris-to-model=false`.
-- Startup check: a `user.security.*` URI set with a kebab-case or environment-variable spelling (which the typed configuration accepts but request-mapping placeholders do not) now fails startup with the offending keys named, instead of silently splitting the security configuration from the mapped controllers.
-- Startup validation of configuration ranges (bcrypt strength 4–31, password-policy `minLength <= maxLength`, `similarityThreshold` 0–100, non-empty `specialChars` when required) when a Bean Validation implementation is on the classpath.
-- Remember-me enabled without a signing key, and `usePersistentTokens=true` without a `PersistentTokenRepository` bean, now log explicit warnings instead of silently skipping/downgrading.
+- Typed configuration for user.security.*:
+  - New @ConfigurationProperties classes: UserSecurityConfigProperties (page/action URIs, URI lists, security scalars), PasswordPolicyConfigProperties (user.security.password.*), and RememberMeConfigProperties (user.security.remember-me.*). All existing config keys are unchanged and continue to bind via relaxed binding.
+- Template convenience: a secret-free ${userSecurity} model attribute (UserSecurityUriView via UserSecurityUriControllerAdvice) exposes the configured page/action URIs to Thymeleaf without SpEL bean access. Enabled by default; opt out with user.security.expose-uris-to-model=false.
 
-### Fixed
-- Concurrent registrations of **different** emails could deadlock under the SERIALIZABLE registration transaction (MariaDB error 1213) and the victim was misreported as "user already exists": the person saw the registration-pending page while no account was created and no verification email sent. Serialization failures are now retried in a fresh transaction (up to 3 attempts) — a genuine same-email race still returns the 409/anti-enumeration response, and exhausted retries surface as an error instead of a false success. Affects all prior versions; found via the demo app's concurrent Playwright suite.
-- `user.security.rememberMe.usePersistentTokens` was only honored in its exact camelCase spelling; the kebab-case spelling advertised by the generated configuration metadata (`user.security.remember-me.use-persistent-tokens`) bound the properties bean but never created the persistent-token repository, silently downgrading remember-me to hash-based tokens (which cannot be revoked server-side). The condition now accepts every relaxed spelling.
+### Fixes
+- Registration deadlock/misreport fixed: concurrent registrations of different emails could deadlock under SERIALIZABLE; the victim was misreported as “user already exists,” rendering the registration‑pending page while no account was created and no email sent. Serialization failures are now retried in a fresh transaction (up to 3 attempts); true duplicates still yield HTTP 409 (anti‑enumeration), and exhausted retries now return HTTP 500 instead of a false success.
+- Remember‑me kebab‑case binding honored: the persistent-token repository condition now uses the canonical kebab key user.security.remember-me.use-persistent-tokens and matches all relaxed spellings. Previously, only the exact camelCase user.security.rememberMe.usePersistentTokens created the repository; kebab-case silently fell back to hash‑based tokens.
+- Public accessors restored for consumers reading lockout settings: LoginAttemptService.getMaxFailedLoginAttempts() and getAccountLockoutDuration() are reintroduced, delegating to UserSecurityConfigProperties.
+
+### Refactoring
+- Internal refactor of user.security.* to typed @ConfigurationProperties: UserSecurityConfigProperties (page/action URIs, URI lists, security scalars), PasswordPolicyConfigProperties, and RememberMeConfigProperties. Config keys are unchanged — no consumer configuration action required.
+
+### Documentation
+- CONFIG.md documents startup guards (kebab-only URI spellings now fail fast) and startup-time Bean Validation of configuration ranges.
+- MIGRATION.md lists the constructor changes, new startup checks, and context on bcryptStrength defaults.
+- CHANGELOG.md documents the remember‑me kebab‑case fix, parity/validation startup checks, and new warnings.
+- RELEASE-TESTING.md adds a cross-repo release integration-testing runbook; PUBLISH.md links it.
+- README install versions aligned with the 5.2.0 release.
+
+### Testing
+- New Testcontainers coverage for racing distinct-email registrations on MariaDB/PostgreSQL; unit tests for transient-failure retries, duplicate-on-retry, and retry exhaustion.
+- Parity tests guard defaults and URI-list values against the shipped config file; tests assert model exposure via ${userSecurity}.
+- Integration test cleanup made resilient to async verification-token races by retrying FK-constrained teardown.
+
+### Other Changes
+- Build: bump Ben Manes Gradle versions plugin to io.github.ben-manes.versions 0.61.0 (replaces deprecated com.github.ben-manes.versions id).
 
 ## [5.2.0] - 2026-08-12
 
