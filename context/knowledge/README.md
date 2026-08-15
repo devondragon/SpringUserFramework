@@ -26,7 +26,7 @@ This library auto-configures itself into any Spring Boot app that adds it as a d
 - **Inconsistent `Dto`/`DTO` casing** across the codebase (`UserDto` vs. `AuditEventDTO`/`GdprExportDTO`) — no single convention enforced.
 - **Field visibility inconsistency**: `UserService.userEmailService`/`userVerificationService` are `public final` rather than `private final`, breaking the otherwise-consistent DI pattern.
 - **Split Spring Boot compatibility across branches** (`main` = Boot 4.x/Java 21+, `release/3.x` = Boot 3.5.x/Java 17+, security-maintenance only) — worth remembering that this branch's `build.gradle` only reflects the 4.x line; don't assume both live in one build file.
-- **Python release tooling** (`generate_changelog.py`, using OpenAI's API) is a separate concern from the Java library itself — not shipped, but does execute during `./gradlew release`.
+- **Python release tooling** (`scripts/generate_changelog.py`, using OpenAI's API) is a separate concern from the Java library itself — not shipped, but does execute during `./gradlew release`.
 
 ## Detailed Documentation
 - [STACK.md](./STACK.md) - Technology stack details

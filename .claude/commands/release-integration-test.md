@@ -3,7 +3,7 @@ description: Pre-release integration test — publish the library locally and ru
 argument-hint: "[demo-repo-path] [version]  (both optional)"
 ---
 
-Execute the release integration test defined in `RELEASE-TESTING.md` (in this framework repo).
+Execute the release integration test defined in `docs/RELEASE-TESTING.md` (in this framework repo).
 Read that runbook first and follow it exactly — it is the source of truth for the steps,
 commands, and the local docker-compose gotcha.
 

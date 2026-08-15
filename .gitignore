@@ -148,3 +148,7 @@ application-local.yml
 
 # Superpowers generated artifacts
 docs/superpowers/
+
+# Local dev artifacts
+logs/
+.idea/
