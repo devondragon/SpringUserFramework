@@ -34,7 +34,6 @@
 - `net.researchgate.release` 3.1.0 — release automation; `release { git { requireBranch = 'main|release/.*' } }` allows releases from `main` or `release/*` maintenance branches, wires `generateAIChangelog` before release builds and `publishMavenCentral` after.
 - No static-analysis/linting plugin is configured in `build.gradle` (no checkstyle, spotless, PMD, SonarQube, or Jacoco found).
 - Custom JDK test tasks: `testJdk21` and `testJdk25` (via `registerJdkTestTask`) run the full test suite against JDK 21 and JDK 25 toolchains respectively; `testAll` runs both. Standard `test` task also enables JUnit 5 parallel execution (`junit.jupiter.execution.parallel.*` system properties, `maxParallelForks` = half of available cores).
-- `.hintrc` — webhint linting config (`extends: development`), likely for the docs/site assets rather than Java code.
 - Dependabot (`.github/dependabot.yml`): weekly `gradle` ecosystem updates on `/`.
 
 ## Test Frameworks & Tools
