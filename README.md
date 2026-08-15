@@ -965,7 +965,7 @@ To facilitate this in a decoupled manner, the framework publishes a UserPreDelet
 
 Consuming applications that have extended BaseUserProfile (or have other user-related data) should listen for this event and perform the necessary cleanup operations.
 
-Event Class: com.digitalsanctuary.spring.user.event.UserPreDeleteEvent Event Data: Contains the User entity that is about to be deleted (event.getUser()).
+Event Class: com.digitalsanctuary.spring.user.event.UserPreDeleteEvent Event Data: the id and email of the user about to be deleted (`event.getUserId()`, `event.getUserEmail()`). The `User` entity itself is not carried on the event.
 
 Example Event Listener:
 
@@ -995,7 +995,7 @@ public class UserProfileDeletionListener {
     @EventListener
     @Transactional // Joins the transaction started by UserService.deleteUserAccount
     public void handleUserPreDelete(UserPreDeleteEvent event) {
-        Long userId = event.getUser().getId();
+        Long userId = event.getUserId();
         log.info("Received UserPreDeleteEvent for userId: {}. Deleting associated DemoUserProfile...", userId);
 
         // Option 1: Delete profile directly (if no further cascades needed from profile)
