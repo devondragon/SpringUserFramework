@@ -469,7 +469,7 @@ user:
 ### Next Steps
 
 - Read the [Configuration Guide](CONFIG.md) for advanced settings
-- See [Extension Examples](PROFILE.md) for custom user profiles
+- See [Extension Examples](docs/PROFILE.md) for custom user profiles
 - Check out the [Demo Application](https://github.com/devondragon/SpringUserFrameworkDemoApp) for a complete example
 
 ## Configuration
@@ -945,7 +945,7 @@ public class CustomUserProfileService implements UserProfileService<CustomUserPr
     }
 }
 ```
-Read more in the [Profile Guide](PROFILE.md).
+Read more in the [Profile Guide](docs/PROFILE.md).
 
 ### Handling User Account Deletion and Profile Cleanup
 By default, when a user account is "deleted" through the framework's services or APIs, the account is marked as disabled (`enabled=false`) rather than being physically removed from the database. This is controlled by the `user.actuallyDeleteAccount` configuration property, which defaults to `false`.

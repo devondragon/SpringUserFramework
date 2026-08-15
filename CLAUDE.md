@@ -115,7 +115,7 @@ com.digitalsanctuary.spring.user
 - `HtmxAwareAuthenticationEntryPoint` - Returns 401 JSON for HTMX requests instead of 302 redirect on session expiry
 
 **Extension Points:**
-- `BaseUserProfile` - Extend for custom user data (see PROFILE.md)
+- `BaseUserProfile` - Extend for custom user data (see docs/PROFILE.md)
 - `UserProfileService<T>` - Interface for profile management
 - `BaseSessionProfile<T>` - Session-scoped profile access
 - `UserPreDeleteEvent` - Listen for user deletion to clean up related data
@@ -195,9 +195,9 @@ Integration tests use `TestApplication` (in `test.app` package) as their Spring 
 
 ## Related Documentation
 
-- `TESTING.md` - Comprehensive testing guide with patterns and troubleshooting
-- `PROFILE.md` - User profile extension framework
-- `REGISTRATION-GUARD.md` - Registration Guard SPI for pre-registration hooks
+- `docs/TESTING.md` - Comprehensive testing guide with patterns and troubleshooting
+- `docs/PROFILE.md` - User profile extension framework
+- `docs/REGISTRATION-GUARD.md` - Registration Guard SPI for pre-registration hooks
 - `CONFIG.md` - Configuration reference
 - `MIGRATION.md` - Version migration guide
 - `CONTRIBUTING.md` - Contributor guidelines (fork/branch/PR workflow)
