@@ -2,7 +2,7 @@
 
 ## Languages
 - Java: compiled with toolchain `JavaLanguageVersion.of(21)` (build.gradle `java.toolchain`); `mise.toml` pins `java = "17"` for the local dev shell (min supported runtime). CI runs on Java 21 (compile) and additionally on Java 25 (`testJdk25` task). Library published for consumers on Java 21+ (Spring Boot 4.x) via `main`, and Java 17+ (Spring Boot 3.5.x) via the separate `release/3.x` maintenance branch — the `main` branch's `build.gradle` only targets Spring Boot 4.1.0/Java 21; the 3.5/Java 17 line lives on `release/3.x`, not in this branch's build file.
-- Python: 3.13 (`mise.toml`), used only for release tooling (`generate_changelog.py`, `test_generate_changelog.py`), not part of the shipped library.
+- Python: 3.13 (`mise.toml`), used only for release tooling (`scripts/generate_changelog.py`, `scripts/test_generate_changelog.py`), not part of the shipped library.
 - HTML: Thymeleaf templates under `src/main/resources/templates/mail/` (registration/forgot-password emails).
 - Properties/YAML: Spring config metadata and i18n message bundles.
 
@@ -53,7 +53,7 @@
 - Spring Mail (SMTP): used for account registration confirmation and forgot-password emails, rendered via Thymeleaf templates (`src/main/resources/templates/mail/registration-token.html`, `forgot-password-token.html`); consuming app supplies actual mail server config/credentials.
 - OAuth2/OIDC providers: supported generically via `spring-boot-starter-oauth2-client` for social login (`registration`/`security` packages) — no specific provider (Google/GitHub/etc.) is hardcoded in build.gradle; providers are configured by the consuming application.
 - WebAuthn/Passkey: `spring-security-webauthn` — passwordless/FIDO2 authentication support.
-- OpenAI API: used only by the release-tooling script `generate_changelog.py` (via `openai==1.105.0` in `requirements.txt`) to generate AI-assisted changelog entries during releases — not part of the runtime library.
+- OpenAI API: used only by the release-tooling script `scripts/generate_changelog.py` (via `openai==1.105.0` in `scripts/requirements.txt`) to generate AI-assisted changelog entries during releases — not part of the runtime library.
 - GitHub Actions / Claude Code Action (`anthropics/claude-code-action@v1`): automated PR review (`claude-code-review.yml`) and `@claude`-mention-triggered assistant (`claude.yml`).
 - CodeQL (`github/codeql-action`): security scanning (`security-extended` query pack) on `java-kotlin` in `build.yml`.
 
@@ -66,7 +66,7 @@
 - `settings.gradle`: single root project, `rootProject.name = 'ds-spring-user-framework'`.
 - `gradle.properties`: current version (`5.1.1-SNAPSHOT`) and Maven Central publishing flags (`mavenCentralPublishing=true`, `mavenCentralAutomaticPublishing=true`).
 - `gradle/wrapper/gradle-wrapper.properties`: Gradle 9.6.1 wrapper distribution.
-- `mise.toml`: pins local toolchain versions — Java 17, Python 3.13 (mise is used for tool version management, e.g. `mise x -- python generate_changelog.py`).
+- `mise.toml`: pins local toolchain versions — Java 17, Python 3.13 (mise is used for tool version management, e.g. `mise x -- python scripts/generate_changelog.py`).
 - `lombok.config`: enables `@Generated` annotation on Lombok output to suppress Javadoc missing-constructor warnings.
 - `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`: registers auto-configuration classes (`UserConfiguration`, `AuditMailAutoConfiguration`, `UserSecurityBeansAutoConfiguration`, `WebSecurityFilterChainAutoConfiguration`) — the standard Spring Boot 3+/4 auto-config discovery mechanism (replacing `spring.factories`).
 - `src/main/resources/META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor.imports`: registers `MessageSourceEnvironmentPostProcessor` for i18n message source setup.
@@ -76,4 +76,4 @@
 - `.github/workflows/build.yml`: CI — compile+test on Java 21, runtime test on Java 25, plus a CodeQL security-scan job.
 - `.github/workflows/claude.yml` / `claude-code-review.yml`: Claude Code GitHub Action integrations for automated PR review and `@claude`-triggered assistance.
 - `.github/dependabot.yml`: weekly automated Gradle dependency update PRs.
-- `requirements.txt` / `generate_changelog.py` / `test_generate_changelog.py`: standalone Python release tooling (OpenAI-powered changelog generation invoked via `mise x -- python generate_changelog.py` from the Gradle `release` plugin's `beforeReleaseBuild` hook) — not part of the shipped Java library.
+- `scripts/requirements.txt` / `scripts/generate_changelog.py` / `scripts/test_generate_changelog.py`: standalone Python release tooling (OpenAI-powered changelog generation invoked via `mise x -- python scripts/generate_changelog.py` from the Gradle `release` plugin's `beforeReleaseBuild` hook) — not part of the shipped Java library.
