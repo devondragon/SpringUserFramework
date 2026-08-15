@@ -1,7 +1,6 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.SimpleUrlLogoutSuccessHandler;
@@ -9,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.util.StringUtils;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.util.UserUtils;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,9 +34,8 @@ public class LogoutSuccessService extends SimpleUrlLogoutSuccessHandler {
 	/** The event publisher. */
 	private final ApplicationEventPublisher eventPublisher;
 
-	/** The logout success uri. */
-	@Value("${user.security.logoutSuccessURI}")
-	private String logoutSuccessUri;
+	/** The user security configuration properties. */
+	private final UserSecurityConfigProperties userSecurityConfig;
 
 	/**
 	 * On logout success.
@@ -68,7 +67,7 @@ public class LogoutSuccessService extends SimpleUrlLogoutSuccessHandler {
 
 		String targetUrl = super.determineTargetUrl(request, response);
 		if (StringUtils.isEmptyOrWhitespace(targetUrl) || StringUtils.equals(targetUrl, "/")) {
-			targetUrl = logoutSuccessUri;
+			targetUrl = userSecurityConfig.getLogoutSuccessUri();
 			this.setDefaultTargetUrl(targetUrl);
 		}
 

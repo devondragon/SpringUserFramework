@@ -53,6 +53,7 @@ import com.digitalsanctuary.spring.user.registration.RegistrationDecision;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.registration.RegistrationSource;
+import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
 import com.digitalsanctuary.spring.user.util.TimeLogger;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -238,6 +239,8 @@ public class UserService {
 
 	private final PasswordHistoryRepository passwordHistoryRepository;
 
+	private final PasswordPolicyConfigProperties passwordPolicy;
+
 	private final SessionInvalidationService sessionInvalidationService;
 
 	/** Hashes tokens before they are stored / looked up at rest. */
@@ -276,9 +279,6 @@ public class UserService {
 
 	@Value("${user.actuallyDeleteAccount:false}")
 	private boolean actuallyDeleteAccount;
-
-	@Value("${user.security.password.history-count:0}")
-	private int historyCount;
 
 	/**
 	 * Registers a new user account with the provided user data. If the email
@@ -461,13 +461,13 @@ public class UserService {
 	 * @param user the user whose password history should be cleaned up
 	 */
 	private void cleanUpPasswordHistory(User user) {
-		if (user == null || historyCount <= 0) {
+		if (user == null || passwordPolicy.getHistoryCount() <= 0) {
 			return;
 		}
 
 		// Keep historyCount + 1 entries: the current password plus historyCount previous passwords.
 		// This ensures we actually prevent reuse of the last historyCount passwords.
-		int maxEntries = historyCount + 1;
+		int maxEntries = passwordPolicy.getHistoryCount() + 1;
 
 		// Fetch only the cutoff row: the oldest entry we want to keep (0-based index maxEntries - 1,
 		// newest first). Everything older than this is pruned.

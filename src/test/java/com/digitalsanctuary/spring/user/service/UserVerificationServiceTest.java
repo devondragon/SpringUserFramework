@@ -4,6 +4,7 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,8 @@ public class UserVerificationServiceTest {
         testToken = new VerificationToken();
         testToken.setUser(testUser);
 
-        userVerificationService = new UserVerificationService(userRepository, verificationTokenRepository, new TokenHasher(null));
+        userVerificationService = new UserVerificationService(userRepository, verificationTokenRepository,
+                new TokenHasher(new UserSecurityConfigProperties()));
     }
 
     @Test

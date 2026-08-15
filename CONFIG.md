@@ -78,6 +78,12 @@ user:
 
 ## Security Settings
 
+`user.security.*` is bound to a typed `@ConfigurationProperties` class (`UserSecurityConfigProperties`). The **camelCase key spellings shown below are canonical** (e.g. `user.security.loginPageURI`, `user.security.registrationConfirmURI`) — relaxed binding also accepts kebab-case (`user.security.login-page-uri`), but the framework's `@GetMapping`/`@RequestMapping` placeholders resolve the exact camelCase key, so a kebab-only spelling for a URI property would move the security configuration without moving the mapped controller. The framework fails startup with the offending keys named if the two ever diverge, so this cannot happen silently. Stick to camelCase for anything under `user.security.*`.
+
+Range and cross-field checks on these properties (bcrypt strength 4–31, password-policy `minLength <= maxLength`, and similar) are validated at startup when a Bean Validation implementation (e.g. `spring-boot-starter-validation`) is on your classpath; without one they are unenforced.
+
+Page and action URIs configured here are also exposed to Thymeleaf templates as the `${userSecurity}` model attribute (e.g. `${userSecurity.loginPageUri}`), registered on every `@Controller` request. Disable it with `user.security.expose-uris-to-model=false` if you don't use it.
+
 - **Failed Login Attempts (`user.security.failedLoginAttempts`)**: Number of failed login attempts before account lockout. Set to `0` to disable lockout. Applies to the login path and to the authenticated password-change endpoint `POST /user/updatePassword` (a locked account is rejected with `HTTP 423`, a wrong current password counts toward lockout, and a correct one resets the counter).
 - **Account Lockout Duration (`user.security.accountLockoutDuration`)**: Duration (in minutes) for account lockout. `0` disables lockout; a negative value (e.g. `-1`) locks the account until an administrator unlocks it.
 - **BCrypt Strength (`user.security.bcryptStrength`)**: Adjust the bcrypt strength for password hashing. Default is `12`.

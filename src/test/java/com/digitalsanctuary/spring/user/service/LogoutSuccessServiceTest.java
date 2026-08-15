@@ -27,11 +27,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.Role;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,6 +60,9 @@ class LogoutSuccessServiceTest {
     @Mock
     private DSUserDetails userDetails;
 
+    @Mock
+    private UserSecurityConfigProperties userSecurityConfig;
+
     @InjectMocks
     private LogoutSuccessService logoutSuccessService;
 
@@ -71,8 +74,8 @@ class LogoutSuccessServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Set the logout success URI via reflection
-        ReflectionTestUtils.setField(logoutSuccessService, "logoutSuccessUri", logoutSuccessUri);
+        // Stub the configured logout success URI
+        lenient().when(userSecurityConfig.getLogoutSuccessUri()).thenReturn(logoutSuccessUri);
 
         // Create test user
         testUser = new User();

@@ -29,10 +29,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 
@@ -69,6 +69,9 @@ class LoginSuccessServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private UserSecurityConfigProperties userSecurityConfig;
+
     @InjectMocks
     private LoginSuccessService loginSuccessService;
 
@@ -78,8 +81,8 @@ class LoginSuccessServiceTest {
 
     @BeforeEach
     void setUp() {
-        // Set the loginSuccessUri field
-        ReflectionTestUtils.setField(loginSuccessService, "loginSuccessUri", LOGIN_SUCCESS_URI);
+        // Stub the configured login success URI
+        when(userSecurityConfig.getLoginSuccessUri()).thenReturn(LOGIN_SUCCESS_URI);
 
         // Create test user
         testUser = UserTestDataBuilder.aVerifiedUser()

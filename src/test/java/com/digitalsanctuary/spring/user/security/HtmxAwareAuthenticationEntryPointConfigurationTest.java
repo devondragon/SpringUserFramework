@@ -15,12 +15,18 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 class HtmxAwareAuthenticationEntryPointConfigurationTest {
 
     // Register as auto-configuration so it is processed after user-defined beans,
-    // which is required for @ConditionalOnMissingBean to evaluate correctly.
+    // which is required for @ConditionalOnMissingBean to evaluate correctly. The configuration now depends on
+    // an injected UserSecurityConfigProperties bean instead of a directly-bound @Value, so supply one directly
+    // (rather than via @EnableConfigurationProperties + a nested @Configuration class) to avoid that nested
+    // class leaking into every @SpringBootTest context's component scan, mirroring the ConsumerEntryPointConfiguration
+    // concern below.
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(HtmxAwareAuthenticationEntryPointConfiguration.class))
-            .withPropertyValues(
-                    "user.security.loginPageURI=/user/login.html"
-            );
+            .withBean(UserSecurityConfigProperties.class, () -> {
+                UserSecurityConfigProperties props = new UserSecurityConfigProperties();
+                props.setLoginPageUri("/user/login.html");
+                return props;
+            })
+            .withConfiguration(AutoConfigurations.of(HtmxAwareAuthenticationEntryPointConfiguration.class));
 
     @Nested
     @DisplayName("Non-OAuth2 Configuration")

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -26,10 +27,10 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class HtmxAwareAuthenticationEntryPointConfiguration {
 
-    @Value("${user.security.loginPageURI}")
-    private String loginPageURI;
+    private final UserSecurityConfigProperties userSecurityConfig;
 
     @Value("${spring.security.oauth2.enabled:false}")
     private boolean oauth2Enabled;
@@ -48,12 +49,12 @@ public class HtmxAwareAuthenticationEntryPointConfiguration {
         if (oauth2Enabled) {
             // null failureHandler is intentional: OAuth2AuthenticationExceptions without a handler fall through
             // to the redirect path in CustomOAuth2AuthenticationEntryPoint, which is the desired behavior.
-            inner = new CustomOAuth2AuthenticationEntryPoint(null, loginPageURI);
+            inner = new CustomOAuth2AuthenticationEntryPoint(null, userSecurityConfig.getLoginPageUri());
             log.debug("Configuring HtmxAwareAuthenticationEntryPoint wrapping CustomOAuth2AuthenticationEntryPoint");
         } else {
-            inner = new LoginUrlAuthenticationEntryPoint(loginPageURI);
+            inner = new LoginUrlAuthenticationEntryPoint(userSecurityConfig.getLoginPageUri());
             log.debug("Configuring HtmxAwareAuthenticationEntryPoint wrapping LoginUrlAuthenticationEntryPoint");
         }
-        return new HtmxAwareAuthenticationEntryPoint(inner, loginPageURI);
+        return new HtmxAwareAuthenticationEntryPoint(inner, userSecurityConfig.getLoginPageUri());
     }
 }

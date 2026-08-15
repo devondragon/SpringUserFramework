@@ -26,6 +26,7 @@ import com.digitalsanctuary.spring.user.persistence.model.VerificationToken;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.VerificationTokenRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 
 /**
@@ -36,7 +37,7 @@ import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 @DisplayName("Token Hashing Security Tests")
 class TokenHashingSecurityTest {
 
-    private final TokenHasher tokenHasher = new TokenHasher(null);
+    private final TokenHasher tokenHasher = new TokenHasher(new UserSecurityConfigProperties());
 
     private User testUser;
 
@@ -77,12 +78,14 @@ class TokenHashingSecurityTest {
         @Mock
         private SessionInvalidationService sessionInvalidationService;
 
+        private final UserSecurityConfigProperties userSecurityConfig = new UserSecurityConfigProperties();
+
         private UserEmailService userEmailService;
 
         @BeforeEach
         void initService() {
             userEmailService = new UserEmailService(mailService, userVerificationService, passwordTokenRepository,
-                    userRepository, eventPublisher, sessionInvalidationService, tokenHasher);
+                    userRepository, eventPublisher, sessionInvalidationService, tokenHasher, userSecurityConfig);
         }
 
         @Test
@@ -111,7 +114,7 @@ class TokenHashingSecurityTest {
         @Test
         @DisplayName("(e) expiry honors the configured minutes")
         void shouldHonorConfiguredLifetime() {
-            ReflectionTestUtils.setField(userEmailService, "passwordResetTokenValidityMinutes", 30);
+            userSecurityConfig.setPasswordResetTokenValidityMinutes(30);
             long before = System.currentTimeMillis();
 
             userEmailService.createPasswordResetTokenForUser(testUser, "raw");
@@ -136,7 +139,7 @@ class TokenHashingSecurityTest {
         @BeforeEach
         void initService() {
             userService = new UserService(null, null, passwordTokenRepository, null, null, null, null, null, null,
-                    null, null, null, tokenHasher, null);
+                    null, null, null, null, tokenHasher, null);
         }
 
         @Test

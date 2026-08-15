@@ -57,9 +57,21 @@ class CoreBeanOverrideTest {
      * {@code @ConditionalOnMissingBean} evaluates AFTER any user-supplied beans.
      */
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            // Same attach SpringApplication performs, so @ConditionalOnProperty relaxed-matches camelCase spellings.
+            .withInitializer(context -> org.springframework.boot.context.properties.source.ConfigurationPropertySources
+                    .attach(context.getEnvironment()))
             .withBean(UserDetailsService.class, () -> username -> User.withUsername("test").password("x").authorities("ROLE_USER").build())
             .withBean(RolesAndPrivilegesConfig.class, CoreBeanOverrideTest::roleConfig)
+            // The user.security.* properties beans are registered by UserConfiguration in a real boot; this
+            // isolated runner supplies them directly.
+            .withUserConfiguration(SecurityPropertiesConfig.class)
             .withConfiguration(AutoConfigurations.of(UserSecurityBeansAutoConfiguration.class));
+
+    @org.springframework.context.annotation.Configuration(proxyBeanMethods = false)
+    @org.springframework.boot.context.properties.EnableConfigurationProperties({UserSecurityConfigProperties.class,
+            RememberMeConfigProperties.class, PasswordPolicyConfigProperties.class})
+    static class SecurityPropertiesConfig {
+    }
 
     private static RolesAndPrivilegesConfig roleConfig() {
         RolesAndPrivilegesConfig config = new RolesAndPrivilegesConfig();
@@ -303,7 +315,7 @@ class CoreBeanOverrideTest {
         @Test
         @DisplayName("appUrlResolver() is @ConditionalOnMissingBean")
         void appUrlResolverIsConditional() throws Exception {
-            Method method = UserSecurityBeansAutoConfiguration.class.getMethod("appUrlResolver", String.class, List.class, boolean.class);
+            Method method = UserSecurityBeansAutoConfiguration.class.getMethod("appUrlResolver");
             assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).isNotNull();
         }
 
@@ -314,7 +326,9 @@ class CoreBeanOverrideTest {
             assertThat(method.getAnnotation(ConditionalOnMissingBean.class)).as("@ConditionalOnMissingBean must be present").isNotNull();
             ConditionalOnProperty onProperty = method.getAnnotation(ConditionalOnProperty.class);
             assertThat(onProperty).as("@ConditionalOnProperty must gate the bean so it is never created without opt-in").isNotNull();
-            assertThat(onProperty.name()).contains("user.security.rememberMe.usePersistentTokens");
+            // Canonical kebab-case so the condition relaxed-matches every spelling (kebab, camelCase, env var);
+            // the previous camelCase name only exact-matched the literal camelCase key.
+            assertThat(onProperty.name()).contains("user.security.remember-me.use-persistent-tokens");
             assertThat(onProperty.havingValue()).isEqualTo("true");
         }
     }

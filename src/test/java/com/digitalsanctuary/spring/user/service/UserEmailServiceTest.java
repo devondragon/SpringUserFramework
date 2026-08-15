@@ -10,6 +10,7 @@ import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
 
 import org.junit.jupiter.api.AfterEach;
@@ -53,8 +54,11 @@ class UserEmailServiceTest {
     @Mock
     private SessionInvalidationService sessionInvalidationService;
 
+    // Real config (not a mock) so token-lifetime defaults reflect production behavior.
+    private final UserSecurityConfigProperties userSecurityConfig = new UserSecurityConfigProperties();
+
     // Real hasher (not a mock) so stored-vs-raw token assertions reflect production behavior.
-    private final TokenHasher tokenHasher = new TokenHasher(null);
+    private final TokenHasher tokenHasher = new TokenHasher(userSecurityConfig);
 
     private UserEmailService userEmailService;
 
@@ -65,7 +69,7 @@ class UserEmailServiceTest {
     @BeforeEach
     void setUp() {
         userEmailService = new UserEmailService(mailService, userVerificationService, passwordTokenRepository,
-                userRepository, eventPublisher, sessionInvalidationService, tokenHasher);
+                userRepository, eventPublisher, sessionInvalidationService, tokenHasher, userSecurityConfig);
         // In production 'self' is the Spring proxy used to apply @Transactional on createPasswordResetTokenForUser.
         // There is no proxy in a unit test, so point it at the instance itself to exercise the real call path.
         ReflectionTestUtils.setField(userEmailService, "self", userEmailService);

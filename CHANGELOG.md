@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/) for its own public API; the supported Spring Boot versions are tracked separately (see the README compatibility matrix) and are **not** tied to this library's major version.
 
+## [Unreleased]
+
+### Refactoring
+- Internal refactor of `user.security.*` to typed `@ConfigurationProperties`: `UserSecurityConfigProperties` (page/action URIs, URI lists, security scalars), `PasswordPolicyConfigProperties`, and `RememberMeConfigProperties`. Config keys are **unchanged** — no consumer configuration action required.
+
+### Breaking Changes
+- For consumers that subclass or directly instantiate framework components only (Spring-injected beans are unaffected): the migrated `user.security.*` consumers now take the typed properties objects in their constructors — `TokenHasher(UserSecurityConfigProperties)` replaces `TokenHasher(String)`, `LoginSuccessService` gained a `UserSecurityConfigProperties` parameter, and the Lombok-generated constructors of `UserAPI`, `UserActionController`, `LoginAttemptService`, `LogoutSuccessService`, `UserEmailService`, `UserService`, `PasswordPolicyService`, `WebSecurityConfig`, and `HtmxAwareAuthenticationEntryPointConfiguration` changed accordingly. See MIGRATION.md.
+- `WebSecurityConfig`'s previously `@Data`-generated public URI getters (e.g. `getLoginPageURI()`, `getUnprotectedURIsProperty()`) are removed. They were byproducts of the removed `@Value` fields, returned raw property strings, and had no callers outside the framework; read the values from `UserSecurityConfigProperties` instead.
+
+### Features
+- New `${userSecurity}` model attribute exposes the configured page/action URIs to Thymeleaf templates (e.g. `${userSecurity.loginPageUri}`) without SpEL bean access. Registered by default; opt out with `user.security.expose-uris-to-model=false`.
+- Startup check: a `user.security.*` URI set with a kebab-case or environment-variable spelling (which the typed configuration accepts but request-mapping placeholders do not) now fails startup with the offending keys named, instead of silently splitting the security configuration from the mapped controllers.
+- Startup validation of configuration ranges (bcrypt strength 4–31, password-policy `minLength <= maxLength`, `similarityThreshold` 0–100, non-empty `specialChars` when required) when a Bean Validation implementation is on the classpath.
+- Remember-me enabled without a signing key, and `usePersistentTokens=true` without a `PersistentTokenRepository` bean, now log explicit warnings instead of silently skipping/downgrading.
+
+### Fixed
+- `user.security.rememberMe.usePersistentTokens` was only honored in its exact camelCase spelling; the kebab-case spelling advertised by the generated configuration metadata (`user.security.remember-me.use-persistent-tokens`) bound the properties bean but never created the persistent-token repository, silently downgrading remember-me to hash-based tokens (which cannot be revoked server-side). The condition now accepts every relaxed spelling.
+
 ## [5.2.0] - 2026-08-12
 
 This release completes remember‑me (“stay signed in”) with real cookies, optional persistent tokens, and revocation on admin sign‑out/password change, and adds an optional, fail‑closed CAPTCHA layer (Turnstile adapter and a provider‑neutral SPI) for unauthenticated, email‑sending APIs. It also closes a CAPTCHA path‑matching bypass and expands docs and tests.

@@ -23,6 +23,7 @@ import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.PasswordResetTokenRepository;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -67,6 +68,9 @@ public class UserEmailService {
     /** Hashes tokens before they are stored at rest. */
     private final TokenHasher tokenHasher;
 
+    /** The user security configuration properties. */
+    private final UserSecurityConfigProperties userSecurityConfig;
+
     /**
      * Self-reference, resolved through the Spring proxy, used to invoke {@link #createPasswordResetTokenForUser}
      * so its {@code @Transactional} boundary actually applies.
@@ -87,10 +91,6 @@ public class UserEmailService {
     /** The configured app URL for admin-initiated password resets. */
     @Value("${user.admin.appUrl:#{null}}")
     private String configuredAppUrl;
-
-    /** Password reset token lifetime in minutes. Defaults to 24h. */
-    @Value("${user.security.passwordResetTokenValidityMinutes:1440}")
-    private int passwordResetTokenValidityMinutes;
 
     /** ObjectMapper for JSON serialization in audit events. */
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -272,7 +272,7 @@ public class UserEmailService {
         passwordTokenRepository.deleteByUser(user);
         // Store only the hash of the token; the raw token is what was emailed to the user.
         final PasswordResetToken myToken =
-                new PasswordResetToken(tokenHasher.hash(token), user, passwordResetTokenValidityMinutes);
+                new PasswordResetToken(tokenHasher.hash(token), user, userSecurityConfig.getPasswordResetTokenValidityMinutes());
         passwordTokenRepository.save(myToken);
     }
 

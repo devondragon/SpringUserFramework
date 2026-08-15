@@ -1,11 +1,11 @@
 package com.digitalsanctuary.spring.user.util;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,9 +26,8 @@ public class PasswordHashTimeTester {
     /** The password encoder. */
     private final PasswordEncoder passwordEncoder;
 
-    /** The test hash time flag. */
-    @Value("${user.security.testHashTime}")
-    private boolean testHashTime = true;
+    /** The user security configuration properties. */
+    private final UserSecurityConfigProperties userSecurityConfig;
 
     /**
      * Tests the time it takes to hash a password. This method is called when the application starts and tests the performance of the password hashing
@@ -37,7 +36,7 @@ public class PasswordHashTimeTester {
     @Async
     @EventListener(ApplicationStartedEvent.class)
     public void testHashTime() {
-        if (testHashTime) {
+        if (userSecurityConfig.isTestHashTime()) {
             int runs = 5;
             long totalTime = 0;
             String password = "password";
