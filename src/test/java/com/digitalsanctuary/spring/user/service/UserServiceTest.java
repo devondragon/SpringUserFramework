@@ -183,13 +183,37 @@ public class UserServiceTest {
     }
 
     @Test
-    @DisplayName("registerNewUserAccount - translates serialization failure (ConcurrencyFailureException) into UserAlreadyExistException")
-    void registerNewUserAccount_translatesConcurrencyFailureToUserAlreadyExist() {
-        // Given: pre-check passes but the SERIALIZABLE transaction cannot acquire the lock at commit
+    @DisplayName("registerNewUserAccount - retries and succeeds when a serialization failure is transient (different-email deadlock)")
+    void shouldRetryAndSucceedWhenSerializationFailureIsTransient() {
+        // Given: pre-check passes; the first SERIALIZABLE attempt deadlocks (e.g. against a concurrent
+        // registration of a DIFFERENT email), the retry succeeds. Before the retry existed this was
+        // misreported as UserAlreadyExistException and the registration silently lost.
         Role userRole = RoleTestDataBuilder.aUserRole().build();
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
         when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
         when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new CannotAcquireLockException("deadlock"))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        User saved = userService.registerNewUserAccount(testUserDto);
+
+        // Then
+        assertThat(saved).isNotNull();
+        assertThat(saved.getEmail()).isEqualTo(testUserDto.getEmail());
+        verify(userRepository, org.mockito.Mockito.times(2)).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - throws UserAlreadyExistException when the retry finds a concurrent duplicate")
+    void shouldThrowUserAlreadyExistWhenRetryFindsConcurrentDuplicate() {
+        // Given: the first attempt fails to serialize because a concurrent registration of the SAME
+        // email won the race; on retry the pre-check sees the winner's committed row.
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null).thenReturn(testUser);
         when(userRepository.save(any(User.class)))
                 .thenThrow(new CannotAcquireLockException("could not serialize access"));
 
@@ -197,6 +221,24 @@ public class UserServiceTest {
         assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
                 .isInstanceOf(UserAlreadyExistException.class)
                 .hasMessageContaining("There is an account with that email address");
+    }
+
+    @Test
+    @DisplayName("registerNewUserAccount - propagates ConcurrencyFailureException when retries are exhausted")
+    void shouldPropagateConcurrencyFailureWhenRetriesExhausted() {
+        // Given: every SERIALIZABLE attempt deadlocks. The failure must surface honestly (a 500 the
+        // caller can see and the user can retry), never as a fake "already exists" success/409.
+        Role userRole = RoleTestDataBuilder.aUserRole().build();
+        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+        when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+        when(userRepository.findByEmail(anyString())).thenReturn(null);
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new CannotAcquireLockException("persistent deadlock"));
+
+        // When & Then
+        assertThatThrownBy(() -> userService.registerNewUserAccount(testUserDto))
+                .isInstanceOf(org.springframework.dao.ConcurrencyFailureException.class);
+        verify(userRepository, org.mockito.Mockito.times(5)).save(any(User.class));
     }
 
     @Test
