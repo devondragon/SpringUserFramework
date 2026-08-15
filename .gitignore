@@ -142,8 +142,9 @@ application-local.yml
 /project_concatenated.txt
 /repomix-output.txt
 
-# Claude configuration
-.claude/
+# Claude configuration (ignore local settings/session state, but share committed commands)
+.claude/*
+!.claude/commands/
 
 # Superpowers generated artifacts
 docs/superpowers/

@@ -37,3 +37,10 @@ gradle publishMavenCentral
 gradle release
 ```
 
+## Before releasing: run the integration test
+
+Before cutting a release, verify the change against a real consumer (the
+SpringUserFrameworkDemoApp) — publish a local snapshot and run the demo's build, tests, and full
+Playwright suite against it. See [RELEASE-TESTING.md](RELEASE-TESTING.md), or run the
+`/release-integration-test` Claude Code command.
+
