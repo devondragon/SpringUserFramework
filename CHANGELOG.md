@@ -18,6 +18,7 @@ All notable changes to this project are documented here. This project follows [S
 - Remember-me enabled without a signing key, and `usePersistentTokens=true` without a `PersistentTokenRepository` bean, now log explicit warnings instead of silently skipping/downgrading.
 
 ### Fixed
+- Concurrent registrations of **different** emails could deadlock under the SERIALIZABLE registration transaction (MariaDB error 1213) and the victim was misreported as "user already exists": the person saw the registration-pending page while no account was created and no verification email sent. Serialization failures are now retried in a fresh transaction (up to 3 attempts) — a genuine same-email race still returns the 409/anti-enumeration response, and exhausted retries surface as an error instead of a false success. Affects all prior versions; found via the demo app's concurrent Playwright suite.
 - `user.security.rememberMe.usePersistentTokens` was only honored in its exact camelCase spelling; the kebab-case spelling advertised by the generated configuration metadata (`user.security.remember-me.use-persistent-tokens`) bound the properties bean but never created the persistent-token repository, silently downgrading remember-me to hash-based tokens (which cannot be revoked server-side). The condition now accepts every relaxed spelling.
 
 ## [5.2.0] - 2026-08-12

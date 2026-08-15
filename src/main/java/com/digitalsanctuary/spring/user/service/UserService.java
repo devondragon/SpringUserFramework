@@ -208,6 +208,12 @@ public class UserService {
 	/** The user role name. */
 	private static final String USER_ROLE_NAME = "ROLE_USER";
 
+	/** Attempts for the SERIALIZABLE registration write before a serialization failure is surfaced. */
+	private static final int REGISTRATION_SERIALIZATION_ATTEMPTS = 5;
+
+	/** Base delay between registration serialization retries; the actual delay grows per attempt and is jittered. */
+	private static final long REGISTRATION_RETRY_BASE_DELAY_MS = 25;
+
 	/** The user repository. */
 	private final UserRepository userRepository;
 
@@ -288,13 +294,15 @@ public class UserService {
 	 * @param newUserDto the data transfer object containing the user registration
 	 *                   information
 	 * <p>
-	 * Runs with {@link Isolation#SERIALIZABLE} isolation to close the duplicate-registration
-	 * race when two requests register the same email concurrently. The {@link #emailExists}
-	 * pre-check handles the common case, but a concurrent insert can still fail at commit; in
-	 * that case the resulting {@link DataIntegrityViolationException} (unique-constraint
-	 * violation) or serialization failure ({@link CannotAcquireLockException} /
-	 * {@link ConcurrencyFailureException}) is translated into a {@link UserAlreadyExistException}
-	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
+	 * The DB write runs with {@link Isolation#SERIALIZABLE} isolation to close the
+	 * duplicate-registration race when two requests register the same email concurrently: a losing
+	 * duplicate insert ({@link DataIntegrityViolationException}) is translated into a
+	 * {@link UserAlreadyExistException} (HTTP 409). A serialization failure
+	 * ({@link CannotAcquireLockException} / {@link ConcurrencyFailureException}) — which can also be
+	 * caused by a concurrent registration of a <em>different</em> email deadlocking on index gap locks
+	 * — is retried in a fresh transaction (see {@link #persistWithSerializationRetry}); exhausted
+	 * retries propagate the failure rather than misreporting it as an existing account. Unrelated
+	 * failures are never swallowed.
 	 * </p>
 	 *
 	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: the slow bcrypt hash runs with no
@@ -346,10 +354,78 @@ public class UserService {
 
 		// Persist through the proxy so the SERIALIZABLE transaction actually applies (a direct
 		// this.persistNewUserAccount(...) self-invocation would bypass the proxy and run no transaction).
-		User saved = self.persistNewUserAccount(user);
+		User saved = persistWithSerializationRetry(user);
 		// authWithoutPassword(saved);
 		timeLogger.end();
 		return saved;
+	}
+
+	/**
+	 * Invokes {@link #persistNewUserAccount(User)} through the proxy, retrying when the SERIALIZABLE
+	 * transaction fails to serialize (deadlock / lock-acquisition failure,
+	 * {@link ConcurrencyFailureException}).
+	 *
+	 * <p>
+	 * A serialization failure does NOT imply a duplicate: two concurrent registrations of
+	 * <em>different</em> emails can deadlock on index gap locks under SERIALIZABLE isolation. Each
+	 * retry runs a fresh transaction whose {@code emailExists} pre-check distinguishes the two cases —
+	 * a genuine same-email race throws {@link UserAlreadyExistException} (HTTP 409), while a
+	 * different-email deadlock simply succeeds on retry. When every attempt fails to serialize, the
+	 * last {@link ConcurrencyFailureException} propagates so the failure is visible to the caller
+	 * (HTTP 500) instead of being misreported as an existing account while no account was created.
+	 * </p>
+	 *
+	 * @param user the fully built user entity (password already encoded)
+	 * @return the saved user entity
+	 * @throws UserAlreadyExistException if an account with the same email already exists
+	 * @throws ConcurrencyFailureException if every attempt fails to serialize
+	 */
+	private User persistWithSerializationRetry(final User prototype) {
+		ConcurrencyFailureException lastFailure = null;
+		for (int attempt = 1; attempt <= REGISTRATION_SERIALIZATION_ATTEMPTS; attempt++) {
+			try {
+				// Each attempt persists a FRESH entity: a rolled-back attempt can leave the passed instance
+				// carrying persistence state (a generated id, Hibernate-managed collections such as
+				// passwordHistoryEntries), and re-saving that instance fails with optimistic-locking or
+				// orphan-delete errors instead of performing a clean INSERT.
+				return self.persistNewUserAccount(copyForInsert(prototype));
+			} catch (ConcurrencyFailureException e) {
+				lastFailure = e;
+				log.warn("UserService.persistWithSerializationRetry: serialization failure on attempt {}/{} for email {}: {}",
+						attempt, REGISTRATION_SERIALIZATION_ATTEMPTS, prototype.getEmail(), e.getClass().getSimpleName());
+				if (attempt < REGISTRATION_SERIALIZATION_ATTEMPTS) {
+					try {
+						// Growing, jittered delay: concurrent losers retrying in lockstep would keep
+						// deadlocking against each other; jitter desynchronizes them.
+						long delay = REGISTRATION_RETRY_BASE_DELAY_MS * attempt
+								+ java.util.concurrent.ThreadLocalRandom.current().nextLong(REGISTRATION_RETRY_BASE_DELAY_MS * attempt);
+						Thread.sleep(delay);
+					} catch (InterruptedException interrupted) {
+						Thread.currentThread().interrupt();
+						throw lastFailure;
+					}
+				}
+			}
+		}
+		throw lastFailure;
+	}
+
+	/**
+	 * Copies the registration-relevant fields onto a new transient {@link User} for a persist attempt.
+	 * Only the fields set by {@link #registerNewUserAccount(UserDto)} are copied; everything else keeps
+	 * its entity default, exactly as on a first attempt.
+	 *
+	 * @param prototype the user carrying the registration data
+	 * @return a fresh transient copy safe to persist
+	 */
+	private static User copyForInsert(final User prototype) {
+		User user = new User();
+		user.setFirstName(prototype.getFirstName());
+		user.setLastName(prototype.getLastName());
+		user.setPassword(prototype.getPassword());
+		user.setEmail(prototype.getEmail());
+		user.setEnabled(prototype.isEnabled());
+		return user;
 	}
 
 	/**
@@ -361,10 +437,11 @@ public class UserService {
 	 * connection-holding transaction is open. It runs with {@link Isolation#SERIALIZABLE} to close the
 	 * duplicate-registration race when two requests register the same email concurrently. The
 	 * {@link #emailExists} pre-check handles the common case, but a concurrent insert can still fail at
-	 * commit; in that case the resulting {@link DataIntegrityViolationException} (unique-constraint
-	 * violation) or serialization failure ({@link CannotAcquireLockException} /
-	 * {@link ConcurrencyFailureException}) is translated into a {@link UserAlreadyExistException}
-	 * (HTTP 409) rather than surfacing as a 500. Unrelated failures are never swallowed.
+	 * commit: a unique-constraint violation ({@link DataIntegrityViolationException}) is translated
+	 * into a {@link UserAlreadyExistException} (HTTP 409), while a serialization failure
+	 * ({@link CannotAcquireLockException} / {@link ConcurrencyFailureException}) propagates unchanged
+	 * so the caller's retry ({@link #persistWithSerializationRetry}) can distinguish a same-email race
+	 * from a different-email deadlock. Unrelated failures are never swallowed.
 	 * </p>
 	 *
 	 * <p>
@@ -397,13 +474,14 @@ public class UserService {
 			User saved = userRepository.save(user);
 			savePasswordHistory(saved, saved.getPassword());
 			return saved;
-		} catch (DataIntegrityViolationException | ConcurrencyFailureException e) {
-			// A concurrent registration won the race: the unique-email constraint was violated
-			// (DataIntegrityViolationException) or the SERIALIZABLE transaction could not be
-			// serialized (ConcurrencyFailureException, e.g. CannotAcquireLockException). Translate
-			// to a 409 instead of letting it surface as a 500. Only these duplicate/serialization
-			// cases are translated; unrelated exceptions propagate unchanged.
-			log.debug("UserService.persistNewUserAccount: concurrent registration detected for email {}: {}",
+		} catch (DataIntegrityViolationException e) {
+			// A concurrent registration of the SAME email won the race: the unique-email constraint
+			// was violated. Translate to a 409 instead of letting it surface as a 500. A
+			// ConcurrencyFailureException (deadlock / serialization failure) is deliberately NOT
+			// translated here: it can be caused by a concurrent registration of a DIFFERENT email,
+			// so it propagates to the retry in persistWithSerializationRetry, whose fresh-transaction
+			// pre-check distinguishes the two cases. Unrelated exceptions propagate unchanged.
+			log.debug("UserService.persistNewUserAccount: concurrent duplicate registration detected for email {}: {}",
 					user.getEmail(), e.getClass().getSimpleName());
 			throw new UserAlreadyExistException(
 					"There is an account with that email address: " + user.getEmail());

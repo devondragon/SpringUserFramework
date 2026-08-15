@@ -25,8 +25,11 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Validates that the SERIALIZABLE duplicate-registration race protection (UserService.registerNewUserAccount ->
- * persistNewUserAccount, isolation = SERIALIZABLE, with DataIntegrityViolationException / ConcurrencyFailureException
- * translated to UserAlreadyExistException) actually holds on a real, production-grade database — not just on H2.
+ * persistNewUserAccount, isolation = SERIALIZABLE, with DataIntegrityViolationException translated to
+ * UserAlreadyExistException and serialization failures retried in a fresh transaction) actually holds on a real,
+ * production-grade database — not just on H2. Also validates the inverse: concurrent registrations of DIFFERENT
+ * emails, which can deadlock on index gap locks under SERIALIZABLE, must all succeed via the retry rather than
+ * being misreported as duplicates.
  *
  * <p>
  * Two threads race to register the SAME email at the same instant (released together via a CountDownLatch). On a real
@@ -126,6 +129,53 @@ abstract class AbstractConcurrentRegistrationTest {
 					.as("the database must contain EXACTLY ONE user row for the raced email — two rows would mean "
 							+ "SERIALIZABLE failed to prevent the duplicate")
 					.isEqualTo(1);
+		} finally {
+			executor.shutdownNow();
+		}
+	}
+
+	@RepeatedTest(value = 3, name = "{displayName} [run {currentRepetition}/{totalRepetitions}]")
+	@DisplayName("should register every user when threads race with different emails")
+	void shouldRegisterEveryUserWhenThreadsRaceDifferentEmails() throws InterruptedException {
+		// Distinct emails cannot conflict logically, but their SERIALIZABLE transactions can still deadlock on
+		// index gap locks. Before the serialization retry existed, the deadlock victim was misreported as
+		// UserAlreadyExistException — a silently lost registration behind the anti-enumeration success page.
+		final int threadCount = 6;
+		final CountDownLatch readyLatch = new CountDownLatch(threadCount);
+		final CountDownLatch startLatch = new CountDownLatch(1);
+		final ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+		try {
+			final List<String> emails = new ArrayList<>();
+			final List<Future<RegistrationOutcome>> futures = new ArrayList<>();
+			for (int i = 0; i < threadCount; i++) {
+				final String email = "distinct-" + i + "-" + System.nanoTime() + "@test.com";
+				emails.add(email);
+				futures.add(executor.submit(registrationTask(email, readyLatch, startLatch)));
+			}
+
+			assertThat(readyLatch.await(30, TimeUnit.SECONDS))
+					.as("all registration threads should reach the start gate")
+					.isTrue();
+			startLatch.countDown();
+
+			final List<Throwable> failures = new ArrayList<>();
+			for (Future<RegistrationOutcome> future : futures) {
+				final RegistrationOutcome outcome = collect(future);
+				if (outcome.user == null) {
+					failures.add(outcome.error);
+				}
+			}
+
+			assertThat(failures)
+					.as("every distinct-email registration must succeed — a deadlock between them must be retried, "
+							+ "never surfaced (and never misreported as UserAlreadyExistException)")
+					.isEmpty();
+			for (String email : emails) {
+				assertThat(userRepository.findByEmail(email.toLowerCase()))
+						.as("user row should exist for %s", email)
+						.isNotNull();
+			}
 		} finally {
 			executor.shutdownNow();
 		}
