@@ -190,14 +190,32 @@ class UserApiTest {
      */
     private void deleteTestUser(String email) {
         // This test is not @Transactional, so cleanup must run in its own committed transaction.
-        txTemplate.executeWithoutResult(status -> {
-            User user = userRepository.findByEmail(email);
-            if (user != null) {
-                passwordResetTokenRepository.deleteByUser(user);
-                verificationTokenRepository.deleteByUser(user);
-                userRepository.delete(user);
+        // Retried because the @Async RegistrationListener can commit a verification token between
+        // deleteByUser and the user delete, failing the FK constraint; the retry's fresh
+        // transaction sees and deletes the late token.
+        for (int attempt = 1;; attempt++) {
+            try {
+                txTemplate.executeWithoutResult(status -> {
+                    User user = userRepository.findByEmail(email);
+                    if (user != null) {
+                        passwordResetTokenRepository.deleteByUser(user);
+                        verificationTokenRepository.deleteByUser(user);
+                        userRepository.delete(user);
+                    }
+                });
+                return;
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                if (attempt >= 3) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
             }
-        });
+        }
     }
 
     private String json(Object value) {

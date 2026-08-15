@@ -220,16 +220,36 @@ class CaptchaProtectionIntegrationTest {
      * Hard-deletes the test user and any associated tokens (tokens first, FK order). This test is
      * not @Transactional, so cleanup runs in its own committed transaction — same pattern as
      * UserApiTest.
+     *
+     * <p>Retried because the token insert happens on the {@code @Async} RegistrationListener's
+     * executor (not {@code dsMailExecutor}, which {@code drainMailExecutor()} waits on), so a
+     * verification token can commit between {@code deleteByUser} and the user delete and fail the
+     * FK constraint; the retry's fresh transaction sees and deletes it.</p>
      */
     private void deleteTestUser(String email) {
-        txTemplate.executeWithoutResult(status -> {
-            User user = userRepository.findByEmail(email);
-            if (user != null) {
-                passwordResetTokenRepository.deleteByUser(user);
-                verificationTokenRepository.deleteByUser(user);
-                userRepository.delete(user);
+        for (int attempt = 1;; attempt++) {
+            try {
+                txTemplate.executeWithoutResult(status -> {
+                    User user = userRepository.findByEmail(email);
+                    if (user != null) {
+                        passwordResetTokenRepository.deleteByUser(user);
+                        verificationTokenRepository.deleteByUser(user);
+                        userRepository.delete(user);
+                    }
+                });
+                return;
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                if (attempt >= 3) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
             }
-        });
+        }
     }
 
     /**
