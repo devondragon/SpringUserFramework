@@ -22,6 +22,7 @@ import com.digitalsanctuary.spring.user.dto.AuthMethodsResponse;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
 import com.digitalsanctuary.spring.user.dto.PasswordResetRequestDto;
 import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
+import com.digitalsanctuary.spring.user.dto.ResendVerificationDto;
 import com.digitalsanctuary.spring.user.dto.SavePasswordDto;
 import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
@@ -183,19 +184,19 @@ public class UserAPI {
 	 * Resends the registration token. This is used when the user did not receive
 	 * the initial registration email.
 	 *
-	 * @param userDto the user data transfer object containing user details
+	 * @param resendVerificationDto the DTO containing the email address to resend the verification email to
 	 * @param request the HTTP servlet request
 	 * @return a ResponseEntity containing a JSONResponse with the registration
 	 *         result
 	 */
 	@PostMapping("/resendRegistrationToken")
-	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody UserDto userDto,
+	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody ResendVerificationDto resendVerificationDto,
 			HttpServletRequest request) {
 		// Anti-enumeration: this endpoint ALWAYS returns the same generic 200 response, regardless of
 		// whether the email is unknown, already verified, or genuinely awaiting verification. Internally
 		// we only send the verification email when the account exists AND is still unverified. The true
 		// outcome is recorded server-side via audit/log events so operators retain visibility.
-		User user = userService.findUserByEmail(userDto.getEmail());
+		User user = userService.findUserByEmail(resendVerificationDto.getEmail());
 		if (user == null) {
 			log.info("Resend verification requested for unknown email; returning generic response.");
 			logAuditEvent("Resend Reg Token", "Failure", "Unknown Email", null, request);
