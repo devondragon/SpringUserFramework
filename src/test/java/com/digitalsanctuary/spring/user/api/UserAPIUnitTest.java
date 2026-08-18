@@ -22,6 +22,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
@@ -409,7 +410,7 @@ public class UserAPIUnitTest {
             // When & Then - no 400 from registration-only validation constraints
             mockMvc.perform(post("/user/resendRegistrationToken")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"email\":\"" + testUserDto.getEmail() + "\"}")
+                    .content(objectMapper.writeValueAsString(Map.of("email", testUserDto.getEmail())))
                     .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true));

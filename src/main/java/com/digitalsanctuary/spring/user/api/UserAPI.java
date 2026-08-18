@@ -186,8 +186,8 @@ public class UserAPI {
 	 *
 	 * @param resendVerificationDto the DTO containing the email address to resend the verification email to
 	 * @param request the HTTP servlet request
-	 * @return a ResponseEntity containing a JSONResponse with the registration
-	 *         result
+	 * @return a ResponseEntity containing a generic JSONResponse that is identical whether or not a
+	 *         verification email was actually resent
 	 */
 	@PostMapping("/resendRegistrationToken")
 	public ResponseEntity<JSONResponse> resendRegistrationToken(@Valid @RequestBody ResendVerificationDto resendVerificationDto,
