@@ -22,9 +22,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
+import com.digitalsanctuary.spring.user.dto.ResendVerificationDto;
 import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
@@ -343,7 +345,7 @@ public class UserAPIUnitTest {
             // When & Then
             mockMvc.perform(post("/user/resendRegistrationToken")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(testUserDto))
+                    .content(resendJson(testUserDto.getEmail()))
                     .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
@@ -363,7 +365,7 @@ public class UserAPIUnitTest {
             // When & Then - same response as the unverified case, and no email is sent
             mockMvc.perform(post("/user/resendRegistrationToken")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(testUserDto))
+                    .content(resendJson(testUserDto.getEmail()))
                     .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
@@ -383,7 +385,7 @@ public class UserAPIUnitTest {
             // When & Then - same uniform 200 response; nothing leaks existence
             mockMvc.perform(post("/user/resendRegistrationToken")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(testUserDto))
+                    .content(resendJson(testUserDto.getEmail()))
                     .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
@@ -392,6 +394,80 @@ public class UserAPIUnitTest {
                             .value("If your account requires verification, a new verification email has been sent."));
 
             verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
+        }
+
+        @Test
+        @DisplayName("POST /user/resendRegistrationToken - email-only body with no name or password is accepted")
+        void resendRegistrationToken_emailOnlyBody_isAccepted() throws Exception {
+            // Given - the body the resend page actually posts: just an email, no name or password fields
+            User unverifiedUser = UserTestDataBuilder.aUser()
+                    .withEmail(testUserDto.getEmail())
+                    .disabled()
+                    .build();
+            when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(unverifiedUser);
+            when(appUrlResolver.resolveAppUrl(any())).thenReturn("http://localhost:8080");
+
+            // When & Then - no 400 from registration-only validation constraints
+            mockMvc.perform(post("/user/resendRegistrationToken")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(Map.of("email", testUserDto.getEmail())))
+                    .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(userEmailService).sendRegistrationVerificationEmail(eq(unverifiedUser), anyString());
+        }
+
+        @Test
+        @DisplayName("POST /user/resendRegistrationToken - blank email is rejected with 400 and sends no email")
+        void resendRegistrationToken_blankEmail_returnsBadRequest() throws Exception {
+            mockMvc.perform(post("/user/resendRegistrationToken")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(resendJson(""))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
+        }
+
+        @Test
+        @DisplayName("POST /user/resendRegistrationToken - malformed email is rejected with 400 and sends no email")
+        void resendRegistrationToken_malformedEmail_returnsBadRequest() throws Exception {
+            mockMvc.perform(post("/user/resendRegistrationToken")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(resendJson("not-an-email"))
+                    .with(csrf()))
+                    .andExpect(status().isBadRequest());
+
+            verify(userEmailService, never()).sendRegistrationVerificationEmail(any(User.class), anyString());
+        }
+
+        @Test
+        @DisplayName("POST /user/resendRegistrationToken - a legacy full registration payload is still accepted")
+        void resendRegistrationToken_legacyFullUserDtoPayload_isAccepted() throws Exception {
+            // Given - clients built against the old signature still post the whole registration UserDto
+            User unverifiedUser = UserTestDataBuilder.aUser()
+                    .withEmail(testUserDto.getEmail())
+                    .disabled()
+                    .build();
+            when(userService.findUserByEmail(testUserDto.getEmail())).thenReturn(unverifiedUser);
+            when(appUrlResolver.resolveAppUrl(any())).thenReturn("http://localhost:8080");
+
+            // When & Then - the extra fields are ignored rather than rejected
+            mockMvc.perform(post("/user/resendRegistrationToken")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(testUserDto))
+                    .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(userEmailService).sendRegistrationVerificationEmail(eq(unverifiedUser), anyString());
+        }
+
+        private String resendJson(String email) throws Exception {
+            ResendVerificationDto dto = new ResendVerificationDto();
+            dto.setEmail(email);
+            return objectMapper.writeValueAsString(dto);
         }
     }
 
