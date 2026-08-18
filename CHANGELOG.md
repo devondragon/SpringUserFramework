@@ -4,6 +4,40 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+## [5.3.1] - 2026-08-18
+
+This release fixes POST /user/resendRegistrationToken so consuming apps can actually resend registration verification emails. It also corrects README examples and tidies repo layout and tooling without changing any runtime APIs or configuration.
+
+SemVer classification: patch — bug fix and documentation-only changes; no new public API, configuration keys, or behavior that would require consumer code changes beyond test expectations for the resend endpoint.
+
+### Behavior changes (client impact)
+- POST /user/resendRegistrationToken now accepts an email-only JSON body and returns HTTP 200 on valid input. Previously it incorrectly bound UserDto (requiring name and password fields), causing all resend attempts to fail fast with HTTP 400 validation errors. The JSON response body format and numeric response code are unchanged; only the HTTP status on valid requests is corrected to 200. Action: update any client/tests that were asserting HTTP 400 for successful resend attempts to expect HTTP 200.
+  - Anti‑enumeration semantics are unchanged: the endpoint always returns the same generic success response regardless of whether the email is unknown, already verified, or unverified.
+  - Clients that still post the legacy full registration payload continue to work; extra properties are ignored rather than rejected.
+  - Blank or malformed emails continue to return HTTP 400.
+  - POST /user/resetPassword already bound PasswordResetRequestDto correctly; no change.
+
+### Fixes
+- Bind ResendVerificationDto (single @NotBlank @Email @Size(max = 100) email) in UserAPI.resendRegistrationToken instead of UserDto, allowing an email-only request body to pass validation and trigger the resend flow. The handler logic and response shape (including the numeric JSON response code) are unchanged.
+
+### Documentation
+- README: corrected UserPreDeleteEvent accessors — the event exposes getUserId() and getUserEmail() (not getUser()); the example listener now compiles against the actual API.
+- Post‑release alignment for the prior 5.3.0 notes: README install snippets and compatibility matrix updated to 5.3.x/5.3.0; CHANGELOG wording corrected (registration retry count is 5 with jittered backoff; remember‑me kebab‑case fix was not a regression; removed an intra‑branch accessor note that never affected released APIs). No runtime changes.
+
+### Testing
+- Expanded UserAPIUnitTest coverage for resendRegistrationToken:
+  - Accepts email‑only body and successfully sends email to unverified users (now HTTP 200).
+  - Continues to accept the legacy full registration payload.
+  - Rejects blank or malformed emails with HTTP 400.
+  - Preserves the uniform 200 response for unknown/already‑verified cases (no existence leak).
+  - Test payloads built with ObjectMapper to avoid JSON escaping pitfalls.
+
+### Other Changes
+- Repository hygiene and tooling moves with no impact on consuming applications:
+  - Moved release/testing/profile docs under docs/ and updated references; CONFIG.md and MIGRATION.md remain at repo root for stable deep links.
+  - Moved Python release tooling to scripts/ and updated Gradle task wiring.
+  - Dropped vestigial .hintrc and untracked IDE state; added logs/ and .idea/ to .gitignore.
+
 ## [5.3.0] - 2026-08-14
 
 This release types the user.security.* configuration into strongly-typed @ConfigurationProperties, adds a secret-free ${userSecurity} model attribute for templates, and makes misconfigurations loud at startup. It also fixes a rare registration deadlock that could silently lose a registration behind a success page, and makes the kebab-case spelling of the remember‑me persistent-tokens option work (previously only the exact camelCase key did).
