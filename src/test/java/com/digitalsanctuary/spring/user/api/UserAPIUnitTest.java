@@ -25,8 +25,8 @@ import java.util.Locale;
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.dto.PasswordDto;
-import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.ResendVerificationDto;
+import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
 import com.digitalsanctuary.spring.user.security.StepUpService;
