@@ -173,7 +173,10 @@ class WebAuthnAuthenticationSuccessHandlerTest {
 
 			WebAuthnAuthentication webAuthnAuth = new WebAuthnAuthentication(userEntity, authorities);
 
-			DSUserDetails dsUserDetails = new DSUserDetails(testUser, authorities);
+			// The handler must read authorities off the incoming authentication, not off the UserDetails it loads.
+			// Giving the loaded principal a narrower set is what makes the assertion below discriminating: ROLE_ADMIN
+			// can only have come from the WebAuthnAuthentication.
+			DSUserDetails dsUserDetails = new DSUserDetails(testUser, Set.of(new SimpleGrantedAuthority("ROLE_USER")));
 			when(userDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(dsUserDetails);
 
 			// When
