@@ -223,7 +223,16 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 **Action required if your application lets passwordless users set an initial password:** provide a `StepUpService` bean (recommended), or set `user.security.allowInitialPasswordSetWithoutStepUp=true`. Otherwise `POST /user/setPassword` returns `403`.
 
-Implementing a *full* WebAuthn step-up assertion (challenge/response bound to user/session/action/RP ID/origin/expiry) is tracked as separate feature work; the `StepUpService` SPI is the interim mechanism so applications can enforce their own step-up now.
+**Built-in step-up (this release).** The framework now ships a `StepUpService` of its own, off by default. Set `user.security.stepUp.enabled=true` and it requires one of `user.security.stepUp.factors` to have been issued within `user.security.stepUp.ttlSeconds` (default `120`). The user refreshes a factor by re-running that login ceremony while already logged in — for `WEBAUTHN`, the ordinary passkey assertion — so there is no new endpoint and the client reuses its existing ceremony. A `StepUpService` bean you supply still takes precedence.
+
+Enabling it also gates passkey **delete and rename** on passwordless accounts, which previously required nothing beyond a session. Accounts with a password keep the current-password path unchanged. Rejections return `HTTP 401`, with error code `step-up-required` on the passkey endpoints.
+
+Two things to check before enabling it:
+
+- **Reserved authority names.** A role or privilege named `FACTOR_*` in `user.roles-and-privileges` collides with Spring Security's factor authorities. Such a name satisfies MFA enforcement without the factor ever being completed, and shadows the genuine factor in a step-up freshness check. Startup now **fails** when one is configured while MFA or step-up is enabled, and logs an error otherwise. Rename them.
+- **Factor merging.** Enabling step-up turns on `setMfaEnabled(true)` for authentication processing filters, as `user.mfa.enabled=true` already did. If your application registers its own `AbstractAuthenticationProcessingFilter`, see the warning on `MfaFilterMergingConfiguration`.
+
+See CONFIG.md for the full configuration.
 
 ### Database schema: unique role/privilege names
 

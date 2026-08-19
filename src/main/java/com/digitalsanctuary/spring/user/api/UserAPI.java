@@ -367,7 +367,7 @@ public class UserAPI {
 		// report a "failed attempt" to the lockout counter below — letting any authenticated (or session-hijacking)
 		// caller lock the account out of EVERY authentication method by hitting this endpoint repeatedly. Reject up
 		// front, before the lockout logic and without touching the counter, and point the user at the set-password
-		// flow. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet and the symmetric guard in setPassword().
+		// flow. Mirrors WebAuthnManagementAPI.requireCredentialProof and the symmetric guard in setPassword().
 		if (!userService.hasPassword(user)) {
 			logAuditEvent("PasswordUpdate", "Failure", "No password set", user, request);
 			return buildErrorResponse(messages.getMessage("message.update-password.no-password", null,
@@ -376,7 +376,7 @@ public class UserAPI {
 
 		// Verifying the current password is an authentication surface, so it participates in the same brute-force
 		// lockout as login: reject a locked account up front (HTTP 423) so a session-holding actor cannot make
-		// unlimited old-password guesses here. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet.
+		// unlimited old-password guesses here. Mirrors WebAuthnManagementAPI.requireCredentialProof.
 		if (loginAttemptService.isLocked(user.getEmail())) {
 			logAuditEvent("PasswordUpdate", "Failure", "Account locked", user, request);
 			return buildErrorResponse(messages.getMessage("message.update-password.account-locked", null,

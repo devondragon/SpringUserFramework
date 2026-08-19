@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnAccountLockedException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnStepUpRequiredException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
 import jakarta.validation.ConstraintViolationException;
@@ -38,6 +39,15 @@ public class WebAuthnManagementAPIAdvice {
 	public ResponseEntity<GenericResponse> handleReauthenticationFailure(WebAuthnReauthenticationException ex) {
 		log.warn("WebAuthn re-authentication failure: {}", ex.getMessage());
 		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new GenericResponse(ex.getMessage()));
+	}
+
+	@ExceptionHandler(WebAuthnStepUpRequiredException.class)
+	public ResponseEntity<GenericResponse> handleStepUpRequired(WebAuthnStepUpRequiredException ex) {
+		log.warn("WebAuthn step-up required: {}", ex.getMessage());
+		// A distinct error code, so a client can launch its login ceremony and retry rather than prompting for a
+		// password it may not have.
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+				.body(new GenericResponse(ex.getMessage(), WebAuthnStepUpRequiredException.ERROR_CODE));
 	}
 
 	@ExceptionHandler(WebAuthnException.class)
