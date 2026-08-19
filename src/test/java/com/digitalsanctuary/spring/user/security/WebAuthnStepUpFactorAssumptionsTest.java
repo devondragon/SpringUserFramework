@@ -55,7 +55,8 @@ import jakarta.servlet.http.HttpServletResponse;
  * </p>
  * <ol>
  * <li><b>Freshness enforcement</b> &mdash; {@code RequiredFactor.validDuration} denies a stale WEBAUTHN factor, grants
- * a fresh one, and refuses a look-alike authority that is not a {@link FactorGrantedAuthority}.</li>
+ * a fresh one, and refuses a look-alike authority that is not a {@link FactorGrantedAuthority} &mdash; including when
+ * that look-alike sorts ahead of a genuine one and shadows it.</li>
  * <li><b>Stamping</b> &mdash; {@code WebAuthnAuthenticationProvider} adds a {@code FACTOR_WEBAUTHN} authority whose
  * {@code issuedAt} defaults to now, on top of whatever authorities the {@code UserDetailsService} supplies. That
  * default is the freshness clock.</li>
@@ -131,6 +132,27 @@ class WebAuthnStepUpFactorAssumptionsTest {
 
 		assertThat(granted(freshWebAuthnRequired, lookAlike)).as("an authority with no issuedAt cannot satisfy a validDuration")
 				.isFalse();
+	}
+
+	@Test
+	@DisplayName("should deny a freshly stamped factor when a look-alike authority precedes it")
+	void shouldDenyWhenALookAlikeAuthorityPrecedesTheStampedFactor() {
+		// The look-alike does not merely fail on its own, it SHADOWS a genuine one. AllRequiredFactors resolves a
+		// RequiredFactor by taking the first authority whose string matches, then type-checks that one: a non-factor
+		// first match is reported expired and the real, fresh FactorGrantedAuthority behind it is never considered.
+		// The provider appends its stamp after the UserDetailsService's authorities, so a consumer privilege named
+		// FACTOR_WEBAUTHN always sorts first and step-up can never be satisfied on that deployment. It fails closed,
+		// but the symptom (a just-completed assertion that still does not satisfy the gate) is opaque, which is why a
+		// built-in step-up primitive should reject FACTOR_-prefixed names in user.roles-and-privileges at startup.
+		List<GrantedAuthority> withLookAlike =
+				List.of(new SimpleGrantedAuthority(FactorGrantedAuthority.WEBAUTHN_AUTHORITY), new SimpleGrantedAuthority(ROLE_USER));
+
+		Authentication result = provider(withLookAlike).authenticate(assertionRequestToken());
+
+		assertThat(authorityStrings(result)).as("the look-alike is carried through and sorts ahead of the stamped factor")
+				.startsWith(FactorGrantedAuthority.WEBAUTHN_AUTHORITY);
+		assertThat(webAuthnFactorsOf(result)).as("a genuine, freshly stamped factor is present all the same").hasSize(1);
+		assertThat(granted(freshWebAuthnRequired, result)).as("yet the gate denies, immediately after a real assertion").isFalse();
 	}
 
 	@Test
