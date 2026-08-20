@@ -2,13 +2,19 @@ package com.digitalsanctuary.spring.user.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import java.util.Locale;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
+import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
+import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 
 /**
  * Tests for {@link StepUpAutoConfiguration}.
@@ -23,7 +29,83 @@ class StepUpAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(StepUpAutoConfiguration.class))
             .withBean(RolesAndPrivilegesConfig.class, RolesAndPrivilegesConfig::new)
-            .withBean(MfaConfigProperties.class, MfaConfigProperties::new);
+            .withBean(MfaConfigProperties.class, MfaConfigProperties::new)
+            .withBean(WebAuthnConfigProperties.class, WebAuthnConfigProperties::new)
+            // Set as a property, not on the instance: @ConfigurationProperties beans are re-bound after
+            // construction, so a value set in the supplier is overwritten by dsspringuserconfig.properties.
+            .withPropertyValues("user.webauthn.enabled=true");
+
+    @Test
+    @DisplayName("should fail startup when WEBAUTHN step-up is configured but WebAuthn is disabled")
+    void shouldFailWhenWebAuthnFactorConfiguredButWebAuthnDisabled() {
+        // Mirrors MfaConfiguration: requiring a factor the deployment cannot issue makes the gate unsatisfiable,
+        // which would silently render step-up inert rather than enforcing it.
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(StepUpAutoConfiguration.class))
+                .withBean(RolesAndPrivilegesConfig.class, RolesAndPrivilegesConfig::new)
+                .withBean(MfaConfigProperties.class, MfaConfigProperties::new)
+                .withBean(WebAuthnConfigProperties.class, WebAuthnConfigProperties::new)
+                .withPropertyValues("user.security.step-up.enabled=true")
+                .run(context -> assertThat(context).hasFailed().getFailure()
+                        .hasMessageContaining("user.webauthn.enabled=false"));
+    }
+
+    @Test
+    @DisplayName("should answer satisfiability from the WebAuthn credential service when one is present")
+    void shouldDelegateSatisfiabilityToTheCredentialService() {
+        // Pins the auto-configuration's lambda: the built-in service must read real credential state, not a constant.
+        WebAuthnCredentialManagementService credentialService = mock(WebAuthnCredentialManagementService.class);
+        // Distinct ids: User equality keys on id alone, so two unsaved instances compare equal and Mockito could
+        // not tell the stubs apart. See the note on User.id and EntityEqualityTest.
+        User withPasskey = new User();
+        withPasskey.setId(1L);
+        User withoutPasskey = new User();
+        withoutPasskey.setId(2L);
+        when(credentialService.hasCredentials(withPasskey)).thenReturn(true);
+        when(credentialService.hasCredentials(withoutPasskey)).thenReturn(false);
+
+        runner.withBean(WebAuthnCredentialManagementService.class, () -> credentialService)
+                .withPropertyValues("user.security.step-up.enabled=true").run(context -> {
+                    StepUpService service = context.getBean(StepUpService.class);
+                    assertThat(service.canSatisfyStepUp(withPasskey, "set-password")).isTrue();
+                    assertThat(service.canSatisfyStepUp(withoutPasskey, "set-password")).isFalse();
+                });
+    }
+
+    @Test
+    @DisplayName("should report step-up unsatisfiable when no WebAuthn credential service is available")
+    void shouldReportUnsatisfiableWhenCredentialServiceAbsent() {
+        // Without the service no account can hold a passkey, so WEBAUTHN is unachievable and step-up does not
+        // apply. Claiming otherwise would gate an operation nobody could ever unlock.
+        runner.withPropertyValues("user.security.step-up.enabled=true").run(context -> assertThat(
+                context.getBean(StepUpService.class).canSatisfyStepUp(new User(), "set-password")).isFalse());
+    }
+
+    @Test
+    @DisplayName("should default canSatisfyStepUp to true for implementations that do not override it")
+    void shouldDefaultSatisfiabilityToTrue() {
+        // The compatibility promise in MIGRATION.md: a consumer SPI implementation written before this method
+        // existed keeps being enforced, rather than silently opting out of step-up.
+        StepUpService legacyImplementation = (user, action, request) -> false;
+
+        assertThat(legacyImplementation.canSatisfyStepUp(new User(), "set-password")).isTrue();
+    }
+
+    @Test
+    @ResourceLock(Resources.LOCALE)
+    @DisplayName("should normalize factor names independently of the default locale")
+    void shouldNormalizeFactorNamesIndependentlyOfDefaultLocale() {
+        Locale original = Locale.getDefault();
+        try {
+            // In Turkish, "authorization_code".toUpperCase() dots the I and no longer matches the factor map.
+            Locale.setDefault(Locale.forLanguageTag("tr"));
+            runner.withPropertyValues("user.security.step-up.enabled=true",
+                    "user.security.step-up.factors=authorization_code")
+                    .run(context -> assertThat(context).hasNotFailed().hasSingleBean(StepUpService.class));
+        } finally {
+            Locale.setDefault(original);
+        }
+    }
 
     @Test
     @DisplayName("should register no step-up service by default")

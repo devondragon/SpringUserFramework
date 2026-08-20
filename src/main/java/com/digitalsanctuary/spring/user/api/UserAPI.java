@@ -573,7 +573,7 @@ public class UserAPI {
 			// canSatisfyStepUp() separates "has not proven presence" from "could never prove it". A social-login
 			// account with no passkey falls in the second group, where denying is a dead end rather than a prompt,
 			// so step-up does not apply and allowInitialPasswordSetWithoutStepUp governs as it did before.
-			if (stepUpService != null && stepUpService.canSatisfyStepUp(user)) {
+			if (stepUpService != null && stepUpService.canSatisfyStepUp(user, "set-password")) {
 				if (!stepUpService.isStepUpSatisfied(user, "set-password", request)) {
 					logAuditEvent("SetPassword", "Failure", "Step-up verification failed", user, request);
 					return buildErrorResponse(messages.getMessage("message.set-password.step-up-required", null,

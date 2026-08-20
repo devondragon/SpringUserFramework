@@ -66,7 +66,7 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
      *
      * @param config the step-up configuration; its factor names must already have been validated
      * @param hasPasskey answers whether a user holds at least one registered WebAuthn credential, used by
-     *        {@link #canSatisfyStepUp(User)} to tell "has not asserted" apart from "has nothing to assert with"
+     *        {@link #canSatisfyStepUp(User, String)} to tell "has not asserted" apart from "has nothing to assert with"
      */
     public DSFactorFreshnessStepUpService(StepUpConfigProperties config, Predicate<User> hasPasskey) {
         this.hasPasskey = hasPasskey;
@@ -79,7 +79,7 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
     }
 
     private static AuthorizationManager<Object> buildManager(String factorName, Duration ttl) {
-        String authority = StepUpConfigProperties.FACTOR_AUTHORITIES.get(factorName.toUpperCase());
+        String authority = StepUpConfigProperties.FACTOR_AUTHORITIES.get(factorName.toUpperCase(Locale.ROOT));
         return AllRequiredFactorsAuthorizationManager.<Object>builder()
                 .requireFactor(RequiredFactor.withAuthority(authority).validDuration(ttl).build()).build();
     }
@@ -130,12 +130,14 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
      * </p>
      *
      * @param user the authenticated user the operation targets
+     * @param action the operation being gated, used only for logging
      * @return {@code true} if at least one configured factor could be produced by this user
      */
     @Override
-    public boolean canSatisfyStepUp(User user) {
+    public boolean canSatisfyStepUp(User user, String action) {
         if (user == null) {
-            return false;
+            // Contract violation rather than a real account. Keep the gate; isStepUpSatisfied does the denying.
+            return true;
         }
         for (String factorName : factorNames) {
             switch (factorName.toUpperCase(Locale.ROOT)) {
@@ -154,7 +156,8 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
                 }
             }
         }
-        log.debug("Step-up does not apply: the account holds no credential able to produce any of {}", factorNames);
+        log.debug("Step-up does not apply to action {}: the account holds no credential able to produce any of {}",
+                action, factorNames);
         return false;
     }
 }

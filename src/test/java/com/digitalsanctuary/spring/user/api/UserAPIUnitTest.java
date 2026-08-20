@@ -820,7 +820,7 @@ public class UserAPIUnitTest {
             StepUpService stepUp = mock(StepUpService.class);
             // A mocked interface returns false for the unstubbed canSatisfyStepUp() default; a real implementation
             // inherits true. Stub it so these cases stay about whether step-up was *satisfied*, not whether it applies.
-            when(stepUp.canSatisfyStepUp(testUser)).thenReturn(true);
+            when(stepUp.canSatisfyStepUp(testUser, "set-password")).thenReturn(true);
             when(stepUp.isStepUpSatisfied(eq(testUser), eq("set-password"), any())).thenReturn(false);
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(stepUp));
             when(messageSource.getMessage(eq("message.set-password.step-up-required"), any(), any(), any(Locale.class)))
@@ -847,7 +847,7 @@ public class UserAPIUnitTest {
             StepUpService stepUp = mock(StepUpService.class);
             // A mocked interface returns false for the unstubbed canSatisfyStepUp() default; a real implementation
             // inherits true. Stub it so these cases stay about whether step-up was *satisfied*, not whether it applies.
-            when(stepUp.canSatisfyStepUp(testUser)).thenReturn(true);
+            when(stepUp.canSatisfyStepUp(testUser, "set-password")).thenReturn(true);
             when(stepUp.isStepUpSatisfied(eq(testUser), eq("set-password"), any())).thenReturn(true);
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(stepUp));
             when(passwordPolicyService.validate(eq(testUser), eq("NewValidPass1!"), eq(testUser.getEmail()), any(Locale.class)))
@@ -872,7 +872,7 @@ public class UserAPIUnitTest {
             StepUpService stepUp = mock(StepUpService.class);
             // A social-login account has no passkey, so it can never produce the configured factor. Step-up does
             // not apply, and the endpoint falls back to allowInitialPasswordSetWithoutStepUp (false by default).
-            when(stepUp.canSatisfyStepUp(testUser)).thenReturn(false);
+            when(stepUp.canSatisfyStepUp(testUser, "set-password")).thenReturn(false);
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(stepUp));
             when(messageSource.getMessage(eq("message.set-password.disabled"), any(), any(), any(Locale.class)))
                     .thenReturn("Setting an initial password is not enabled on this server.");
@@ -896,7 +896,7 @@ public class UserAPIUnitTest {
             when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
             when(userService.hasPassword(testUser)).thenReturn(false);
             StepUpService stepUp = mock(StepUpService.class);
-            when(stepUp.canSatisfyStepUp(testUser)).thenReturn(false);
+            when(stepUp.canSatisfyStepUp(testUser, "set-password")).thenReturn(false);
             ReflectionTestUtils.setField(userAPI, "stepUpServiceProvider", stepUpProvider(stepUp));
             userSecurityConfig.setAllowInitialPasswordSetWithoutStepUp(true);
             when(passwordPolicyService.validate(eq(testUser), eq("NewValidPass1!"), eq(testUser.getEmail()), any(Locale.class)))

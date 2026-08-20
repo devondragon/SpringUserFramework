@@ -89,6 +89,7 @@ class WebAuthnManagementAPIStepUpTest {
         @Test
         @DisplayName("should reject passkey deletion when step-up is not satisfied")
         void shouldRejectDeleteWithoutStepUp() {
+            when(stepUpService.canSatisfyStepUp(eq(testUser), any())).thenReturn(true);
             when(stepUpService.isStepUpSatisfied(eq(testUser), any(), any())).thenReturn(false);
 
             assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails, request))
@@ -97,8 +98,22 @@ class WebAuthnManagementAPIStepUpTest {
         }
 
         @Test
+        @DisplayName("should proceed with passkey deletion when the account cannot satisfy step-up at all")
+        void shouldProceedWhenStepUpIsUnsatisfiable() {
+            // factors=[PASSWORD] against a passwordless account: no user action could ever produce the factor, so
+            // gating would be a permanent dead end rather than a prompt. Fall back to the pre-feature behavior.
+            when(stepUpService.canSatisfyStepUp(eq(testUser), any())).thenReturn(false);
+
+            api.deleteCredential("cred-1", null, userDetails, request);
+
+            verify(stepUpService, never()).isStepUpSatisfied(any(), any(), any());
+            verify(credentialManagementService).deleteCredential("cred-1", testUser);
+        }
+
+        @Test
         @DisplayName("should reject passkey rename when step-up is not satisfied")
         void shouldRejectRenameWithoutStepUp() {
+            when(stepUpService.canSatisfyStepUp(eq(testUser), any())).thenReturn(true);
             when(stepUpService.isStepUpSatisfied(eq(testUser), any(), any())).thenReturn(false);
 
             assertThatThrownBy(() -> api.renameCredential("cred-1",
@@ -110,6 +125,7 @@ class WebAuthnManagementAPIStepUpTest {
         @Test
         @DisplayName("should allow passkey deletion when step-up is satisfied")
         void shouldAllowDeleteWithStepUp() {
+            when(stepUpService.canSatisfyStepUp(eq(testUser), any())).thenReturn(true);
             when(stepUpService.isStepUpSatisfied(eq(testUser), any(), any())).thenReturn(true);
 
             assertThat(api.deleteCredential("cred-1", null, userDetails, request).getStatusCode().is2xxSuccessful()).isTrue();
@@ -119,6 +135,7 @@ class WebAuthnManagementAPIStepUpTest {
         @Test
         @DisplayName("should pass a distinct action per operation so implementations can distinguish them")
         void shouldPassPerOperationAction() {
+            when(stepUpService.canSatisfyStepUp(eq(testUser), any())).thenReturn(true);
             when(stepUpService.isStepUpSatisfied(eq(testUser), any(), any())).thenReturn(true);
 
             api.deleteCredential("cred-1", null, userDetails, request);

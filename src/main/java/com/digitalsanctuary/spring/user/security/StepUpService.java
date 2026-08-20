@@ -65,9 +65,11 @@ public interface StepUpService {
      * </p>
      *
      * @param user the authenticated user the operation targets (never {@code null})
+     * @param action the same action identifier passed to {@link #isStepUpSatisfied}, so an implementation whose
+     *        requirements differ per operation can answer per operation
      * @return {@code true} if the user could satisfy step-up; {@code false} if no amount of user action would
      */
-    default boolean canSatisfyStepUp(User user) {
+    default boolean canSatisfyStepUp(User user, String action) {
         return true;
     }
 }

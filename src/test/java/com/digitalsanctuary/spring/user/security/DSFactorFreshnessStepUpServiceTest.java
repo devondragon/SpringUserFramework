@@ -145,13 +145,13 @@ class DSFactorFreshnessStepUpServiceTest {
         @Test
         @DisplayName("should report step-up unsatisfiable when WEBAUTHN is required and the user has no passkey")
         void shouldReportUnsatisfiableWhenUserHasNoPasskey() {
-            assertThat(service(false, 120, "WEBAUTHN").canSatisfyStepUp(user)).isFalse();
+            assertThat(service(false, 120, "WEBAUTHN").canSatisfyStepUp(user, ACTION)).isFalse();
         }
 
         @Test
         @DisplayName("should report step-up satisfiable when WEBAUTHN is required and the user has a passkey")
         void shouldReportSatisfiableWhenUserHasPasskey() {
-            assertThat(service(true, 120, "WEBAUTHN").canSatisfyStepUp(user)).isTrue();
+            assertThat(service(true, 120, "WEBAUTHN").canSatisfyStepUp(user, ACTION)).isTrue();
         }
 
         @Test
@@ -159,13 +159,13 @@ class DSFactorFreshnessStepUpServiceTest {
         void shouldReportSatisfiableWhenUserHasPasswordAndPasswordFactorConfigured() {
             user.setPassword("$2a$04$encoded");
 
-            assertThat(service(false, 120, "PASSWORD").canSatisfyStepUp(user)).isTrue();
+            assertThat(service(false, 120, "PASSWORD").canSatisfyStepUp(user, ACTION)).isTrue();
         }
 
         @Test
         @DisplayName("should report step-up unsatisfiable when PASSWORD is configured and the account is passwordless")
         void shouldReportUnsatisfiableWhenPasswordlessAndPasswordFactorConfigured() {
-            assertThat(service(false, 120, "PASSWORD").canSatisfyStepUp(user)).isFalse();
+            assertThat(service(false, 120, "PASSWORD").canSatisfyStepUp(user, ACTION)).isFalse();
         }
 
         @Test
@@ -173,14 +173,22 @@ class DSFactorFreshnessStepUpServiceTest {
         void shouldReportSatisfiableWhenAnyConfiguredFactorIsAchievable() {
             user.setPassword("$2a$04$encoded");
 
-            assertThat(service(false, 120, "WEBAUTHN", "PASSWORD").canSatisfyStepUp(user)).isTrue();
+            assertThat(service(false, 120, "WEBAUTHN", "PASSWORD").canSatisfyStepUp(user, ACTION)).isTrue();
+        }
+
+        @Test
+        @DisplayName("should not treat a null user as unsatisfiable")
+        void shouldNotTreatNullUserAsUnsatisfiable() {
+            // The SPI says user is never null. Answering "unsatisfiable" to a contract violation would release the
+            // gate; keep it instead, and let isStepUpSatisfied do the denying.
+            assertThat(service(false, 120, "WEBAUTHN").canSatisfyStepUp(null, ACTION)).isTrue();
         }
 
         @Test
         @DisplayName("should report step-up satisfiable for factors whose achievability cannot be determined")
         void shouldReportSatisfiableForUndeterminableFactors() {
             // OTT is delivered out of band, so the framework cannot rule it out. Assume achievable and keep gating.
-            assertThat(service(false, 120, "OTT").canSatisfyStepUp(user)).isTrue();
+            assertThat(service(false, 120, "OTT").canSatisfyStepUp(user, ACTION)).isTrue();
         }
     }
 

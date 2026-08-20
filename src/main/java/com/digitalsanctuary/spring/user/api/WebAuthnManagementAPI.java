@@ -265,8 +265,12 @@ public class WebAuthnManagementAPI {
 			// Passwordless (passkey-only) account: there is no current password to verify, so the only proof available
 			// is step-up. When no StepUpService is configured the operation proceeds as it always has; see MIGRATION.md
 			// for the residual risk that leaves.
+			// canSatisfyStepUp() first: an account holding no credential the configured factors accept could never
+			// pass the gate, so enforcing it would make the operation permanently impossible rather than prompting
+			// for a ceremony. Fall back to the pre-feature session-only behavior there (see MIGRATION.md).
 			StepUpService stepUpService = stepUpServiceProvider.getIfAvailable();
-			if (stepUpService != null && !stepUpService.isStepUpSatisfied(user, action, request)) {
+			if (stepUpService != null && stepUpService.canSatisfyStepUp(user, action)
+					&& !stepUpService.isStepUpSatisfied(user, action, request)) {
 				throw new WebAuthnStepUpRequiredException(
 						"Recent authentication is required to change authentication methods. Please verify with your passkey and retry.");
 			}
