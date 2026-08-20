@@ -181,4 +181,16 @@ class WebAuthnFeatureEnabledIntegrationTest {
 				.isPresent()
 				.hasValueSatisfying(c -> assertThat(c.getLabel()).isEqualTo("My Device"));
 	}
+
+	@Test
+	@DisplayName("should deny Spring Security's built-in DELETE /webauthn/register/{id} endpoint (GHSA-3cv9-vgqh-jwpm)")
+	void shouldDenySpringWebAuthnRegistrationDeleteEndpoint() throws Exception {
+		// http.webAuthn(...) registers WebAuthnRegistrationFilter, whose DELETE /webauthn/register/{id} deletes a
+		// passkey after checking only credential ownership, bypassing the framework's lockout protection,
+		// current-password re-authentication, and audit logging. The filter chain must deny it outright.
+		mockMvc.perform(delete("/webauthn/register/cred-1").with(user(TEST_EMAIL).roles("USER")).with(csrf()))
+				.andExpect(status().isForbidden());
+
+		assertThat(webAuthnCredentialRepository.findByIdWithUser("cred-1")).isPresent();
+	}
 }

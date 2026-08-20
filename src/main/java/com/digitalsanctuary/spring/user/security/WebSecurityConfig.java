@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.session.SessionRegistry;
@@ -166,6 +167,18 @@ public class WebSecurityConfig {
 		// Configure MFA if enabled
 		if (mfaConfigProperties.isEnabled()) {
 			setupMfa(http);
+		}
+
+		// Close Spring Security's built-in WebAuthn credential-delete endpoint (DELETE /webauthn/register/{id}),
+		// registered by http.webAuthn(...). It deletes a passkey after checking only credential ownership, bypassing
+		// the framework's own DELETE /user/webauthn/credentials/{id} safeguards (last-credential lockout protection,
+		// current-password re-authentication, and audit logging). See GHSA-3cv9-vgqh-jwpm. This deny rule must be
+		// registered before the anyRequest() rule below (Spring rejects matchers added after anyRequest()) and applies
+		// regardless of defaultAction, since allow mode's anyRequest().permitAll() would otherwise expose it too.
+		// Consumers relying on this endpoint should migrate to DELETE /user/webauthn/credentials/{id}.
+		if (webAuthnConfigProperties.isEnabled()) {
+			http.authorizeHttpRequests(
+					(authorize) -> authorize.requestMatchers(HttpMethod.DELETE, "/webauthn/register/**").denyAll());
 		}
 
 		// Configure authorization rules based on the default action
