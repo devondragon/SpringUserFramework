@@ -4,6 +4,40 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+## [5.3.2] - 2026-08-20
+
+This release closes a missing-authorization vulnerability by denying Spring Security’s built‑in WebAuthn credential‑delete endpoint and channeling all passkey deletion through the framework’s safeguarded API. It also updates migration guidance and aligns README install snippets, with additional tests pinning factor-freshness behavior for prospective step‑up use.
+
+SemVer classification: patch — security hardening and documentation/testing updates only; no new public APIs or configuration keys. The only behavior change is denial of a non‑framework Spring Security endpoint; consuming apps that called it must switch to the framework endpoint.
+
+### Security
+- Denied Spring Security’s built‑in WebAuthn delete endpoint to fix GHSA-3cv9-vgqh-jwpm (CWE‑862, medium): when `user.webauthn.enabled=true`, `DELETE /webauthn/register/{id}` is now blocked in the framework’s filter chain. That Spring endpoint only checked credential ownership and bypassed the framework’s protections on `DELETE /user/webauthn/credentials/{id}` (last‑credential lockout protection, current‑password re‑authentication, audit logging). An attacker with a valid session (stolen cookie/XSS/shared browser) could silently delete passkeys and lock out a passkey‑only account. All consumers should use `DELETE /user/webauthn/credentials/{id}` for passkey deletion.
+
+### Behavior changes (client impact)
+- `DELETE /webauthn/register/{id}` is now denied whenever `user.webauthn.enabled=true`:
+  - Anonymous callers receive HTTP 302 (redirect to login); authenticated callers receive HTTP 403.
+  - Applies under both `user.security.defaultAction=allow` and `deny` modes because the deny rule is registered before `anyRequest()`.
+  - `POST /webauthn/register` (registration) is unaffected.
+  - The framework‑managed `DELETE /user/webauthn/credentials/{id}` is unchanged; its HTTP status and JSON response body (including the numeric response code) are unchanged.
+  - Action: if your app directly called `DELETE /webauthn/register/{id}`, switch to `DELETE /user/webauthn/credentials/{id}`.
+
+### Fixes
+- WebSecurityConfig: add `authorize.requestMatchers(HttpMethod.DELETE, "/webauthn/register/**").denyAll()` when WebAuthn is enabled, registering the rule before `anyRequest()` so it takes effect in both allow and deny modes. This closes GHSA-3cv9-vgqh-jwpm while leaving the sanctioned `DELETE /user/webauthn/credentials/{id}` path intact.
+
+### Documentation
+- MIGRATION.md: new 5.3.x note documenting the deny of Spring Security’s `DELETE /webauthn/register/{id}` and directing consumers to `DELETE /user/webauthn/credentials/{id}`; clarifies scope (`user.webauthn.enabled=true`) and unaffected registration flow.
+- README: align Maven/Gradle install snippets to 5.3.1 (docs only; no runtime changes).
+
+### Testing
+- WebAuthnFeatureEnabledIntegrationTest: assert authenticated `DELETE /webauthn/register/{id}` returns 403 and the credential is not deleted.
+- WebAuthnRegistrationDeleteAllowModeTest: under `user.security.defaultAction=allow`, assert anonymous `DELETE /webauthn/register/{id}` is redirected to login (302) and authenticated DELETE is 403.
+- WebAuthnStepUpFactorAssumptionsTest: pin Spring Security 7.1 factor‑freshness behavior for a potential built‑in step‑up primitive:
+  - `RequiredFactor.validDuration` denies stale and grants fresh `FACTOR_WEBAUTHN`.
+  - A plain `SimpleGrantedAuthority("FACTOR_WEBAUTHN")` cannot satisfy freshness and can shadow a genuine factor if it sorts first.
+  - `WebAuthnAuthenticationProvider` stamps exactly one fresh `FACTOR_WEBAUTHN`; re‑asserting while authenticated merges authorities and refreshes `issuedAt`.
+  - Control: with merging disabled, session‑only authorities are dropped.
+- WebAuthnAuthenticationSuccessHandlerTest: tightened to ensure authorities are preserved when converting the principal to `DSUserDetails`.
+
 ## [5.3.1] - 2026-08-18
 
 This release fixes POST /user/resendRegistrationToken so consuming apps can actually resend registration verification emails. It also corrects README examples and tidies repo layout and tooling without changing any runtime APIs or configuration.
