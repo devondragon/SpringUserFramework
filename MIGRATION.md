@@ -6,6 +6,8 @@ This guide covers migrating applications using the Spring User Framework between
 
 - [Migration Guide](#migration-guide)
   - [Table of Contents](#table-of-contents)
+  - [Migrating to 5.3.x](#migrating-to-53x)
+    - [Spring Security's built-in WebAuthn delete endpoint is now denied (GHSA-3cv9-vgqh-jwpm)](#spring-securitys-built-in-webauthn-delete-endpoint-is-now-denied-ghsa-3cv9-vgqh-jwpm)
   - [Migrating to 5.2.x](#migrating-to-52x)
     - [`user.security.*` moved to typed configuration properties (config keys unchanged)](#usersecurity-moved-to-typed-configuration-properties-config-keys-unchanged)
     - [Remember-me completed; two constructors gained parameters](#remember-me-completed-two-constructors-gained-parameters)
@@ -44,6 +46,16 @@ This guide covers migrating applications using the Spring User Framework between
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
   - [Version Compatibility Matrix](#version-compatibility-matrix)
+
+## Migrating to 5.3.x
+
+### Spring Security's built-in WebAuthn delete endpoint is now denied (GHSA-3cv9-vgqh-jwpm)
+
+When `user.webauthn.enabled=true`, enabling WebAuthn via `http.webAuthn(...)` also registered Spring Security's own `WebAuthnRegistrationFilter`, which serves `DELETE /webauthn/register/{id}`. That endpoint deleted a passkey with only an ownership check (and on some Spring Security versions, none at all), bypassing every safeguard the framework applies on its own `DELETE /user/webauthn/credentials/{id}`: last-credential lockout protection, current-password re-authentication, and audit logging. A session-only actor could delete a victim's passkeys with no re-authentication and no audit trail, permanently locking out a passkey-only account (CWE-862, [GHSA-3cv9-vgqh-jwpm](https://github.com/devondragon/SpringUserFramework/security/advisories/GHSA-3cv9-vgqh-jwpm), affects 4.2.0–5.3.1).
+
+The framework now denies `DELETE /webauthn/register/**` in its security filter chain whenever WebAuthn is enabled, in both `deny` and `allow` `defaultAction` modes. `POST /webauthn/register` (registration) is unaffected.
+
+**Action required:** Only if you called `DELETE /webauthn/register/{id}` directly. Migrate to the framework's managed endpoint, `DELETE /user/webauthn/credentials/{id}`, which enforces ownership, last-credential lockout protection, current-password re-authentication, and audit logging (see [Re-authentication required for credential changes](#re-authentication-required-for-credential-changes)). The framework's built-in passkey-management UI already uses the managed endpoint, so no change is needed if you rely on it.
 
 ## Migrating to 5.2.x
 
