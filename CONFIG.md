@@ -178,6 +178,7 @@ Provides passwordless login using biometrics, security keys, or device authentic
 - **Relying Party ID (`user.webauthn.rpId`)**: For development, use `localhost`. For production, use your domain (e.g., `example.com`). Defaults to `localhost`.
 - **Relying Party Name (`user.webauthn.rpName`)**: The display name.
 - **Allowed Origins (`user.webauthn.allowedOrigins`)**: Comma-separated list of allowed origins. Defaults to `https://localhost:8443`.
+- **Registration notification (`user.webauthn.notifyOnRegistration`)**: Email the account owner when a passkey is registered on their account. Defaults to `true`. Enrolling a passkey grants a durable new way into the account that survives a password change, since session invalidation ends sessions rather than credentials, so an enrollment the owner did not perform is worth surfacing. A `PasskeyRegistration` audit event is recorded either way. Set to `false` only if your application sends its own equivalent notification.
 
 **Development Example:**
 ```properties

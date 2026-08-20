@@ -30,4 +30,11 @@ public class WebAuthnConfigProperties {
 	 * Whether Passkey support is enabled.
 	 */
 	private boolean enabled = false;
+
+	/**
+	 * Whether to email the account owner when a passkey is registered on their account. Enrolling a passkey grants a
+	 * durable new way into the account that survives a password change, so the owner is told by default. Set to
+	 * {@code false} only if your application sends its own equivalent notification.
+	 */
+	private boolean notifyOnRegistration = true;
 }

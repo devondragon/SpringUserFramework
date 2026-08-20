@@ -175,6 +175,29 @@ public class UserEmailService {
      * @return the map
      * @throws IllegalArgumentException if appUrl is invalid (for admin-initiated resets)
      */
+    /**
+     * Notifies the account owner that a passkey was registered on their account.
+     *
+     * <p>
+     * Sent for every new credential, however it was enrolled. A passkey the owner did not add is a sign someone
+     * else reached their session, and it would otherwise be invisible until they went looking.
+     * </p>
+     *
+     * @param user the account owner
+     * @param label the label of the newly registered passkey
+     */
+    public void sendPasskeyRegisteredNotification(final User user, final String label) {
+        if (user == null || user.getEmail() == null) {
+            log.warn("UserEmailService.sendPasskeyRegisteredNotification: no recipient, skipping");
+            return;
+        }
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("user", user);
+        variables.put("label", label != null ? label : "Passkey");
+        mailService.sendTemplateMessage(user.getEmail(), "New passkey added to your account", variables,
+                "mail/webauthn-credential-registered.html");
+    }
+
     private Map<String, Object> createEmailVariables(final User user, final String appUrl, final String token, final String confirmationPath) {
         Map<String, Object> variables = new HashMap<>();
         variables.put("token", token);
