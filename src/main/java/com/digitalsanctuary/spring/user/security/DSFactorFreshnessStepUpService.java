@@ -2,6 +2,8 @@ package com.digitalsanctuary.spring.user.security;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Predicate;
 import org.springframework.security.authorization.AllRequiredFactorsAuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationResult;
@@ -55,6 +57,7 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
     private final List<AuthorizationManager<Object>> factorManagers;
     private final List<String> factorNames;
     private final Duration ttl;
+    private final Predicate<User> hasPasskey;
 
     private SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
 
@@ -62,8 +65,11 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
      * Creates a service enforcing the configured factors and TTL.
      *
      * @param config the step-up configuration; its factor names must already have been validated
+     * @param hasPasskey answers whether a user holds at least one registered WebAuthn credential, used by
+     *        {@link #canSatisfyStepUp(User)} to tell "has not asserted" apart from "has nothing to assert with"
      */
-    public DSFactorFreshnessStepUpService(StepUpConfigProperties config) {
+    public DSFactorFreshnessStepUpService(StepUpConfigProperties config, Predicate<User> hasPasskey) {
+        this.hasPasskey = hasPasskey;
         this.ttl = Duration.ofSeconds(config.getTtlSeconds());
         this.factorNames = List.copyOf(config.getFactors());
         // One manager per factor, evaluated as "any of". Spring Security 7.1 offers
@@ -111,6 +117,44 @@ public class DSFactorFreshnessStepUpService implements StepUpService {
         }
 
         log.debug("Step-up denied for action {}: no factor of {} issued within {}", action, factorNames, ttl);
+        return false;
+    }
+
+    /**
+     * Reports whether any configured factor is achievable for this user at all.
+     *
+     * <p>
+     * {@code WEBAUTHN} needs a registered passkey and {@code PASSWORD} needs a password, so an account holding
+     * neither cannot produce either no matter what the user does. Every other factor is delivered out of band and
+     * cannot be ruled out from here, so it is assumed achievable and the operation stays gated.
+     * </p>
+     *
+     * @param user the authenticated user the operation targets
+     * @return {@code true} if at least one configured factor could be produced by this user
+     */
+    @Override
+    public boolean canSatisfyStepUp(User user) {
+        if (user == null) {
+            return false;
+        }
+        for (String factorName : factorNames) {
+            switch (factorName.toUpperCase(Locale.ROOT)) {
+                case "WEBAUTHN" -> {
+                    if (hasPasskey.test(user)) {
+                        return true;
+                    }
+                }
+                case "PASSWORD" -> {
+                    if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+                        return true;
+                    }
+                }
+                default -> {
+                    return true;
+                }
+            }
+        }
+        log.debug("Step-up does not apply: the account holds no credential able to produce any of {}", factorNames);
         return false;
     }
 }

@@ -138,12 +138,62 @@ class DSFactorFreshnessStepUpServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("Satisfiability")
+    class SatisfiabilityTests {
+
+        @Test
+        @DisplayName("should report step-up unsatisfiable when WEBAUTHN is required and the user has no passkey")
+        void shouldReportUnsatisfiableWhenUserHasNoPasskey() {
+            assertThat(service(false, 120, "WEBAUTHN").canSatisfyStepUp(user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("should report step-up satisfiable when WEBAUTHN is required and the user has a passkey")
+        void shouldReportSatisfiableWhenUserHasPasskey() {
+            assertThat(service(true, 120, "WEBAUTHN").canSatisfyStepUp(user)).isTrue();
+        }
+
+        @Test
+        @DisplayName("should report step-up satisfiable when the user has a password and PASSWORD is configured")
+        void shouldReportSatisfiableWhenUserHasPasswordAndPasswordFactorConfigured() {
+            user.setPassword("$2a$04$encoded");
+
+            assertThat(service(false, 120, "PASSWORD").canSatisfyStepUp(user)).isTrue();
+        }
+
+        @Test
+        @DisplayName("should report step-up unsatisfiable when PASSWORD is configured and the account is passwordless")
+        void shouldReportUnsatisfiableWhenPasswordlessAndPasswordFactorConfigured() {
+            assertThat(service(false, 120, "PASSWORD").canSatisfyStepUp(user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("should report step-up satisfiable when any one configured factor is achievable")
+        void shouldReportSatisfiableWhenAnyConfiguredFactorIsAchievable() {
+            user.setPassword("$2a$04$encoded");
+
+            assertThat(service(false, 120, "WEBAUTHN", "PASSWORD").canSatisfyStepUp(user)).isTrue();
+        }
+
+        @Test
+        @DisplayName("should report step-up satisfiable for factors whose achievability cannot be determined")
+        void shouldReportSatisfiableForUndeterminableFactors() {
+            // OTT is delivered out of band, so the framework cannot rule it out. Assume achievable and keep gating.
+            assertThat(service(false, 120, "OTT").canSatisfyStepUp(user)).isTrue();
+        }
+    }
+
     private static DSFactorFreshnessStepUpService service(int ttlSeconds, String... factors) {
+        return service(true, ttlSeconds, factors);
+    }
+
+    private static DSFactorFreshnessStepUpService service(boolean userHasPasskey, int ttlSeconds, String... factors) {
         StepUpConfigProperties config = new StepUpConfigProperties();
         config.setEnabled(true);
         config.setTtlSeconds(ttlSeconds);
         config.setFactors(List.of(factors));
-        return new DSFactorFreshnessStepUpService(config);
+        return new DSFactorFreshnessStepUpService(config, u -> userHasPasskey);
     }
 
     private static void authenticate(String name, GrantedAuthority... authorities) {

@@ -46,4 +46,28 @@ public interface StepUpService {
      * @return {@code true} if step-up is satisfied and the operation may proceed; {@code false} to reject it
      */
     boolean isStepUpSatisfied(User user, String action, HttpServletRequest request);
+
+    /**
+     * Reports whether this user could satisfy step-up at all, regardless of whether they have done so.
+     *
+     * <p>
+     * Step-up denies a user who has not recently proven presence, on the assumption that they can go and do so. That
+     * assumption fails for a user who holds no credential this implementation accepts: a social-login (OAuth2/OIDC)
+     * account with no passkey can never produce a WebAuthn factor, so denying it is a dead end rather than a prompt.
+     * Callers treat {@code false} as "step-up does not apply here" and fall back to their configured default, instead
+     * of rejecting an operation the user could never unlock.
+     * </p>
+     *
+     * <p>
+     * The default returns {@code true}, preserving the behavior of implementations written before this method existed:
+     * every user is expected to be able to satisfy step-up. Override it when your mechanism depends on a credential
+     * some accounts may not have.
+     * </p>
+     *
+     * @param user the authenticated user the operation targets (never {@code null})
+     * @return {@code true} if the user could satisfy step-up; {@code false} if no amount of user action would
+     */
+    default boolean canSatisfyStepUp(User user) {
+        return true;
+    }
 }

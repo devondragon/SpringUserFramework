@@ -570,7 +570,10 @@ public class UserAPI {
 			// supplies a StepUpService, require it to pass; otherwise the endpoint is disabled by default. Set
 			// user.security.allowInitialPasswordSetWithoutStepUp=true to explicitly keep the session-only behavior.
 			final StepUpService stepUpService = stepUpServiceProvider.getIfAvailable();
-			if (stepUpService != null) {
+			// canSatisfyStepUp() separates "has not proven presence" from "could never prove it". A social-login
+			// account with no passkey falls in the second group, where denying is a dead end rather than a prompt,
+			// so step-up does not apply and allowInitialPasswordSetWithoutStepUp governs as it did before.
+			if (stepUpService != null && stepUpService.canSatisfyStepUp(user)) {
 				if (!stepUpService.isStepUpSatisfied(user, "set-password", request)) {
 					logAuditEvent("SetPassword", "Failure", "Step-up verification failed", user, request);
 					return buildErrorResponse(messages.getMessage("message.set-password.step-up-required", null,

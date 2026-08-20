@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -11,6 +12,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
+import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -38,17 +40,25 @@ public class StepUpAutoConfiguration {
      * Creates the built-in step-up service, validating the configured factor names first.
      *
      * @param config the step-up configuration
+     * @param credentialServiceProvider provides the WebAuthn credential service when WebAuthn is enabled, so the
+     *        service can tell an account with no passkey apart from one that simply has not asserted
      * @return the built-in {@link StepUpService}
      * @throws IllegalStateException if {@code user.security.stepUp.factors} is empty or names an unknown factor
      */
     @Bean
     @ConditionalOnMissingBean(StepUpService.class)
     @ConditionalOnProperty(prefix = "user.security.step-up", name = "enabled", havingValue = "true")
-    public StepUpService dsFactorFreshnessStepUpService(StepUpConfigProperties config) {
+    public StepUpService dsFactorFreshnessStepUpService(StepUpConfigProperties config,
+            ObjectProvider<WebAuthnCredentialManagementService> credentialServiceProvider) {
         validateFactors(config.getFactors());
         log.info("Step-up enabled: a factor of {} issued within {}s authorizes credential-altering operations",
                 config.getFactors(), config.getTtlSeconds());
-        return new DSFactorFreshnessStepUpService(config);
+        // Resolved per call rather than captured: WebAuthnCredentialManagementService is conditional on
+        // user.webauthn.enabled, and when it is absent no account can hold a passkey.
+        return new DSFactorFreshnessStepUpService(config, user -> {
+            WebAuthnCredentialManagementService credentialService = credentialServiceProvider.getIfAvailable();
+            return credentialService != null && credentialService.hasCredentials(user);
+        });
     }
 
     /**

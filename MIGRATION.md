@@ -225,6 +225,8 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 **Built-in step-up (this release).** The framework now ships a `StepUpService` of its own, off by default. Set `user.security.stepUp.enabled=true` and it requires one of `user.security.stepUp.factors` to have been issued within `user.security.stepUp.ttlSeconds` (default `120`). The user refreshes a factor by re-running that login ceremony while already logged in — for `WEBAUTHN`, the ordinary passkey assertion — so there is no new endpoint and the client reuses its existing ceremony. A `StepUpService` bean you supply still takes precedence.
 
+**`StepUpService` gained a default method.** `canSatisfyStepUp(User)` reports whether a user could satisfy step-up at all, as opposed to whether they have. It defaults to `true`, so existing implementations compile and behave exactly as before. Override it when your mechanism depends on a credential some accounts lack: an OAuth2/OIDC account with no passkey can never produce a WebAuthn factor, and callers treat `false` as "step-up does not apply" and fall back to their configured default rather than rejecting an operation the user could never unlock. The built-in service overrides it, so with `user.security.stepUp.enabled=true` a social-login account with no passkey keeps the `allowInitialPasswordSetWithoutStepUp` behavior instead of receiving a permanent `HTTP 401` on `POST /user/setPassword`.
+
 Enabling it also gates passkey **delete and rename** on passwordless accounts, which previously required nothing beyond a session. Accounts with a password keep the current-password path unchanged. Rejections return `HTTP 401`, with error code `step-up-required` on the passkey endpoints.
 
 Two things to check before enabling it:
