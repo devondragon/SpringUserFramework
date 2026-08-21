@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import java.time.Instant;
 import java.util.List;
@@ -48,26 +49,30 @@ class WebAuthnEnrollmentGateIntegrationTest {
 	@DisplayName("should reject passkey enrollment when the session carries no authentication factor")
 	void shouldRejectEnrollmentWithoutFactor() throws Exception {
 		// The attack this closes: a stolen session cookie enrolls an attacker-controlled passkey, asserts with it to
-		// mint a fresh FACTOR_WEBAUTHN, and thereby satisfies every step-up gate.
+		// mint a fresh FACTOR_WEBAUTHN, and thereby satisfies every step-up gate. The denial returns the same
+		// 401 + step-up-required contract as the credential-management endpoints, not a bare 403.
 		mockMvc.perform(post("/webauthn/register").with(user("user@test.com").roles("USER")).with(csrf())
-				.contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
+				.contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("step-up-required"));
 	}
 
 	@Test
 	@DisplayName("should reject passkey enrollment when the only factor is older than the window")
 	void shouldRejectEnrollmentWithStaleFactor() throws Exception {
 		mockMvc.perform(post("/webauthn/register").with(authentication(withFactor(Instant.now().minusSeconds(601))))
-				.with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isForbidden());
+				.with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("step-up-required"));
 	}
 
 	@Test
 	@DisplayName("should not reject passkey enrollment when a factor was issued inside the window")
 	void shouldAllowEnrollmentWithFreshFactor() throws Exception {
 		// The request body is not a real attestation, so the endpoint itself fails it. What matters here is that the
-		// gate let it through: anything other than 403 proves authorization passed and the filter ran.
+		// gate let it through: neither the 401 the gate now returns on denial nor a 403 proves authorization passed
+		// and the filter ran.
 		mockMvc.perform(post("/webauthn/register").with(authentication(withFactor(Instant.now().minusSeconds(5))))
 				.with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}"))
-				.andExpect(status().is(not(403)));
+				.andExpect(status().is(not(401))).andExpect(status().is(not(403)));
 	}
 
 	private static org.hamcrest.Matcher<Integer> not(int status) {

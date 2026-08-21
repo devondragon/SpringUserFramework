@@ -22,10 +22,14 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -195,6 +199,15 @@ public class WebSecurityConfig {
 								Duration.ofSeconds(stepUpConfigProperties.getEnrollmentTtlSeconds()), Clock.systemUTC());
 				http.authorizeHttpRequests((authorize) -> authorize
 						.requestMatchers(HttpMethod.POST, "/webauthn/register").access(enrollmentGate));
+
+				// The gate denies in the filter chain, before any controller, so its denial never reaches
+				// WebAuthnManagementAPIAdvice. Render it the way the credential-management endpoints render step-up:
+				// HTTP 401 with the step-up-required error code, instead of a bare 403 the client cannot interpret.
+				// Scoped to this endpoint via defaultAccessDeniedHandlerFor, so Spring keeps the existing default
+				// handler (the MFA missing-authority handler when configured) for every other path.
+				RequestMatcher enrollmentPost = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/webauthn/register");
+				AccessDeniedHandler enrollmentDeniedHandler = new StepUpEnrollmentAccessDeniedHandler(new AccessDeniedHandlerImpl());
+				http.exceptionHandling(handling -> handling.defaultAccessDeniedHandlerFor(enrollmentDeniedHandler, enrollmentPost));
 			}
 		}
 
