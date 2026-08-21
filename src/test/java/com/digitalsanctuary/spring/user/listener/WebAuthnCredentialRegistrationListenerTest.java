@@ -10,6 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.event.WebAuthnCredentialRegisteredEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -49,7 +51,7 @@ class WebAuthnCredentialRegistrationListenerTest {
     @Test
     @DisplayName("should record an audit event when a passkey is registered")
     void shouldRecordAuditEventWhenPasskeyRegistered() {
-        listener().onApplicationEvent(event());
+        listener().onCredentialRegistered(event());
 
         ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
@@ -61,7 +63,7 @@ class WebAuthnCredentialRegistrationListenerTest {
     @Test
     @DisplayName("should notify the account owner by email when a passkey is registered")
     void shouldNotifyOwnerWhenPasskeyRegistered() {
-        listener().onApplicationEvent(event());
+        listener().onCredentialRegistered(event());
 
         verify(userEmailService).sendPasskeyRegisteredNotification(user, "Work Laptop");
     }
@@ -72,7 +74,7 @@ class WebAuthnCredentialRegistrationListenerTest {
         // The email is a courtesy the operator may not want; the audit trail is not optional.
         config.setNotifyOnRegistration(false);
 
-        listener().onApplicationEvent(event());
+        listener().onCredentialRegistered(event());
 
         verify(userEmailService, never()).sendPasskeyRegisteredNotification(any(), any());
         verify(eventPublisher).publishEvent(any(AuditEvent.class));
@@ -85,8 +87,23 @@ class WebAuthnCredentialRegistrationListenerTest {
         org.mockito.Mockito.doThrow(new RuntimeException("smtp down")).when(userEmailService)
                 .sendPasskeyRegisteredNotification(any(), any());
 
-        listener().onApplicationEvent(event());
+        listener().onCredentialRegistered(event());
 
         verify(eventPublisher).publishEvent(any(AuditEvent.class));
+    }
+
+    @Test
+    @DisplayName("should react only after the enrollment transaction commits")
+    void shouldReactAfterCommit() throws NoSuchMethodException {
+        // The credential is written through a @Transactional save() that publishes the event before commit. Reacting
+        // after commit stops a rolled-back registration (e.g. a label too long for the column) from emailing the
+        // owner and recording an audit entry for a passkey that never persisted.
+        TransactionalEventListener annotation = WebAuthnCredentialRegistrationListener.class
+                .getMethod("onCredentialRegistered", WebAuthnCredentialRegisteredEvent.class)
+                .getAnnotation(TransactionalEventListener.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.phase()).isEqualTo(TransactionPhase.AFTER_COMMIT);
+        assertThat(annotation.fallbackExecution()).isTrue();
     }
 }

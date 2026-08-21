@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,10 +23,15 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.DelegatingMissingAuthorityAccessDeniedHandler;
+import org.springframework.security.web.access.RequestMatcherDelegatingAccessDeniedHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
 import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import com.digitalsanctuary.spring.user.service.DSOAuth2UserService;
 import com.digitalsanctuary.spring.user.service.DSOidcUserService;
@@ -168,10 +174,11 @@ public class WebSecurityConfig {
 			setupWebAuthn(http);
 		}
 
-		// Configure MFA if enabled
-		if (mfaConfigProperties.isEnabled()) {
-			setupMfa(http);
-		}
+		// Configure MFA if enabled. setupMfa returns its missing-authority handler instead of installing it, so the
+		// WebAuthn enrollment step-up handler below can compose over it. The access-denied handler is installed once,
+		// after both features have been configured.
+		DelegatingMissingAuthorityAccessDeniedHandler mfaAccessDeniedHandler =
+				mfaConfigProperties.isEnabled() ? setupMfa() : null;
 
 		// Close Spring Security's built-in WebAuthn credential-delete endpoint (DELETE /webauthn/register/{id}),
 		// registered by http.webAuthn(...). It deletes a passkey after checking only credential ownership, bypassing
@@ -196,6 +203,29 @@ public class WebSecurityConfig {
 				http.authorizeHttpRequests((authorize) -> authorize
 						.requestMatchers(HttpMethod.POST, "/webauthn/register").access(enrollmentGate));
 			}
+		}
+
+		// Install the access-denied handler once, composing the feature handlers so each path keeps its correct denial
+		// response. The enrollment gate denies in the filter chain, before any controller, so its denial never reaches
+		// WebAuthnManagementAPIAdvice; render it the way the credential-management endpoints render step-up (HTTP 401
+		// with the step-up-required error code) instead of a bare 403 the client cannot interpret. This must be built
+		// explicitly rather than with a single defaultAccessDeniedHandlerFor mapping: Spring collapses a lone mapping to
+		// the handler alone and drops the matcher (ExceptionHandlingConfigurer.createDefaultAccessDeniedHandler), which
+		// would make the step-up handler the app-wide default; and when MFA sets its own handler, the mapping is ignored
+		// outright. So compose a RequestMatcherDelegatingAccessDeniedHandler: enrollment POST -> step-up handler,
+		// everything else -> the MFA missing-authority handler when configured, else a plain 403.
+		AccessDeniedHandler baseAccessDeniedHandler =
+				mfaAccessDeniedHandler != null ? mfaAccessDeniedHandler : new AccessDeniedHandlerImpl();
+		if (webAuthnConfigProperties.isEnabled() && stepUpConfigProperties.isEnabled()) {
+			RequestMatcher enrollmentPost =
+					PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/webauthn/register");
+			LinkedHashMap<RequestMatcher, AccessDeniedHandler> deniedHandlers = new LinkedHashMap<>();
+			deniedHandlers.put(enrollmentPost, new StepUpEnrollmentAccessDeniedHandler(baseAccessDeniedHandler));
+			AccessDeniedHandler enrollmentAwareHandler =
+					new RequestMatcherDelegatingAccessDeniedHandler(deniedHandlers, baseAccessDeniedHandler);
+			http.exceptionHandling(handling -> handling.accessDeniedHandler(enrollmentAwareHandler));
+		} else if (mfaAccessDeniedHandler != null) {
+			http.exceptionHandling(handling -> handling.accessDeniedHandler(mfaAccessDeniedHandler));
 		}
 
 		// Configure authorization rules based on the default action
@@ -263,14 +293,15 @@ public class WebSecurityConfig {
 	/**
 	 * Setup MFA specific configuration.
 	 * <p>
-	 * Configures a {@link DelegatingMissingAuthorityAccessDeniedHandler} that redirects partially-authenticated users to
-	 * the appropriate factor login page when they are missing a required factor authority.
+	 * Builds a {@link DelegatingMissingAuthorityAccessDeniedHandler} that redirects partially-authenticated users to the
+	 * appropriate factor login page when they are missing a required factor authority. The caller installs the returned
+	 * handler (composing it with the WebAuthn enrollment step-up handler when both features are enabled), so this method
+	 * does not touch {@code http} itself.
 	 * </p>
 	 *
-	 * @param http the http security object to configure
-	 * @throws Exception the exception
+	 * @return the missing-authority access-denied handler for the configured factors
 	 */
-	private void setupMfa(HttpSecurity http) throws Exception {
+	private DelegatingMissingAuthorityAccessDeniedHandler setupMfa() {
 		DelegatingMissingAuthorityAccessDeniedHandler.Builder handlerBuilder =
 				DelegatingMissingAuthorityAccessDeniedHandler.builder();
 
@@ -287,8 +318,8 @@ public class WebSecurityConfig {
 		}
 
 		DelegatingMissingAuthorityAccessDeniedHandler handler = handlerBuilder.build();
-		http.exceptionHandling(handling -> handling.accessDeniedHandler(handler));
 		log.info("MFA configured with access denied handler for factors: {}", mfaConfigProperties.getFactors());
+		return handler;
 	}
 
 	/**

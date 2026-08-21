@@ -160,7 +160,7 @@ user:
 
 **Reserved authority names.** Do not name a role or privilege `FACTOR_*` in `user.roles-and-privileges`. Spring Security uses that prefix for factor authorities, and a plain authority with such a name is indistinguishable from a real factor by name: it satisfies MFA enforcement without the factor ever being completed, and it shadows the genuine factor in a step-up freshness check. Startup fails when such a name is configured while MFA or step-up is enabled, and logs an error otherwise.
 
-**Custom implementations.** A `StepUpService` bean supplied by your application takes precedence over the built-in one, whatever `enabled` is set to. Implement the SPI to require TOTP, a hardware token, or any other proof.
+**Custom implementations.** A `StepUpService` bean supplied by your application always replaces the built-in one (the built-in bean backs off when yours is present). Implement the SPI to require TOTP, a hardware token, or any other proof. Where that bean is consulted depends on the endpoint: `POST /user/setPassword` uses it whenever the bean is present, whatever `enabled` is set to (this is the original SPI surface from 5.3.1). The passkey delete, rename, and remove-password endpoints consult it only when `user.security.stepUp.enabled=true`, so an application that adopted the SPI for `setPassword` alone does not have step-up newly enforced on those endpoints on upgrade. To gate every credential-altering operation through your bean, set `enabled=true`.
 
 - **Allow Without Step-Up (`user.security.allowInitialPasswordSetWithoutStepUp`)**: When no `StepUpService` bean is present at all, `setPassword` is **disabled** (`HTTP 403`) unless this is `true`, which restores the previous session-only behavior. Default: `false`.
 

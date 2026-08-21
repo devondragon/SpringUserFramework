@@ -17,6 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.HtmlUtils;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.mail.MailService;
 import com.digitalsanctuary.spring.user.persistence.model.PasswordResetToken;
@@ -193,7 +194,10 @@ public class UserEmailService {
         }
         Map<String, Object> variables = new HashMap<>();
         variables.put("user", user);
-        variables.put("label", label != null ? label : "Passkey");
+        // The label is client-supplied at enrollment and the template renders it unescaped (th:utext, so the
+        // message's own <strong> markup survives). Escape it here so a crafted label cannot inject HTML into the
+        // very email that warns the owner of an unrecognized passkey.
+        variables.put("label", HtmlUtils.htmlEscape(label != null ? label : "Passkey"));
         mailService.sendTemplateMessage(user.getEmail(), "New passkey added to your account", variables,
                 "mail/webauthn-credential-registered.html");
     }
