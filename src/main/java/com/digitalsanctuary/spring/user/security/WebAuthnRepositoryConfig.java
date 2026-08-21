@@ -2,9 +2,11 @@ package com.digitalsanctuary.spring.user.security;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.web.webauthn.api.AuthenticatorTransport;
@@ -15,6 +17,7 @@ import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCose;
 import org.springframework.security.web.webauthn.api.PublicKeyCredentialType;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 import org.springframework.transaction.annotation.Transactional;
+import com.digitalsanctuary.spring.user.event.WebAuthnCredentialRegisteredEvent;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnCredential;
 import com.digitalsanctuary.spring.user.persistence.model.WebAuthnUserEntity;
 import com.digitalsanctuary.spring.user.persistence.repository.WebAuthnCredentialRepository;
@@ -47,13 +50,14 @@ public class WebAuthnRepositoryConfig {
 	 *
 	 * @param credentialRepository JPA repository for WebAuthn credentials
 	 * @param userEntityRepository JPA repository for WebAuthn user entities
+	 * @param eventPublisher publishes {@link WebAuthnCredentialRegisteredEvent} when a new credential is enrolled
 	 * @return the UserCredentialRepository instance
 	 */
 	@Bean
 	public UserCredentialRepository userCredentialRepository(WebAuthnCredentialRepository credentialRepository,
-			WebAuthnUserEntityRepository userEntityRepository) {
+			WebAuthnUserEntityRepository userEntityRepository, ApplicationEventPublisher eventPublisher) {
 		log.info("Initializing JPA-backed WebAuthn UserCredentialRepository");
-		return new JpaUserCredentialRepository(credentialRepository, userEntityRepository);
+		return new JpaUserCredentialRepository(credentialRepository, userEntityRepository, eventPublisher);
 	}
 
 	/**
@@ -65,11 +69,13 @@ public class WebAuthnRepositoryConfig {
 
 		private final WebAuthnCredentialRepository credentialRepository;
 		private final WebAuthnUserEntityRepository userEntityRepository;
+		private final ApplicationEventPublisher eventPublisher;
 
 		JpaUserCredentialRepository(WebAuthnCredentialRepository credentialRepository,
-				WebAuthnUserEntityRepository userEntityRepository) {
+				WebAuthnUserEntityRepository userEntityRepository, ApplicationEventPublisher eventPublisher) {
 			this.credentialRepository = credentialRepository;
 			this.userEntityRepository = userEntityRepository;
+			this.eventPublisher = eventPublisher;
 		}
 
 		@Override
@@ -77,7 +83,11 @@ public class WebAuthnRepositoryConfig {
 		public void save(CredentialRecord record) {
 			String credIdStr = toBase64Url(record.getCredentialId().getBytes());
 
-			WebAuthnCredential entity = credentialRepository.findById(credIdStr).orElseGet(WebAuthnCredential::new);
+			// Spring Security also saves through here on every successful assertion, to persist the updated
+			// signature count. Only an absent row is a registration; anything else is that update.
+			Optional<WebAuthnCredential> existing = credentialRepository.findById(credIdStr);
+			boolean newCredential = existing.isEmpty();
+			WebAuthnCredential entity = existing.orElseGet(WebAuthnCredential::new);
 			entity.setCredentialId(credIdStr);
 
 			// Look up the user entity
@@ -104,6 +114,11 @@ public class WebAuthnRepositoryConfig {
 			entity.setLabel(record.getLabel() != null ? record.getLabel() : "Passkey");
 
 			credentialRepository.save(entity);
+
+			if (newCredential) {
+				eventPublisher.publishEvent(new WebAuthnCredentialRegisteredEvent(this, userEntity.getUser(),
+						credIdStr, entity.getLabel()));
+			}
 		}
 
 		@Override
