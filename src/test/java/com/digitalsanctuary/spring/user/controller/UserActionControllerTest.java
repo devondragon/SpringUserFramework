@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.UserService.TokenValidationResult;
@@ -221,7 +222,9 @@ class UserActionControllerTest {
             
             // Verify interactions. The token is consumed atomically inside validateVerificationToken, so the
             // controller no longer issues a separate deleteVerificationToken call.
-            verify(userService).authWithoutPassword(testUser);
+            // Pinned per path: the verification link is possession of a one-time token, and the stamped
+            // factor is what lets the just-verified user enroll a passkey without logging out first.
+            verify(userService).authWithoutPassword(testUser, AuthWithoutPasswordFactor.EMAIL_VERIFICATION);
             verify(userVerificationService, never()).deleteVerificationToken(anyString());
 
             // Verify audit event

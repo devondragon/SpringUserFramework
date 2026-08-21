@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
 import com.digitalsanctuary.spring.user.service.UserService;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.util.JSONResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +66,8 @@ public class DevLoginController {
                             .build());
         }
 
-        userService.authWithoutPassword(user);
+        // Impersonation proves nothing about presence, so it stamps no factor.
+        userService.authWithoutPassword(user, AuthWithoutPasswordFactor.DEV_LOGIN);
         log.warn("Dev login successful for user: {}", email);
 
         return ResponseEntity.status(HttpStatus.FOUND)

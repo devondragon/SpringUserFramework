@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.TokenHasher;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -111,7 +112,8 @@ public class UserActionController {
 		if (result == TokenValidationResult.VALID) {
 			if (user != null) {
 				// The token was already consumed (deleted) atomically inside validateVerificationToken.
-				userService.authWithoutPassword(user);
+				// The user proved possession of an emailed one-time token to reach this point.
+				userService.authWithoutPassword(user, AuthWithoutPasswordFactor.EMAIL_VERIFICATION);
 
 				AuditEvent registrationAuditEvent = AuditEvent.builder().source(this).user(user)
 						.sessionId(request.getSession().getId())

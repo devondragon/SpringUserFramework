@@ -54,4 +54,16 @@ class MfaFilterMergingConfigurationTest {
                 .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean("mfaFilterMergingPostProcessor"));
         runner.run(context -> assertThat(context).hasNotFailed().doesNotHaveBean("mfaFilterMergingPostProcessor"));
     }
+
+    @Test
+    @DisplayName("Post-processor bean is also registered when only step-up is enabled")
+    void shouldRegisterPostProcessorForStepUpAlone() {
+        // Step-up refreshes a factor by re-running a login ceremony on an authenticated session. Without merging, that
+        // second authentication replaces the first and the user loses every authority the UserDetailsService does not
+        // re-supply, so enabling step-up must enable merging even with MFA off.
+        runner.withPropertyValues("user.security.step-up.enabled=true", "user.mfa.enabled=false")
+                .run(context -> assertThat(context).hasNotFailed().hasBean("mfaFilterMergingPostProcessor"));
+        runner.withPropertyValues("user.security.step-up.enabled=false", "user.mfa.enabled=false")
+                .run(context -> assertThat(context).hasNotFailed().doesNotHaveBean("mfaFilterMergingPostProcessor"));
+    }
 }

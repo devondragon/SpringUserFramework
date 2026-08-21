@@ -34,6 +34,7 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.security.StepUpService;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
@@ -367,7 +368,7 @@ public class UserAPI {
 		// report a "failed attempt" to the lockout counter below — letting any authenticated (or session-hijacking)
 		// caller lock the account out of EVERY authentication method by hitting this endpoint repeatedly. Reject up
 		// front, before the lockout logic and without touching the counter, and point the user at the set-password
-		// flow. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet and the symmetric guard in setPassword().
+		// flow. Mirrors WebAuthnManagementAPI.requireCredentialProof and the symmetric guard in setPassword().
 		if (!userService.hasPassword(user)) {
 			logAuditEvent("PasswordUpdate", "Failure", "No password set", user, request);
 			return buildErrorResponse(messages.getMessage("message.update-password.no-password", null,
@@ -376,7 +377,7 @@ public class UserAPI {
 
 		// Verifying the current password is an authentication surface, so it participates in the same brute-force
 		// lockout as login: reject a locked account up front (HTTP 423) so a session-holding actor cannot make
-		// unlimited old-password guesses here. Mirrors WebAuthnManagementAPI.requireCurrentPasswordIfSet.
+		// unlimited old-password guesses here. Mirrors WebAuthnManagementAPI.requireCredentialProof.
 		if (loginAttemptService.isLocked(user.getEmail())) {
 			logAuditEvent("PasswordUpdate", "Failure", "Account locked", user, request);
 			return buildErrorResponse(messages.getMessage("message.update-password.account-locked", null,
@@ -570,7 +571,10 @@ public class UserAPI {
 			// supplies a StepUpService, require it to pass; otherwise the endpoint is disabled by default. Set
 			// user.security.allowInitialPasswordSetWithoutStepUp=true to explicitly keep the session-only behavior.
 			final StepUpService stepUpService = stepUpServiceProvider.getIfAvailable();
-			if (stepUpService != null) {
+			// canSatisfyStepUp() separates "has not proven presence" from "could never prove it". A social-login
+			// account with no passkey falls in the second group, where denying is a dead end rather than a prompt,
+			// so step-up does not apply and allowInitialPasswordSetWithoutStepUp governs as it did before.
+			if (stepUpService != null && stepUpService.canSatisfyStepUp(user, "set-password")) {
 				if (!stepUpService.isStepUpSatisfied(user, "set-password", request)) {
 					logAuditEvent("SetPassword", "Failure", "Step-up verification failed", user, request);
 					return buildErrorResponse(messages.getMessage("message.set-password.step-up-required", null,
@@ -639,7 +643,8 @@ public class UserAPI {
 	 * @return the URI to redirect to after registration
 	 */
 	private String handleAutoLogin(User user) {
-		userService.authWithoutPassword(user);
+		// The password was submitted in the very request that produced this registration.
+		userService.authWithoutPassword(user, AuthWithoutPasswordFactor.REGISTRATION);
 		return userSecurityConfig.getRegistrationSuccessUri();
 	}
 

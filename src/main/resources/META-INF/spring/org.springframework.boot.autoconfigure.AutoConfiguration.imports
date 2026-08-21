@@ -1,5 +1,6 @@
 com.digitalsanctuary.spring.user.UserConfiguration
 com.digitalsanctuary.spring.user.audit.AuditMailAutoConfiguration
 com.digitalsanctuary.spring.user.captcha.CaptchaAutoConfiguration
+com.digitalsanctuary.spring.user.security.StepUpAutoConfiguration
 com.digitalsanctuary.spring.user.security.UserSecurityBeansAutoConfiguration
 com.digitalsanctuary.spring.user.security.WebSecurityFilterChainAutoConfiguration

@@ -212,7 +212,7 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 **Action required:** Update any client that calls the three endpoints above so that it collects the user's current password and sends it in the request body. `DELETE /user/webauthn/credentials/{id}` and `DELETE /user/webauthn/password`, which previously had no request body, now accept (and for password-holding accounts require) a JSON body carrying `currentPassword`. Existing IDOR/ownership checks and last-credential lockout protection are unchanged.
 
-**Passwordless (passkey-only) accounts — residual risk:** For accounts with no password set, there is no current credential to verify, and this library does not yet implement a WebAuthn step-up assertion (a feasible recent-authentication signal does not currently exist in the framework). As a result:
+**Passwordless (passkey-only) accounts — residual risk:** For accounts with no password set, there is no current credential to verify. The framework now ships a step-up mechanism (see *Built-in step-up* below), but it is off by default, so unless you enable `user.security.stepUp.enabled` the following still applies:
 - Deleting or renaming a passkey on a passwordless account remains a session-only operation (last-credential lockout protection and ownership checks still apply).
 - Setting an *initial* password via `POST /user/setPassword` cannot require a current password (there is none). **As of the SUF-02 hardening this endpoint is disabled by default** — it returns `HTTP 403` unless you either provide a step-up service (below) or explicitly opt into the previous behavior. It still rejects accounts that already have a password.
 
@@ -223,7 +223,26 @@ Affected endpoints (all require `user.webauthn.enabled=true` except where noted)
 
 **Action required if your application lets passwordless users set an initial password:** provide a `StepUpService` bean (recommended), or set `user.security.allowInitialPasswordSetWithoutStepUp=true`. Otherwise `POST /user/setPassword` returns `403`.
 
-Implementing a *full* WebAuthn step-up assertion (challenge/response bound to user/session/action/RP ID/origin/expiry) is tracked as separate feature work; the `StepUpService` SPI is the interim mechanism so applications can enforce their own step-up now.
+**Built-in step-up (this release).** The framework now ships a `StepUpService` of its own, off by default. Set `user.security.stepUp.enabled=true` and it requires one of `user.security.stepUp.factors` to have been issued within `user.security.stepUp.ttlSeconds` (default `120`). The user refreshes a factor by re-running that login ceremony while already logged in — for `WEBAUTHN`, the ordinary passkey assertion — so there is no new endpoint and the client reuses its existing ceremony. A `StepUpService` bean you supply still takes precedence.
+
+**Passkey enrollment is gated when step-up is enabled.** `POST /webauthn/register` now requires an authentication factor issued within `user.security.stepUp.enrollmentTtlSeconds` (default `600`). Without it the feature protected nothing: an attacker holding a session cookie could enroll their own passkey and assert with it to satisfy every other gate. Any factor counts, not the configured `factors` list, so a first passkey can still be registered after an ordinary password or social login.
+
+To make that possible, login flows that previously left no factor now stamp one: OIDC logins (`OidcAuthorizationCodeAuthenticationProvider` stamps none, unlike the password and plain-OAuth2 providers), the email-verification link (`FACTOR_OTT`), and post-registration auto-login (`FACTOR_PASSWORD`). Dev login still stamps nothing, so passkey enrollment is unavailable under `user.dev.auto-login-enabled` while step-up is on. `UserService.authWithoutPassword(User)` is unchanged for existing callers; a new overload takes the factor.
+
+**`StepUpService` gained a default method.** `canSatisfyStepUp(User)` reports whether a user could satisfy step-up at all, as opposed to whether they have. It defaults to `true`, so existing implementations compile and behave exactly as before. Override it when your mechanism depends on a credential some accounts lack: an OAuth2/OIDC account with no passkey can never produce a WebAuthn factor, and callers treat `false` as "step-up does not apply" and fall back to their configured default rather than rejecting an operation the user could never unlock. The built-in service overrides it, so with `user.security.stepUp.enabled=true` a social-login account with no passkey keeps the `allowInitialPasswordSetWithoutStepUp` behavior instead of receiving a permanent `HTTP 401` on `POST /user/setPassword`. The same applies to passkey delete and rename, which fall back to their pre-feature behavior for accounts that cannot satisfy the configured factors.
+
+If you unit-test against a mocked `StepUpService`, note that Mockito returns `false` for the unstubbed default, which makes callers skip step-up. Stub `canSatisfyStepUp(...)` to `true` in tests that are about whether step-up was *satisfied*. Real implementations inherit `true` and are unaffected.
+
+Startup now fails when `user.security.stepUp.factors` includes `WEBAUTHN` while `user.webauthn.enabled=false`, matching the existing check on `user.mfa.factors`: no account could produce that factor, so step-up would silently never apply. A `PASSWORD` factor logs a warning for the same reason, since passwordless and social-login accounts cannot satisfy it.
+
+Enabling it also gates passkey **delete and rename** on passwordless accounts, which previously required nothing beyond a session. Accounts with a password keep the current-password path unchanged. Rejections return `HTTP 401`, with error code `step-up-required` on the passkey endpoints.
+
+Two things to check before enabling it:
+
+- **Reserved authority names.** A role or privilege named `FACTOR_*` in `user.roles.roles-and-privileges` collides with Spring Security's factor authorities. Such a name satisfies MFA enforcement without the factor ever being completed, and shadows the genuine factor in a step-up freshness check. Startup now **fails** when one is present while MFA or step-up is enabled, and logs an error otherwise. The check covers both the configured names and the `role`/`privilege` tables, because `RolePrivilegeSetupService` never deletes, so a name removed from configuration survives as a row and is still granted. Rename the configured entries *and* delete the persisted rows.
+- **Factor merging.** Enabling step-up turns on `setMfaEnabled(true)` for authentication processing filters, as `user.mfa.enabled=true` already did. If your application registers its own `AbstractAuthenticationProcessingFilter`, see the warning on `MfaFilterMergingConfiguration`.
+
+See CONFIG.md for the full configuration.
 
 ### Database schema: unique role/privilege names
 

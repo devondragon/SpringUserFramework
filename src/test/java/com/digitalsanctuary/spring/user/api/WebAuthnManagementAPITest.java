@@ -17,7 +17,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
+import org.mockito.Spy;
 import org.mockito.Mock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,8 @@ import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.StepUpConfigProperties;
+import com.digitalsanctuary.spring.user.security.StepUpService;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
@@ -56,6 +60,23 @@ class WebAuthnManagementAPITest {
 
 	@Mock
 	private UserDetails userDetails;
+
+	/**
+	 * Left unstubbed on purpose: {@code getIfAvailable()} returns null, which is the shape of a deployment with step-up
+	 * disabled and no consumer-supplied service. Step-up enforcement itself is covered in
+	 * {@code WebAuthnManagementAPIStepUpTest}.
+	 */
+	@Mock
+	private ObjectProvider<StepUpService> stepUpServiceProvider;
+
+	/** Passed to the endpoints that now accept the current request; its content is never read on these paths. */
+	@Mock
+	private HttpServletRequest httpRequest;
+
+	// A real instance rather than a mock: defaults to enabled=false, which is exactly the shape this class tests,
+	// a deployment that has not switched step-up on. @InjectMocks fills @Spy fields as well as @Mock ones.
+	@Spy
+	private StepUpConfigProperties stepUpConfigProperties = new StepUpConfigProperties();
 
 	@InjectMocks
 	private WebAuthnManagementAPI api;
@@ -175,7 +196,7 @@ class WebAuthnManagementAPITest {
 			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", null);
 
 			// When
-			ResponseEntity<GenericResponse> response = api.renameCredential("cred-1", request, userDetails);
+			ResponseEntity<GenericResponse> response = api.renameCredential("cred-1", request, userDetails, httpRequest);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -194,7 +215,7 @@ class WebAuthnManagementAPITest {
 					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "currentPass");
 
 			// When
-			ResponseEntity<GenericResponse> response = api.renameCredential("cred-1", request, userDetails);
+			ResponseEntity<GenericResponse> response = api.renameCredential("cred-1", request, userDetails, httpRequest);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -215,7 +236,7 @@ class WebAuthnManagementAPITest {
 					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "currentPass");
 
 			// When & Then - locked accounts are rejected before the password is even checked.
-			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnAccountLockedException.class)
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails, httpRequest)).isInstanceOf(WebAuthnAccountLockedException.class)
 					.hasMessageContaining("locked");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 			verify(userService, never()).checkIfValidOldPassword(any(), any());
@@ -230,7 +251,7 @@ class WebAuthnManagementAPITest {
 			WebAuthnManagementAPI.RenameCredentialRequest request = new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", null);
 
 			// When & Then
-			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails, httpRequest)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("Current password is required");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 			// A missing field is a client error, not a password guess, so it must not count toward lockout.
@@ -248,7 +269,7 @@ class WebAuthnManagementAPITest {
 					new WebAuthnManagementAPI.RenameCredentialRequest("Work Laptop", "wrongPass");
 
 			// When & Then
-			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnReauthenticationException.class)
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails, httpRequest)).isInstanceOf(WebAuthnReauthenticationException.class)
 					.hasMessageContaining("Current password is incorrect");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 			// A wrong password is reported to the lockout service so repeated guesses eventually lock the account.
@@ -266,7 +287,7 @@ class WebAuthnManagementAPITest {
 					.renameCredential(eq("cred-999"), eq("New Name"), any(User.class));
 
 			// When
-			assertThatThrownBy(() -> api.renameCredential("cred-999", request, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.renameCredential("cred-999", request, userDetails, httpRequest)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("not found");
 		}
 
@@ -278,7 +299,7 @@ class WebAuthnManagementAPITest {
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
 			// When
-			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails))
+			assertThatThrownBy(() -> api.renameCredential("cred-1", request, userDetails, httpRequest))
 					.isInstanceOf(WebAuthnUserNotFoundException.class).hasMessageContaining("User not found");
 			verify(credentialManagementService, never()).renameCredential(any(), any(), any());
 		}
@@ -296,7 +317,7 @@ class WebAuthnManagementAPITest {
 			when(userService.hasPassword(testUser)).thenReturn(false);
 
 			// When
-			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", null, userDetails);
+			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", null, userDetails, httpRequest);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -314,7 +335,7 @@ class WebAuthnManagementAPITest {
 			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("currentPass");
 
 			// When
-			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", request, userDetails);
+			ResponseEntity<GenericResponse> response = api.deleteCredential("cred-1", request, userDetails, httpRequest);
 
 			// Then
 			assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -329,7 +350,7 @@ class WebAuthnManagementAPITest {
 			when(userService.hasPassword(testUser)).thenReturn(true);
 
 			// When & Then
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails, httpRequest)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("Current password is required");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
 		}
@@ -344,7 +365,7 @@ class WebAuthnManagementAPITest {
 			WebAuthnManagementAPI.CurrentPasswordRequest request = new WebAuthnManagementAPI.CurrentPasswordRequest("wrongPass");
 
 			// When & Then
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", request, userDetails)).isInstanceOf(WebAuthnReauthenticationException.class)
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", request, userDetails, httpRequest)).isInstanceOf(WebAuthnReauthenticationException.class)
 					.hasMessageContaining("Current password is incorrect");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
 		}
@@ -359,7 +380,7 @@ class WebAuthnManagementAPITest {
 					any(User.class));
 
 			// When
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails)).isInstanceOf(WebAuthnException.class)
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails, httpRequest)).isInstanceOf(WebAuthnException.class)
 					.hasMessageContaining("Cannot delete last passkey");
 		}
 
@@ -370,7 +391,7 @@ class WebAuthnManagementAPITest {
 			when(userService.findUserByEmail(testUser.getEmail())).thenReturn(null);
 
 			// When
-			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails))
+			assertThatThrownBy(() -> api.deleteCredential("cred-1", null, userDetails, httpRequest))
 					.isInstanceOf(WebAuthnUserNotFoundException.class).hasMessageContaining("User not found");
 			verify(credentialManagementService, never()).deleteCredential(any(), any());
 		}

@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.api;
 
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
@@ -19,8 +20,11 @@ import com.digitalsanctuary.spring.user.dto.WebAuthnCredentialInfo;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnAccountLockedException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnStepUpRequiredException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.StepUpConfigProperties;
+import com.digitalsanctuary.spring.user.security.StepUpService;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
@@ -61,7 +65,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>
  * <strong>Residual risk (passwordless accounts):</strong> For passwordless (passkey-only) accounts there is no current
- * password to verify, and this library does not yet implement a WebAuthn step-up assertion. Passkey delete/rename on such
+ * password to verify, and step-up is available but off by default (see {@code user.security.stepUp.enabled}). Passkey delete/rename on such
  * accounts therefore remain session-only operations. Last-credential protection still prevents lockout, and ownership
  * (IDOR) checks remain enforced in the service layer. See MIGRATION.md for details and guidance.
  * </p>
@@ -78,6 +82,10 @@ public class WebAuthnManagementAPI {
 	private final UserService userService;
 	private final ApplicationEventPublisher eventPublisher;
 	private final LoginAttemptService loginAttemptService;
+	/** Step-up service, present when the framework's built-in one is enabled or a consumer supplies one (SUF-02). */
+	private final ObjectProvider<StepUpService> stepUpServiceProvider;
+	/** Step-up configuration; the enabled flag, not bean presence, is what opts these endpoints in. */
+	private final StepUpConfigProperties stepUpConfigProperties;
 
 	/**
 	 * Get user's registered passkeys.
@@ -124,9 +132,9 @@ public class WebAuthnManagementAPI {
 	@PutMapping("/credentials/{id}/label")
 	public ResponseEntity<GenericResponse> renameCredential(@PathVariable @NotBlank @Size(max = 512) String id,
 			@RequestBody @Valid RenameCredentialRequest request,
-			@AuthenticationPrincipal UserDetails userDetails) {
+			@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpRequest) {
 		User user = findAuthenticatedUser(userDetails);
-		requireCurrentPasswordIfSet(user, request.currentPassword());
+		requireCredentialProof(user, "rename-passkey", request.currentPassword(), httpRequest);
 		credentialManagementService.renameCredential(id, request.label(), user);
 		return ResponseEntity.ok(new GenericResponse("Passkey renamed successfully"));
 	}
@@ -158,9 +166,9 @@ public class WebAuthnManagementAPI {
 	@DeleteMapping("/credentials/{id}")
 	public ResponseEntity<GenericResponse> deleteCredential(@PathVariable @NotBlank @Size(max = 512) String id,
 			@RequestBody(required = false) CurrentPasswordRequest request,
-			@AuthenticationPrincipal UserDetails userDetails) {
+			@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpRequest) {
 		User user = findAuthenticatedUser(userDetails);
-		requireCurrentPasswordIfSet(user, request != null ? request.currentPassword() : null);
+		requireCredentialProof(user, "delete-passkey", request != null ? request.currentPassword() : null, httpRequest);
 		credentialManagementService.deleteCredential(id, user);
 		return ResponseEntity.ok(new GenericResponse("Passkey deleted successfully"));
 	}
@@ -178,7 +186,7 @@ public class WebAuthnManagementAPI {
 	 * caller must supply {@code currentPassword} in the request body. The body is declared {@code required = false} so
 	 * that a missing body does not produce a generic 415/400 from the message converter; instead, a missing or empty body
 	 * is treated identically to a missing {@code currentPassword} field — both are routed through
-	 * {@link #requireCurrentPasswordIfSet} and result in HTTP 400 with the message
+	 * {@link #requireCredentialProof} and result in HTTP 400 with the message
 	 * {@code "Current password is required to change authentication methods."}. A blank or incorrect
 	 * {@code currentPassword} is likewise rejected with a 400 before any mutation occurs.
 	 * </p>
@@ -198,7 +206,7 @@ public class WebAuthnManagementAPI {
 			throw new WebAuthnException("User does not have a password to remove");
 		}
 
-		requireCurrentPasswordIfSet(user, body != null ? body.currentPassword() : null);
+		requireCredentialProof(user, "remove-password", body != null ? body.currentPassword() : null, request);
 
 		if (!credentialManagementService.hasCredentials(user)) {
 			throw new WebAuthnException("Cannot remove password. Please register a passkey first.");
@@ -247,14 +255,31 @@ public class WebAuthnManagementAPI {
 	 * </p>
 	 *
 	 * @param user the authenticated user
+	 * @param action the operation being gated, passed to the step-up service for logging (e.g. {@code delete-passkey})
 	 * @param currentPassword the current password supplied by the client (may be {@code null})
+	 * @param request the current HTTP request, so a step-up implementation can read proof supplied by the client
+	 * @throws WebAuthnStepUpRequiredException if the account is passwordless and step-up is configured but unsatisfied (HTTP 401)
 	 * @throws WebAuthnAccountLockedException if the account is locked (HTTP 423)
 	 * @throws WebAuthnReauthenticationException if the account has a password and the supplied current password is incorrect (HTTP 401)
 	 * @throws WebAuthnException if the account has a password and the current password is missing/blank (HTTP 400)
 	 */
-	private void requireCurrentPasswordIfSet(User user, String currentPassword) {
+	private void requireCredentialProof(User user, String action, String currentPassword, HttpServletRequest request) {
 		if (!userService.hasPassword(user)) {
-			// Passwordless (passkey-only) account: no current credential exists to verify. See MIGRATION.md residual-risk note.
+			// Passwordless (passkey-only) account: there is no current password to verify, so the only proof available
+			// is step-up. When no StepUpService is configured the operation proceeds as it always has; see MIGRATION.md
+			// for the residual risk that leaves.
+			// canSatisfyStepUp() first: an account holding no credential the configured factors accept could never
+			// pass the gate, so enforcing it would make the operation permanently impossible rather than prompting
+			// for a ceremony. Fall back to the pre-feature session-only behavior there (see MIGRATION.md).
+			// Keyed on the property rather than bean presence: applications that adopted the StepUpService SPI in
+			// 5.3.1 wired it for setPassword alone, and gating these endpoints off bean presence would newly enforce
+			// it for them on upgrade, with two action values their implementation never expected.
+			StepUpService stepUpService = stepUpConfigProperties.isEnabled() ? stepUpServiceProvider.getIfAvailable() : null;
+			if (stepUpService != null && stepUpService.canSatisfyStepUp(user, action)
+					&& !stepUpService.isStepUpSatisfied(user, action, request)) {
+				throw new WebAuthnStepUpRequiredException(
+						"Recent authentication is required to change authentication methods. Please verify with your passkey and retry.");
+			}
 			return;
 		}
 		if (loginAttemptService.isLocked(user.getEmail())) {

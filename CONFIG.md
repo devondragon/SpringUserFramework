@@ -125,12 +125,44 @@ user:
 
 **Client contract**: these endpoints consume JSON bodies, so the CAPTCHA token must be sent in the `X-Captcha-Token` request header (preferred) or the `cf-turnstile-response` query parameter — it cannot be added as a form field. Rejections return `HTTP 403` with a `JSONResponse` body (`code: 8`), customizable via the `message.captcha.validation-failed` message key. The site key is exposed to MVC pages as the `captchaSiteKey` model attribute. See the README's [CAPTCHA Protection](README.md#captcha-protection-cloudflare-turnstile) section for the full client-side contract, fail-closed semantics, and scope notes (login is not covered).
 
-### Passwordless Initial Password Step-Up (SUF-02)
+### Step-Up Re-Authentication (SUF-02)
 
-`POST /user/setPassword` adds an *initial* password to a passwordless (passkey-only) account. Because there is no current credential to verify, the endpoint is gated:
+Credential-altering operations on a passwordless (passkey-only) account have no current credential to verify: `POST /user/setPassword` adds an *initial* password, and passkey delete/rename change how the account authenticates. Step-up requires a recent proof of presence before those proceed.
 
-- **Step-Up Service (`com.digitalsanctuary.spring.user.security.StepUpService` SPI)**: If your application provides a `StepUpService` bean, it is **required** — `setPassword` proceeds only when `isStepUpSatisfied(user, "set-password", request)` returns `true`; otherwise it returns `HTTP 401`. Implement it to require a fresh WebAuthn assertion, TOTP, or recent-auth proof.
-- **Allow Without Step-Up (`user.security.allowInitialPasswordSetWithoutStepUp`)**: When no `StepUpService` bean is present, `setPassword` is **disabled** (`HTTP 403`) unless this is `true`, which restores the previous session-only behavior. Default: `false`.
+**How it works.** Spring Security records how a user authenticated as a factor authority carrying an issue time. Step-up requires one of the configured factors to have been issued within a short window. The user refreshes it by re-running that login ceremony while already logged in — for `WEBAUTHN`, the ordinary passkey assertion at `/login/webauthn`. There is no separate step-up endpoint, challenge store, or token, and the client reuses its existing login ceremony.
+
+```yaml
+user:
+  security:
+    stepUp:
+      enabled: false          # default
+      ttlSeconds: 120         # how recently the factor must have been issued
+      factors: [WEBAUTHN]     # any one is sufficient
+```
+
+- **Enabled (`user.security.stepUp.enabled`)**: Registers the framework's built-in `StepUpService`. Default: `false`, in which case nothing below applies and behavior is unchanged.
+- **TTL (`user.security.stepUp.ttlSeconds`)**: How recently the factor must have been issued. Default: `120`. Keep it short: within the window, one ceremony authorizes any credential-altering operation on that session.
+- **Factors (`user.security.stepUp.factors`)**: Any one satisfies step-up. Valid values: `WEBAUTHN`, `PASSWORD`, `OTT`, `AUTHORIZATION_CODE`, `SAML_RESPONSE`, `CAS`, `X509`, `BEARER`. Default: `WEBAUTHN`, the only factor whose refresh reliably proves presence — re-running an OAuth2 login typically completes with no user interaction while the identity-provider session is alive. Naming a factor your deployment never issues makes the gated operations permanently unavailable. Startup fails on an unknown name.
+
+**Client contract.** A gated operation with no sufficiently recent factor returns `HTTP 401`: `setPassword` with `JSONResponse` code `6`, passkey delete/rename with error code `step-up-required`. The client re-runs its passkey login ceremony and retries the original call.
+
+- **Enrollment window (`user.security.stepUp.enrollmentTtlSeconds`)**: How recently the user must have authenticated, by *any* means, to register a new passkey at `POST /webauthn/register`. Default: `600`. Applies only while step-up is enabled.
+
+  Enrolling a passkey is what turns a stolen session into durable access: the credential outlives a password change, since session invalidation ends sessions rather than credentials, and asserting with it refreshes `FACTOR_WEBAUTHN`. Without this gate an attacker holding only a session cookie could enroll their own authenticator and use it to satisfy step-up, so the rest of the feature would protect nothing. This mirrors GitHub's sudo mode, which asks for a password before adding a security key.
+
+  Any authentication factor counts, deliberately not the `factors` list above: with the default `[WEBAUTHN]`, requiring a configured factor would demand a passkey in order to register a first passkey. The window is longer than `ttlSeconds` because enrollment normally follows a login, a look around the settings page, and a decision, whereas a step-up ceremony immediately precedes its operation.
+
+  **Residual risk:** within this window of a genuine login, an attacker sharing the session can still enroll. The window bounds the exposure rather than eliminating it, which is the same trade-off sudo mode makes. A `PasskeyRegistration` audit event is recorded for every enrollment.
+
+**Enabling step-up also enables factor merging** (`setMfaEnabled(true)` on authentication processing filters), without which re-authenticating replaces the session's authorities instead of merging them. If your application registers its own `AbstractAuthenticationProcessingFilter`, see the warning in `MfaFilterMergingConfiguration`.
+
+**Accounts with no passkey** (OAuth-only, for example) cannot satisfy `WEBAUTHN` step-up. For them `setPassword` remains governed by `allowInitialPasswordSetWithoutStepUp` below, exactly as before.
+
+**Reserved authority names.** Do not name a role or privilege `FACTOR_*` in `user.roles-and-privileges`. Spring Security uses that prefix for factor authorities, and a plain authority with such a name is indistinguishable from a real factor by name: it satisfies MFA enforcement without the factor ever being completed, and it shadows the genuine factor in a step-up freshness check. Startup fails when such a name is configured while MFA or step-up is enabled, and logs an error otherwise.
+
+**Custom implementations.** A `StepUpService` bean supplied by your application takes precedence over the built-in one, whatever `enabled` is set to. Implement the SPI to require TOTP, a hardware token, or any other proof.
+
+- **Allow Without Step-Up (`user.security.allowInitialPasswordSetWithoutStepUp`)**: When no `StepUpService` bean is present at all, `setPassword` is **disabled** (`HTTP 403`) unless this is `true`, which restores the previous session-only behavior. Default: `false`.
 
 ### Token Security
 

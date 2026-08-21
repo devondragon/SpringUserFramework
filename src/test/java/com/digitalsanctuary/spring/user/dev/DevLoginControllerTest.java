@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.persistence.repository.UserRepository;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.service.UserService;
 import com.digitalsanctuary.spring.user.test.annotations.ServiceTest;
 import com.digitalsanctuary.spring.user.test.builders.UserTestDataBuilder;
@@ -56,7 +57,8 @@ class DevLoginControllerTest {
         ResponseEntity<JSONResponse> result = devLoginController.loginAs("dev@test.com");
 
         // Then
-        verify(userService).authWithoutPassword(enabledUser);
+        // Dev login stamps no factor: impersonation proves nothing about presence.
+        verify(userService).authWithoutPassword(enabledUser, AuthWithoutPasswordFactor.DEV_LOGIN);
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.FOUND);
         assertThat(result.getHeaders().getFirst("Location")).isEqualTo("/dashboard");
         assertThat(result.getBody()).isNull();
@@ -75,7 +77,7 @@ class DevLoginControllerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().isSuccess()).isFalse();
-        verify(userService, never()).authWithoutPassword(any());
+        verify(userService, never()).authWithoutPassword(any(), any());
     }
 
     @Test
@@ -91,7 +93,7 @@ class DevLoginControllerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(result.getBody()).isNotNull();
         assertThat(result.getBody().isSuccess()).isFalse();
-        verify(userService, never()).authWithoutPassword(any());
+        verify(userService, never()).authWithoutPassword(any(), any());
     }
 
     @Test

@@ -1,9 +1,12 @@
 package com.digitalsanctuary.spring.user.security;
 
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.boot.autoconfigure.condition.AnyNestedCondition;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ConfigurationCondition;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,14 +24,21 @@ import lombok.extern.slf4j.Slf4j;
  * </p>
  *
  * <p>
- * <b>WARNING &mdash; scope of {@code setMfaEnabled(true)}.</b> When {@code user.mfa.enabled=true}, the post-processor flips
+ * <b>Also required by step-up.</b> The framework's built-in {@link StepUpService} refreshes a factor by having the user
+ * re-run an ordinary login ceremony while already authenticated, which only preserves the session's existing authorities
+ * when this merging is active. The configuration is therefore enabled by {@code user.mfa.enabled=true} <em>or</em>
+ * {@code user.security.stepUp.enabled=true}, and the warning below applies equally to either.
+ * </p>
+ *
+ * <p>
+ * <b>WARNING &mdash; scope of {@code setMfaEnabled(true)}.</b> When this configuration is active, the post-processor flips
  * MFA mode on <em>every</em> {@link AbstractAuthenticationProcessingFilter} bean in the application context. That includes
  * any filter a <em>consuming application</em> defines that extends this base class (e.g. a custom JWT or API-key
  * authentication filter). Such a filter will then also perform SS7 factor merging: on a subsequent authentication for an
  * already-authenticated principal it rebuilds the result via {@code authenticationResult.toBuilder()...}. If that filter's
  * {@link org.springframework.security.core.Authentication} implementation does not support {@code toBuilder()}, the merge can
  * throw at runtime. Consumers enabling MFA who also register custom processing filters should be aware their filters are
- * affected. (This mirrors the framework default: it is only active when MFA is explicitly enabled.)
+ * affected. (This mirrors the framework default: it is only active when MFA or step-up is explicitly enabled.)
  * </p>
  *
  * @see MfaConfiguration
@@ -36,13 +46,33 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(name = "user.mfa.enabled", havingValue = "true", matchIfMissing = false)
+@Conditional(MfaFilterMergingConfiguration.FactorMergingEnabled.class)
 public class MfaFilterMergingConfiguration {
+
+    /**
+     * Active when either feature that depends on factor merging is switched on. Registered as a
+     * {@link ConfigurationCondition} evaluating in the {@code REGISTER_BEAN} phase, matching the phase
+     * {@code @ConditionalOnProperty} uses on a {@code @Configuration} class.
+     */
+    static final class FactorMergingEnabled extends AnyNestedCondition {
+
+        FactorMergingEnabled() {
+            super(ConfigurationPhase.REGISTER_BEAN);
+        }
+
+        @ConditionalOnProperty(name = "user.mfa.enabled", havingValue = "true", matchIfMissing = false)
+        static final class MfaEnabled {
+        }
+
+        @ConditionalOnProperty(prefix = "user.security.step-up", name = "enabled", havingValue = "true", matchIfMissing = false)
+        static final class StepUpEnabled {
+        }
+    }
 
     /**
      * Replicates the behaviour of {@code @EnableMultiFactorAuthentication}'s internal {@code EnableMfaFiltersPostProcessor}
      * using only public API, by invoking the public {@link AbstractAuthenticationProcessingFilter#setMfaEnabled(boolean)} on
-     * every authentication processing filter. Without this, completing a second factor would REPLACE the first factor's
+     * every authentication processing filter. Without this, completing a second factor (or re-asserting for step-up) would REPLACE the first factor's
      * authentication (dropping its authority) and the user could never satisfy all required factors (the H4 lockout).
      *
      * <p>
