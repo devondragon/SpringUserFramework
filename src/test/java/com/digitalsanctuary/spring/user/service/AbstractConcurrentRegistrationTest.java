@@ -1,6 +1,7 @@
 package com.digitalsanctuary.spring.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import com.digitalsanctuary.spring.user.dto.PasswordlessRegistrationDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.exceptions.UserAlreadyExistException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
@@ -181,6 +182,111 @@ abstract class AbstractConcurrentRegistrationTest {
 		}
 	}
 
+	@RepeatedTest(value = 3, name = "{displayName} [run {currentRepetition}/{totalRepetitions}]")
+	@DisplayName("should serialize concurrent duplicate passwordless registration into exactly one user and one UserAlreadyExistException")
+	void shouldSerializeConcurrentDuplicatePasswordlessRegistrationWhenTwoThreadsRaceSameEmail() throws InterruptedException {
+		final String email = "pwless-race-" + System.nanoTime() + "@test.com";
+
+		final int threadCount = 2;
+		final CountDownLatch readyLatch = new CountDownLatch(threadCount);
+		final CountDownLatch startLatch = new CountDownLatch(1);
+		final ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+		try {
+			final List<Future<RegistrationOutcome>> futures = new ArrayList<>();
+			for (int i = 0; i < threadCount; i++) {
+				futures.add(executor.submit(passwordlessRegistrationTask(email, readyLatch, startLatch)));
+			}
+
+			assertThat(readyLatch.await(30, TimeUnit.SECONDS))
+					.as("both passwordless registration threads should reach the start gate")
+					.isTrue();
+			startLatch.countDown();
+
+			final AtomicInteger successCount = new AtomicInteger();
+			final AtomicInteger alreadyExistCount = new AtomicInteger();
+			final List<Throwable> unexpectedFailures = new ArrayList<>();
+
+			for (Future<RegistrationOutcome> future : futures) {
+				final RegistrationOutcome outcome = collect(future);
+				if (outcome.user != null) {
+					successCount.incrementAndGet();
+				} else if (outcome.error instanceof UserAlreadyExistException) {
+					alreadyExistCount.incrementAndGet();
+				} else {
+					unexpectedFailures.add(outcome.error);
+				}
+			}
+
+			assertThat(unexpectedFailures)
+					.as("neither thread should fail with a raw serialization/constraint exception (it must be "
+							+ "translated to UserAlreadyExistException, not surfaced as a 500)")
+					.isEmpty();
+			assertThat(successCount.get())
+					.as("exactly one thread should successfully register the passwordless user")
+					.isEqualTo(1);
+			assertThat(alreadyExistCount.get())
+					.as("the losing thread should fail with the handled UserAlreadyExistException")
+					.isEqualTo(1);
+
+			final long rowCount = userRepository.findAll().stream()
+					.filter(u -> email.toLowerCase().equals(u.getEmail()))
+					.count();
+			assertThat(rowCount)
+					.as("the database must contain EXACTLY ONE user row for the raced email")
+					.isEqualTo(1);
+		} finally {
+			executor.shutdownNow();
+		}
+	}
+
+	@RepeatedTest(value = 3, name = "{displayName} [run {currentRepetition}/{totalRepetitions}]")
+	@DisplayName("should register every passwordless user when threads race with different emails")
+	void shouldRegisterEveryPasswordlessUserWhenThreadsRaceDifferentEmails() throws InterruptedException {
+		// Distinct emails cannot conflict logically, but their SERIALIZABLE transactions can still deadlock on
+		// index gap locks. Before the passwordless serialization retry existed, that deadlock surfaced as a
+		// generic 500 System Error on POST /user/registration/passwordless (issue #368).
+		final int threadCount = 6;
+		final CountDownLatch readyLatch = new CountDownLatch(threadCount);
+		final CountDownLatch startLatch = new CountDownLatch(1);
+		final ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+
+		try {
+			final List<String> emails = new ArrayList<>();
+			final List<Future<RegistrationOutcome>> futures = new ArrayList<>();
+			for (int i = 0; i < threadCount; i++) {
+				final String email = "pwless-distinct-" + i + "-" + System.nanoTime() + "@test.com";
+				emails.add(email);
+				futures.add(executor.submit(passwordlessRegistrationTask(email, readyLatch, startLatch)));
+			}
+
+			assertThat(readyLatch.await(30, TimeUnit.SECONDS))
+					.as("all passwordless registration threads should reach the start gate")
+					.isTrue();
+			startLatch.countDown();
+
+			final List<Throwable> failures = new ArrayList<>();
+			for (Future<RegistrationOutcome> future : futures) {
+				final RegistrationOutcome outcome = collect(future);
+				if (outcome.user == null) {
+					failures.add(outcome.error);
+				}
+			}
+
+			assertThat(failures)
+					.as("every distinct-email passwordless registration must succeed — a deadlock between them "
+							+ "must be retried, never surfaced as a 500")
+					.isEmpty();
+			for (String email : emails) {
+				assertThat(userRepository.findByEmail(email.toLowerCase()))
+						.as("passwordless user row should exist for %s", email)
+						.isNotNull();
+			}
+		} finally {
+			executor.shutdownNow();
+		}
+	}
+
 	private Callable<RegistrationOutcome> registrationTask(final String email, final CountDownLatch readyLatch,
 			final CountDownLatch startLatch) {
 		return () -> {
@@ -198,6 +304,27 @@ abstract class AbstractConcurrentRegistrationTest {
 
 			try {
 				return RegistrationOutcome.success(userService.registerNewUserAccount(dto));
+			} catch (Throwable t) {
+				return RegistrationOutcome.failure(t);
+			}
+		};
+	}
+
+	private Callable<RegistrationOutcome> passwordlessRegistrationTask(final String email, final CountDownLatch readyLatch,
+			final CountDownLatch startLatch) {
+		return () -> {
+			final PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+			dto.setFirstName("Race");
+			dto.setLastName("Condition");
+			dto.setEmail(email);
+
+			readyLatch.countDown();
+			if (!startLatch.await(30, TimeUnit.SECONDS)) {
+				throw new IllegalStateException("start gate was never opened");
+			}
+
+			try {
+				return RegistrationOutcome.success(userService.registerPasswordlessAccount(dto));
 			} catch (Throwable t) {
 				return RegistrationOutcome.failure(t);
 			}
