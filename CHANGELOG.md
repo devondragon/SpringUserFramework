@@ -4,6 +4,50 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+## [5.3.3] - 2026-08-20
+
+This release adds an opt‑in, built‑in step‑up re‑authentication gate for credential‑altering operations and records/announces every passkey enrollment. It also hardens MFA/step‑up enforcement against counterfeit “FACTOR_*” authorities and extends login flows to stamp a factor so first‑passkey setups can proceed under step‑up.
+
+SemVer classification: minor — introduces new public configuration keys and a built‑in StepUpService implementation while remaining backward compatible by default (feature is off until enabled; existing SPI implementations continue to work).
+
+### Security
+- Rejects counterfeit factor authorities: FactorAuthorityNameValidator now forbids any role or privilege named with the FACTOR_ prefix when MFA or step‑up is enabled. Such names could satisfy factor‑presence checks without a completed ceremony and shadow a real factor in freshness checks, enabling an authentication bypass. Startup now fails when detected (and logs an error otherwise); remove/rename any FACTOR_* entries in configuration and from the role/privilege tables.
+- Detective control for passkey enrollment: every new WebAuthn credential triggers a PasskeyRegistration audit event and, by default, an owner email. Enrolling a passkey creates a durable login path that survives a password change; surfacing it reduces dwell time if an attacker added it.
+
+### Behavior changes (client impact)
+- With user.security.stepUp.enabled=true:
+  - PUT /user/webauthn/credentials/{id}/label and DELETE /user/webauthn/credentials/{id} on passwordless accounts will return HTTP 401 when the user has not recently re‑authenticated. The JSON body includes code "step-up-required" (string) so clients can prompt for a passkey assertion and retry. Accounts with a password keep the existing currentPassword contract (HTTP 400 for missing/blank, 401 for wrong, 423 for locked).
+  - POST /user/setPassword will return HTTP 401 with JSONResponse code 6 when step‑up is required and unsatisfied. Clients should re‑run the user’s ordinary login ceremony (for WEBAUTHN, the existing passkey login) and retry.
+  - POST /webauthn/register (Spring Security endpoint) now requires a recent authentication within user.security.stepUp.enrollmentTtlSeconds; clients may need to have the user re‑authenticate if they linger before enrolling a key.
+- New emails on passkey registration: when user.webauthn.enabled=true, the framework now emails the account owner on every new passkey by default. Set user.webauthn.notifyOnRegistration=false to opt out (the PasskeyRegistration audit event is always recorded).
+- Enabling step‑up also enables factor authority merging on authentication filters. If your application registers a custom AbstractAuthenticationProcessingFilter, review MfaFilterMergingConfiguration notes to ensure re‑authentication merges rather than replaces authorities.
+- Dev auto‑login stamps no factor by design; with step‑up enabled, passkey enrollment is unavailable under user.dev.auto-login-enabled until the user performs a real login that stamps a factor.
+
+### Features
+- Built‑in step‑up re‑authentication:
+  - New properties under user.security.stepUp:
+    - user.security.stepUp.enabled=false (default) — turns on the framework’s StepUpService if no application bean is provided.
+    - user.security.stepUp.ttlSeconds=120 — how recently a factor must have been issued.
+    - user.security.stepUp.factors=[WEBAUTHN] — any one satisfies step‑up; unknown or empty names fail startup. Startup also fails if WEBAUTHN is listed while user.webauthn.enabled=false; PASSWORD factors log a warning for accounts that can’t satisfy them.
+    - user.security.stepUp.enrollmentTtlSeconds=600 — how recently the user must have authenticated (by any method) to enroll a new passkey at POST /webauthn/register.
+  - The ceremony is simply the existing login run again; no new endpoints, challenge stores, or tokens. Factor freshness and merging behavior are enforced by DSFactorFreshnessStepUpService and FreshFactorAuthorizationManager when enabled.
+  - StepUpService SPI gains default boolean canSatisfyStepUp(User, action) so callers can distinguish “hasn’t re‑authenticated yet” from “can’t ever satisfy this.” Existing implementations compile and behave unchanged; a consumer‑supplied StepUpService still takes precedence over the built‑in one.
+  - Passkey delete/rename now key off the step‑up enabled property (not bean presence) so apps that adopted the SPI for POST /user/setPassword alone see no new gates unless they opt in.
+  - WebAuthnManagementAPI maps unsatisfied step‑up on passkey operations to HTTP 401 with code "step-up-required"; clients can detect this and trigger a passkey assertion, then retry.
+- Broadened factor stamping to support first‑passkey setup under step‑up:
+  - Email verification and post‑registration auto‑login now stamp a factor on the session; re‑asserting while authenticated merges and refreshes its issue time. OIDC still stamped none previously and is now aligned. Dev login continues to stamp none.
+- Passkey enrollment audit and notification:
+  - New WebAuthnCredentialRegisteredEvent is emitted on genuine credential creation (not on signature‑counter updates); WebAuthnCredentialRegistrationListener records a PasskeyRegistration audit event and emails the owner.
+  - New property user.webauthn.notifyOnRegistration=true gates email only; audit logging is unconditional and resilient to mail failures.
+
+### Documentation
+- CONFIG.md and MIGRATION.md: document built‑in step‑up, factor freshness, enrollment window, merging behavior, reserved FACTOR_* names, and client/server contracts (including HTTP 401 and response code behaviors).
+- README: align install snippets to 5.3.2.
+
+### Testing
+- Added integration and unit tests pinning step‑up factor freshness/merging behavior, passkey operation gating (including the 401 "step-up-required" response), enrollment gating, and reserved FACTOR_* validation.
+- Tests for credential‑registration auditing and notification ensure events fire only on true registrations and that audit logging survives mail failures.
+
 ## [5.3.2] - 2026-08-20
 
 This release closes a missing-authorization vulnerability by denying Spring Security’s built‑in WebAuthn credential‑delete endpoint and channeling all passkey deletion through the framework’s safeguarded API. It also updates migration guidance and aligns README install snippets, with additional tests pinning factor-freshness behavior for prospective step‑up use.
