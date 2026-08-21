@@ -239,7 +239,7 @@ Enabling it also gates passkey **delete and rename** on passwordless accounts, w
 
 Two things to check before enabling it:
 
-- **Reserved authority names.** A role or privilege named `FACTOR_*` in `user.roles-and-privileges` collides with Spring Security's factor authorities. Such a name satisfies MFA enforcement without the factor ever being completed, and shadows the genuine factor in a step-up freshness check. Startup now **fails** when one is configured while MFA or step-up is enabled, and logs an error otherwise. Rename them.
+- **Reserved authority names.** A role or privilege named `FACTOR_*` in `user.roles.roles-and-privileges` collides with Spring Security's factor authorities. Such a name satisfies MFA enforcement without the factor ever being completed, and shadows the genuine factor in a step-up freshness check. Startup now **fails** when one is present while MFA or step-up is enabled, and logs an error otherwise. The check covers both the configured names and the `role`/`privilege` tables, because `RolePrivilegeSetupService` never deletes, so a name removed from configuration survives as a row and is still granted. Rename the configured entries *and* delete the persisted rows.
 - **Factor merging.** Enabling step-up turns on `setMfaEnabled(true)` for authentication processing filters, as `user.mfa.enabled=true` already did. If your application registers its own `AbstractAuthenticationProcessingFilter`, see the warning on `MfaFilterMergingConfiguration`.
 
 See CONFIG.md for the full configuration.

@@ -51,6 +51,22 @@ class StepUpAutoConfigurationTest {
     }
 
     @Test
+    @DisplayName("should fail startup when the step-up TTL is not positive")
+    void shouldFailStartupForNonPositiveTtl() {
+        // A zero or negative TTL makes every factor instantly stale, so every gated operation denies forever with a
+        // debug log as the only signal. @Min(1) only runs because the class is @Validated.
+        runner.withPropertyValues("user.security.step-up.enabled=true", "user.security.step-up.ttlSeconds=0")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    @DisplayName("should fail startup when the enrollment TTL is not positive")
+    void shouldFailStartupForNonPositiveEnrollmentTtl() {
+        runner.withPropertyValues("user.security.step-up.enabled=true", "user.security.step-up.enrollmentTtlSeconds=-1")
+                .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
     @DisplayName("should answer satisfiability from the WebAuthn credential service when one is present")
     void shouldDelegateSatisfiabilityToTheCredentialService() {
         // Pins the auto-configuration's lambda: the built-in service must read real credential state, not a constant.

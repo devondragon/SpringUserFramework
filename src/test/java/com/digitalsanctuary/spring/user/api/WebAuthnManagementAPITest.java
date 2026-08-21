@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
+import org.mockito.Spy;
 import org.mockito.Mock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,6 +31,7 @@ import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.StepUpConfigProperties;
 import com.digitalsanctuary.spring.user.security.StepUpService;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -70,6 +72,11 @@ class WebAuthnManagementAPITest {
 	/** Passed to the endpoints that now accept the current request; its content is never read on these paths. */
 	@Mock
 	private HttpServletRequest httpRequest;
+
+	// A real instance rather than a mock: defaults to enabled=false, which is exactly the shape this class tests,
+	// a deployment that has not switched step-up on. @InjectMocks fills @Spy fields as well as @Mock ones.
+	@Spy
+	private StepUpConfigProperties stepUpConfigProperties = new StepUpConfigProperties();
 
 	@InjectMocks
 	private WebAuthnManagementAPI api;

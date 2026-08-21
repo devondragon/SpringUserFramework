@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnAccountLockedException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationException;
+import com.digitalsanctuary.spring.user.exceptions.WebAuthnStepUpRequiredException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.util.GenericResponse;
 
@@ -34,6 +35,31 @@ class WebAuthnManagementAPIAdviceTest {
         ResponseEntity<GenericResponse> response =
                 advice.handleReauthenticationFailure(new WebAuthnReauthenticationException("Current password is incorrect."));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("step-up required -> 401 Unauthorized with the step-up-required error code")
+    void stepUpRequiredMapsToUnauthorizedWithErrorCode() {
+        ResponseEntity<GenericResponse> response = advice
+                .handleStepUpRequired(new WebAuthnStepUpRequiredException("Recent authentication is required."));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        // The distinct code is the whole reason this exception type exists: it tells a client to re-run its login
+        // ceremony rather than prompt for a password the account may not have.
+        assertThat(response.getBody().getError()).isEqualTo(WebAuthnStepUpRequiredException.ERROR_CODE);
+    }
+
+    @Test
+    @DisplayName("step-up required is handled by its own mapping, not the base WebAuthnException one")
+    void stepUpRequiredDoesNotFallThroughToBaseHandler() {
+        // WebAuthnStepUpRequiredException extends WebAuthnException. If the specific @ExceptionHandler were removed,
+        // Spring would route it to handleWebAuthnError and the client would see 400 with a null error code.
+        ResponseEntity<GenericResponse> viaBase =
+                advice.handleWebAuthnError(new WebAuthnStepUpRequiredException("Recent authentication is required."));
+
+        assertThat(viaBase.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(advice.handleStepUpRequired(new WebAuthnStepUpRequiredException("x")).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test

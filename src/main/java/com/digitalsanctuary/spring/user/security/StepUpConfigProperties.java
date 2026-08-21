@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.security.core.authority.FactorGrantedAuthority;
 import jakarta.validation.constraints.Min;
 import lombok.Data;
@@ -24,6 +25,7 @@ import lombok.Data;
  * </p>
  */
 @Data
+@Validated
 @ConfigurationProperties(prefix = "user.security.step-up")
 public class StepUpConfigProperties {
 

@@ -23,6 +23,7 @@ import com.digitalsanctuary.spring.user.exceptions.WebAuthnReauthenticationExcep
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnStepUpRequiredException;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnUserNotFoundException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.StepUpConfigProperties;
 import com.digitalsanctuary.spring.user.security.StepUpService;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -83,6 +84,8 @@ public class WebAuthnManagementAPI {
 	private final LoginAttemptService loginAttemptService;
 	/** Step-up service, present when the framework's built-in one is enabled or a consumer supplies one (SUF-02). */
 	private final ObjectProvider<StepUpService> stepUpServiceProvider;
+	/** Step-up configuration; the enabled flag, not bean presence, is what opts these endpoints in. */
+	private final StepUpConfigProperties stepUpConfigProperties;
 
 	/**
 	 * Get user's registered passkeys.
@@ -268,7 +271,10 @@ public class WebAuthnManagementAPI {
 			// canSatisfyStepUp() first: an account holding no credential the configured factors accept could never
 			// pass the gate, so enforcing it would make the operation permanently impossible rather than prompting
 			// for a ceremony. Fall back to the pre-feature session-only behavior there (see MIGRATION.md).
-			StepUpService stepUpService = stepUpServiceProvider.getIfAvailable();
+			// Keyed on the property rather than bean presence: applications that adopted the StepUpService SPI in
+			// 5.3.1 wired it for setPassword alone, and gating these endpoints off bean presence would newly enforce
+			// it for them on upgrade, with two action values their implementation never expected.
+			StepUpService stepUpService = stepUpConfigProperties.isEnabled() ? stepUpServiceProvider.getIfAvailable() : null;
 			if (stepUpService != null && stepUpService.canSatisfyStepUp(user, action)
 					&& !stepUpService.isStepUpSatisfied(user, action, request)) {
 				throw new WebAuthnStepUpRequiredException(

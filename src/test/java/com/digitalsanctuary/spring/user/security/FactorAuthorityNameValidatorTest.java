@@ -1,12 +1,19 @@
 package com.digitalsanctuary.spring.user.security;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.ObjectProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.digitalsanctuary.spring.user.persistence.model.Privilege;
+import com.digitalsanctuary.spring.user.persistence.model.Role;
+import com.digitalsanctuary.spring.user.persistence.repository.PrivilegeRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 
 /**
@@ -82,10 +89,73 @@ class FactorAuthorityNameValidatorTest {
     }
 
     private static FactorAuthorityNameValidator validator(RolesAndPrivilegesConfig config, boolean mfaEnabled, boolean stepUpEnabled) {
+        return validator(config, mfaEnabled, stepUpEnabled, List.of(), List.of());
+    }
+
+    private static FactorAuthorityNameValidator validator(RolesAndPrivilegesConfig config, boolean mfaEnabled,
+            boolean stepUpEnabled, List<String> persistedRoles, List<String> persistedPrivileges) {
         MfaConfigProperties mfa = new MfaConfigProperties();
         mfa.setEnabled(mfaEnabled);
         StepUpConfigProperties stepUp = new StepUpConfigProperties();
         stepUp.setEnabled(stepUpEnabled);
-        return new FactorAuthorityNameValidator(config, mfa, stepUp);
+        return new FactorAuthorityNameValidator(config, mfa, stepUp, provider(roleRows(persistedRoles)),
+                provider(privilegeRows(persistedPrivileges)));
+    }
+
+    private static List<Role> roleRows(List<String> names) {
+        return names.stream().map(name -> {
+            Role role = new Role();
+            role.setName(name);
+            return role;
+        }).toList();
+    }
+
+    private static List<Privilege> privilegeRows(List<String> names) {
+        return names.stream().map(name -> {
+            Privilege privilege = new Privilege();
+            privilege.setName(name);
+            return privilege;
+        }).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> ObjectProvider<T> provider(List<?> rows) {
+        ObjectProvider<T> provider = mock(ObjectProvider.class);
+        Object repository = rows.isEmpty() ? null : repositoryReturning(rows);
+        when(provider.getIfAvailable()).thenReturn((T) repository);
+        return provider;
+    }
+
+    private static Object repositoryReturning(List<?> rows) {
+        if (rows.get(0) instanceof Role) {
+            RoleRepository repository = mock(RoleRepository.class);
+            when(repository.findAll()).thenReturn((List<Role>) rows);
+            return repository;
+        }
+        PrivilegeRepository repository = mock(PrivilegeRepository.class);
+        when(repository.findAll()).thenReturn((List<Privilege>) rows);
+        return repository;
+    }
+
+    @Test
+    @DisplayName("should reject a reserved name persisted in the database but absent from configuration")
+    void shouldRejectReservedNamePersistedButNotConfigured() {
+        // RolePrivilegeSetupService never deletes, so a FACTOR_-prefixed row created under an earlier configuration
+        // survives its removal from YAML and is still granted by AuthorityService. Checking configuration alone
+        // reports clean while the counterfeit authority is live.
+        FactorAuthorityNameValidator validator =
+                validator(new RolesAndPrivilegesConfig(), true, false, List.of("FACTOR_WEBAUTHN"), List.of());
+
+        assertThat(validator.findOffendingNames()).containsExactly("FACTOR_WEBAUTHN");
+        assertThatThrownBy(validator::validateAuthorityNames).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("should reject a reserved privilege name persisted in the database")
+    void shouldRejectReservedPrivilegePersisted() {
+        FactorAuthorityNameValidator validator =
+                validator(new RolesAndPrivilegesConfig(), false, true, List.of(), List.of("FACTOR_OTT"));
+
+        assertThat(validator.findOffendingNames()).containsExactly("FACTOR_OTT");
     }
 }

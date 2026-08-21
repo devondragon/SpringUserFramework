@@ -20,6 +20,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.userdetails.UserDetails;
 import com.digitalsanctuary.spring.user.exceptions.WebAuthnStepUpRequiredException;
 import com.digitalsanctuary.spring.user.persistence.model.User;
+import com.digitalsanctuary.spring.user.security.StepUpConfigProperties;
 import com.digitalsanctuary.spring.user.security.StepUpService;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
 import com.digitalsanctuary.spring.user.service.UserService;
@@ -62,6 +63,8 @@ class WebAuthnManagementAPIStepUpTest {
 
     private WebAuthnManagementAPI api;
 
+    private StepUpConfigProperties stepUpConfig;
+
     private User testUser;
 
     private final MockHttpServletRequest request = new MockHttpServletRequest();
@@ -69,8 +72,11 @@ class WebAuthnManagementAPIStepUpTest {
     @BeforeEach
     void setUp() {
         testUser = TestFixtures.Users.standardUser();
+        stepUpConfig = new StepUpConfigProperties();
+        // These tests are about a deployment that has switched step-up on; the disabled case is covered explicitly.
+        stepUpConfig.setEnabled(true);
         api = new WebAuthnManagementAPI(credentialManagementService, userService, eventPublisher, loginAttemptService,
-                stepUpServiceProvider);
+                stepUpServiceProvider, stepUpConfig);
         when(userDetails.getUsername()).thenReturn(testUser.getEmail());
         when(userService.findUserByEmail(testUser.getEmail())).thenReturn(testUser);
         // Passwordless (passkey-only) account: the case step-up exists for.
@@ -160,4 +166,25 @@ class WebAuthnManagementAPIStepUpTest {
             verify(credentialManagementService).deleteCredential("cred-1", testUser);
         }
     }
+
+    @Nested
+    @DisplayName("Step-up bean present but not enabled")
+    class StepUpNotEnabledTests {
+
+        @Test
+        @DisplayName("should not gate passkey deletion for a consumer SPI bean when step-up is not enabled")
+        void shouldNotGateWhenStepUpDisabled() {
+            // Applications that adopted the StepUpService SPI in 5.3.1 wired it for setPassword, the only thing it
+            // gated then. Keying these endpoints off bean presence would newly enforce it for them on upgrade,
+            // against an implementation never written for these two action values. The opt-in is the property.
+            stepUpConfig.setEnabled(false);
+
+            api.deleteCredential("cred-1", null, userDetails, request);
+
+            verify(stepUpService, never()).isStepUpSatisfied(any(), any(), any());
+            verify(stepUpService, never()).canSatisfyStepUp(any(), any());
+            verify(credentialManagementService).deleteCredential("cred-1", testUser);
+        }
+    }
+
 }

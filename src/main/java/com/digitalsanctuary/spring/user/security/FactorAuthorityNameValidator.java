@@ -1,11 +1,18 @@
 package com.digitalsanctuary.spring.user.security;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
+import com.digitalsanctuary.spring.user.persistence.model.Privilege;
+import com.digitalsanctuary.spring.user.persistence.model.Role;
+import com.digitalsanctuary.spring.user.persistence.repository.PrivilegeRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +43,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class FactorAuthorityNameValidator {
+public class FactorAuthorityNameValidator implements ApplicationListener<ContextRefreshedEvent> {
 
     /** Prefix Spring Security reserves for authentication-factor authorities. */
     static final String FACTOR_PREFIX = "FACTOR_";
@@ -44,24 +51,37 @@ public class FactorAuthorityNameValidator {
     private final RolesAndPrivilegesConfig rolesAndPrivilegesConfig;
     private final MfaConfigProperties mfaConfigProperties;
     private final StepUpConfigProperties stepUpConfigProperties;
+    private final ObjectProvider<RoleRepository> roleRepositoryProvider;
+    private final ObjectProvider<PrivilegeRepository> privilegeRepositoryProvider;
 
     /**
      * Runs the check at startup.
      *
+     * <p>
+     * Driven by {@code ContextRefreshedEvent} rather than {@code @PostConstruct}: nothing injects this bean, so under
+     * {@code spring.main.lazy-initialization=true} a construction-time callback would never fire and the check would
+     * silently not run. It also puts the check after {@code RolePrivilegeSetupService}, which creates the rows.
+     * </p>
+     *
      * @throws IllegalStateException if a configured role or privilege name starts with {@code FACTOR_} while MFA or
      *         step-up is enabled
      */
-    @PostConstruct
+    @Override
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        validateAuthorityNames();
+    }
+
     public void validateAuthorityNames() {
         List<String> offenders = findOffendingNames();
         if (offenders.isEmpty()) {
             return;
         }
 
-        String message = "user.roles-and-privileges declares " + offenders + ", which collide with Spring Security's reserved "
+        String message = "Reserved authority names in use: " + offenders + ". These collide with Spring Security's reserved "
                 + FACTOR_PREFIX + "* authentication-factor authorities. A granted authority with such a name is indistinguishable "
                 + "from a real factor by name: it satisfies MFA enforcement without the factor ever being completed, and it shadows "
-                + "the genuine factor in a step-up freshness check. Rename these roles/privileges.";
+                + "the genuine factor in a step-up freshness check. Rename them in user.roles.roles-and-privileges, and delete "
+                + "any matching row already persisted in the role or privilege table.";
 
         if (mfaConfigProperties.isEnabled() || stepUpConfigProperties.isEnabled()) {
             throw new IllegalStateException(message);
@@ -79,7 +99,25 @@ public class FactorAuthorityNameValidator {
         Set<String> offenders = new TreeSet<>();
         rolesAndPrivilegesConfig.getRolesAndPrivileges().forEach((role, privileges) -> Stream
                 .concat(Stream.of(role), privileges == null ? Stream.<String>empty() : privileges.stream())
-                .filter(name -> name != null && name.toUpperCase().startsWith(FACTOR_PREFIX)).forEach(offenders::add));
+                .filter(FactorAuthorityNameValidator::isReserved).forEach(offenders::add));
+
+        // Configuration is not the whole authority space. AuthorityService grants from the role and privilege
+        // tables, and RolePrivilegeSetupService never deletes, so a FACTOR_-prefixed row created under an earlier
+        // configuration survives its removal from YAML and is still granted while the config check reports clean.
+        RoleRepository roleRepository = roleRepositoryProvider.getIfAvailable();
+        if (roleRepository != null) {
+            roleRepository.findAll().stream().map(Role::getName).filter(FactorAuthorityNameValidator::isReserved)
+                    .forEach(offenders::add);
+        }
+        PrivilegeRepository privilegeRepository = privilegeRepositoryProvider.getIfAvailable();
+        if (privilegeRepository != null) {
+            privilegeRepository.findAll().stream().map(Privilege::getName)
+                    .filter(FactorAuthorityNameValidator::isReserved).forEach(offenders::add);
+        }
         return List.copyOf(offenders);
+    }
+
+    private static boolean isReserved(String name) {
+        return name != null && name.toUpperCase(Locale.ROOT).startsWith(FACTOR_PREFIX);
     }
 }

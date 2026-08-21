@@ -12,6 +12,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
+import com.digitalsanctuary.spring.user.persistence.repository.PrivilegeRepository;
+import com.digitalsanctuary.spring.user.persistence.repository.RoleRepository;
 import com.digitalsanctuary.spring.user.roles.RolesAndPrivilegesConfig;
 import com.digitalsanctuary.spring.user.service.WebAuthnCredentialManagementService;
 import lombok.extern.slf4j.Slf4j;
@@ -72,13 +74,19 @@ public class StepUpAutoConfiguration {
      * @param rolesAndPrivilegesConfig the configured roles and privileges
      * @param mfaConfigProperties the MFA configuration
      * @param stepUpConfigProperties the step-up configuration
+     * @param roleRepositoryProvider provides the role table, so names persisted under an earlier configuration are
+     *        caught as well as those currently declared
+     * @param privilegeRepositoryProvider provides the privilege table, for the same reason
      * @return the validator
      */
     @Bean
     @ConditionalOnMissingBean(FactorAuthorityNameValidator.class)
     public FactorAuthorityNameValidator factorAuthorityNameValidator(RolesAndPrivilegesConfig rolesAndPrivilegesConfig,
-            MfaConfigProperties mfaConfigProperties, StepUpConfigProperties stepUpConfigProperties) {
-        return new FactorAuthorityNameValidator(rolesAndPrivilegesConfig, mfaConfigProperties, stepUpConfigProperties);
+            MfaConfigProperties mfaConfigProperties, StepUpConfigProperties stepUpConfigProperties,
+            ObjectProvider<RoleRepository> roleRepositoryProvider,
+            ObjectProvider<PrivilegeRepository> privilegeRepositoryProvider) {
+        return new FactorAuthorityNameValidator(rolesAndPrivilegesConfig, mfaConfigProperties, stepUpConfigProperties,
+                roleRepositoryProvider, privilegeRepositoryProvider);
     }
 
     /**
