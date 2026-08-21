@@ -6,6 +6,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -354,15 +355,15 @@ public class UserService {
 
 		// Persist through the proxy so the SERIALIZABLE transaction actually applies (a direct
 		// this.persistNewUserAccount(...) self-invocation would bypass the proxy and run no transaction).
-		User saved = persistWithSerializationRetry(user);
+		User saved = persistWithSerializationRetry(user, p -> self.persistNewUserAccount(p));
 		// authWithoutPassword(saved);
 		timeLogger.end();
 		return saved;
 	}
 
 	/**
-	 * Invokes {@link #persistNewUserAccount(User)} through the proxy, retrying when the SERIALIZABLE
-	 * transaction fails to serialize (deadlock / lock-acquisition failure,
+	 * Invokes a proxied {@code @Transactional(SERIALIZABLE)} persist method through the proxy, retrying
+	 * when the transaction fails to serialize (deadlock / lock-acquisition failure,
 	 * {@link ConcurrencyFailureException}).
 	 *
 	 * <p>
@@ -375,12 +376,21 @@ public class UserService {
 	 * (HTTP 500) instead of being misreported as an existing account while no account was created.
 	 * </p>
 	 *
-	 * @param user the fully built user entity (password already encoded)
+	 * <p>
+	 * The {@code persister} is a call through {@link #self} to the appropriate proxied persist method
+	 * ({@link #persistNewUserAccount(User)} for password accounts,
+	 * {@link #persistNewPasswordlessAccount(User)} for passwordless accounts); routing through the
+	 * proxy is what makes the SERIALIZABLE transaction actually apply on each attempt.
+	 * </p>
+	 *
+	 * @param prototype the fully built user entity (password already encoded, or {@code null} for
+	 *                  passwordless)
+	 * @param persister the proxied persist call to run for each attempt
 	 * @return the saved user entity
 	 * @throws UserAlreadyExistException if an account with the same email already exists
 	 * @throws ConcurrencyFailureException if every attempt fails to serialize
 	 */
-	private User persistWithSerializationRetry(final User prototype) {
+	private User persistWithSerializationRetry(final User prototype, final Function<User, User> persister) {
 		ConcurrencyFailureException lastFailure = null;
 		for (int attempt = 1; attempt <= REGISTRATION_SERIALIZATION_ATTEMPTS; attempt++) {
 			try {
@@ -388,7 +398,7 @@ public class UserService {
 				// carrying persistence state (a generated id, Hibernate-managed collections such as
 				// passwordHistoryEntries), and re-saving that instance fails with optimistic-locking or
 				// orphan-delete errors instead of performing a clean INSERT.
-				return self.persistNewUserAccount(copyForInsert(prototype));
+				return persister.apply(copyForInsert(prototype));
 			} catch (ConcurrencyFailureException e) {
 				lastFailure = e;
 				log.warn("UserService.persistWithSerializationRetry: serialization failure on attempt {}/{} for email {}: {}",
@@ -412,8 +422,10 @@ public class UserService {
 
 	/**
 	 * Copies the registration-relevant fields onto a new transient {@link User} for a persist attempt.
-	 * Only the fields set by {@link #registerNewUserAccount(UserDto)} are copied; everything else keeps
-	 * its entity default, exactly as on a first attempt.
+	 * Only the fields set by the registration entry points ({@link #registerNewUserAccount(UserDto)} and
+	 * {@link #registerPasswordlessAccount(PasswordlessRegistrationDto)}) are copied; everything else
+	 * keeps its entity default, exactly as on a first attempt. The password is copied verbatim, which is
+	 * {@code null} for a passwordless account.
 	 *
 	 * @param prototype the user carrying the registration data
 	 * @return a fresh transient copy safe to persist
@@ -985,13 +997,32 @@ public class UserService {
 
 	/**
 	 * Registers a new passwordless user account (no password).
-	 * Uses SERIALIZABLE isolation to prevent race conditions during concurrent registration.
+	 *
+	 * <p>
+	 * The DB write runs with {@link Isolation#SERIALIZABLE} isolation to close the
+	 * duplicate-registration race when two requests register the same email concurrently: a losing
+	 * duplicate insert ({@link DataIntegrityViolationException}) is translated into a
+	 * {@link UserAlreadyExistException} (HTTP 409). A serialization failure
+	 * ({@link CannotAcquireLockException} / {@link ConcurrencyFailureException}) — which can also be
+	 * caused by a concurrent registration of a <em>different</em> email deadlocking on index gap locks —
+	 * is retried in a fresh transaction (see {@link #persistWithSerializationRetry}); exhausted retries
+	 * propagate the failure rather than misreporting it as an existing account. This mirrors the
+	 * hardening on {@link #registerNewUserAccount(UserDto)} so that concurrent passwordless
+	 * registrations no longer surface a raw deadlock as a generic 500 System Error.
+	 * </p>
+	 *
+	 * @implNote This method is {@link Propagation#NOT_SUPPORTED}: it holds no transaction (and no pooled
+	 *           connection) across the retry loop, delegating each attempt to a short, separate
+	 *           SERIALIZABLE transaction. As a result it does <em>not</em> enlist in a caller's
+	 *           transaction — a consumer's outer {@code @Transactional} is suspended and the
+	 *           registration commits independently, so an outer rollback will not undo the persisted
+	 *           user.
 	 *
 	 * @param dto the passwordless registration data
 	 * @return the newly created user entity
 	 * @throws UserAlreadyExistException if an account with the same email already exists
 	 */
-	@Transactional(isolation = Isolation.SERIALIZABLE)
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public User registerPasswordlessAccount(final PasswordlessRegistrationDto dto) {
 		TimeLogger timeLogger = new TimeLogger(log, "UserService.registerPasswordlessAccount");
 		log.debug("UserService.registerPasswordlessAccount: called for email: {}", dto != null ? dto.getEmail() : null);
@@ -1001,26 +1032,72 @@ public class UserService {
 		// into the REGISTRATION_DENIED response.
 		evaluateRegistrationGuard(dto.getEmail(), RegistrationSource.PASSWORDLESS, null);
 
-		if (emailExists(dto.getEmail())) {
-			log.debug("UserService.registerPasswordlessAccount: email already exists: {}", dto.getEmail());
-			throw new UserAlreadyExistException(
-					"There is an account with that email address: " + dto.getEmail());
-		}
-
 		User user = new User();
 		user.setFirstName(dto.getFirstName());
 		user.setLastName(dto.getLastName());
 		user.setPassword(null);
 		user.setEmail(dto.getEmail().toLowerCase());
-		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
 
 		if (!sendRegistrationVerificationEmail) {
 			user.setEnabled(true);
 		}
 
-		user = userRepository.save(user);
+		// Persist through the proxy so the SERIALIZABLE transaction actually applies, retrying a
+		// serialization failure (deadlock) in a fresh transaction rather than surfacing it as a 500.
+		User saved = persistWithSerializationRetry(user, p -> self.persistNewPasswordlessAccount(p));
 		timeLogger.end();
-		return user;
+		return saved;
+	}
+
+	/**
+	 * Persists a new passwordless user account inside a short, serializable transaction.
+	 *
+	 * <p>
+	 * This is the DB-only, passwordless counterpart of {@link #persistNewUserAccount(User)}: it records
+	 * no password history because the account has no password. It runs with {@link Isolation#SERIALIZABLE}
+	 * to close the duplicate-registration race. The {@link #emailExists} pre-check handles the common
+	 * case, but a concurrent insert can still fail at commit: a unique-constraint violation
+	 * ({@link DataIntegrityViolationException}) is translated into a {@link UserAlreadyExistException}
+	 * (HTTP 409), while a serialization failure ({@link CannotAcquireLockException} /
+	 * {@link ConcurrencyFailureException}) propagates unchanged so the caller's retry
+	 * ({@link #persistWithSerializationRetry}) can distinguish a same-email race from a different-email
+	 * deadlock. Unrelated failures are never swallowed.
+	 * </p>
+	 *
+	 * <p>
+	 * Internal seam: it MUST be invoked through the Spring proxy (via {@link #self}) so the transaction
+	 * applies, and is {@code protected} (not package-private) so the CGLIB proxy subclass — generated in
+	 * a different package — can override and advise it. See {@link #persistNewUserAccount(User)} for the
+	 * full rationale.
+	 * </p>
+	 *
+	 * @param user the fully built passwordless user entity (no password)
+	 * @return the saved user entity
+	 * @throws UserAlreadyExistException if an account with the same email already exists
+	 */
+	@Transactional(isolation = Isolation.SERIALIZABLE)
+	protected User persistNewPasswordlessAccount(final User user) {
+		if (emailExists(user.getEmail())) {
+			log.debug("UserService.persistNewPasswordlessAccount: email already exists: {}", user.getEmail());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + user.getEmail());
+		}
+
+		user.setRoles(Arrays.asList(roleRepository.findByName(USER_ROLE_NAME)));
+
+		try {
+			return userRepository.save(user);
+		} catch (DataIntegrityViolationException e) {
+			// A concurrent registration of the SAME email won the race: the unique-email constraint was
+			// violated. Translate to a 409 instead of a 500. A ConcurrencyFailureException (deadlock /
+			// serialization failure) is deliberately NOT translated here: it can be caused by a concurrent
+			// registration of a DIFFERENT email, so it propagates to the retry in
+			// persistWithSerializationRetry, whose fresh-transaction pre-check distinguishes the two cases.
+			log.debug("UserService.persistNewPasswordlessAccount: concurrent duplicate registration detected for email {}: {}",
+					user.getEmail(), e.getClass().getSimpleName());
+			throw new UserAlreadyExistException(
+					"There is an account with that email address: " + user.getEmail());
+		}
 	}
 
 	/**

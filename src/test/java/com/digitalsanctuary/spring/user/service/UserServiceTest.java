@@ -1118,6 +1118,100 @@ public class UserServiceTest {
                     .isInstanceOf(UserAlreadyExistException.class)
                     .hasMessageContaining("There is an account with that email address");
         }
+
+        @Test
+        @DisplayName("retries and succeeds when a serialization failure is transient (different-email deadlock)")
+        void shouldRetryAndSucceedWhenSerializationFailureIsTransient() {
+            // Given: pre-check passes; the first SERIALIZABLE attempt deadlocks (e.g. against a concurrent
+            // registration of a DIFFERENT email), the retry succeeds. Before the retry existed this
+            // surfaced as a raw deadlock -> generic 500 System Error on POST /user/registration/passwordless.
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setFirstName("Race");
+            dto.setLastName("Condition");
+            dto.setEmail("passwordless-deadlock@example.com");
+
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class)))
+                    .thenThrow(new CannotAcquireLockException("deadlock"))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            // When
+            User saved = userService.registerPasswordlessAccount(dto);
+
+            // Then
+            assertThat(saved).isNotNull();
+            assertThat(saved.getEmail()).isEqualTo("passwordless-deadlock@example.com");
+            assertThat(saved.getPassword()).isNull();
+            verify(userRepository, org.mockito.Mockito.times(2)).save(any(User.class));
+            verify(passwordEncoder, never()).encode(anyString());
+        }
+
+        @Test
+        @DisplayName("translates DataIntegrityViolationException from save into UserAlreadyExistException")
+        void shouldTranslateDataIntegrityViolationToUserAlreadyExist() {
+            // Given: the pre-check passes but a concurrent SAME-email registration wins the race, so the
+            // insert violates the unique-email constraint. That must become a 409, not a 500.
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setFirstName("Race");
+            dto.setLastName("Condition");
+            dto.setEmail("passwordless-dup@example.com");
+
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class)))
+                    .thenThrow(new DataIntegrityViolationException("unique constraint violation"));
+
+            // When & Then
+            assertThatThrownBy(() -> userService.registerPasswordlessAccount(dto))
+                    .isInstanceOf(UserAlreadyExistException.class)
+                    .hasMessageContaining("There is an account with that email address");
+        }
+
+        @Test
+        @DisplayName("propagates ConcurrencyFailureException when retries are exhausted")
+        void shouldPropagateConcurrencyFailureWhenRetriesExhausted() {
+            // Given: every SERIALIZABLE attempt deadlocks. The failure must surface honestly (a 500 the
+            // caller can retry), never a fake "already exists" 409 while no account was created.
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setFirstName("Race");
+            dto.setLastName("Condition");
+            dto.setEmail("passwordless-persistent-deadlock@example.com");
+
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class)))
+                    .thenThrow(new CannotAcquireLockException("persistent deadlock"));
+
+            // When & Then
+            assertThatThrownBy(() -> userService.registerPasswordlessAccount(dto))
+                    .isInstanceOf(org.springframework.dao.ConcurrencyFailureException.class);
+            verify(userRepository, org.mockito.Mockito.times(5)).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("does not swallow unrelated runtime exceptions from save")
+        void shouldNotSwallowUnrelatedExceptions() {
+            // Given: an unrelated failure must propagate, not be translated to a 409.
+            PasswordlessRegistrationDto dto = new PasswordlessRegistrationDto();
+            dto.setFirstName("Race");
+            dto.setLastName("Condition");
+            dto.setEmail("passwordless-unrelated@example.com");
+
+            Role userRole = RoleTestDataBuilder.aUserRole().build();
+            when(roleRepository.findByName(USER_ROLE_NAME)).thenReturn(userRole);
+            when(userRepository.findByEmail(anyString())).thenReturn(null);
+            when(userRepository.save(any(User.class)))
+                    .thenThrow(new IllegalStateException("unrelated failure"));
+
+            // When & Then
+            assertThatThrownBy(() -> userService.registerPasswordlessAccount(dto))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("unrelated failure");
+        }
     }
 
     @Nested
