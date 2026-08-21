@@ -31,6 +31,7 @@ import com.digitalsanctuary.spring.user.dto.SetPasswordDto;
 import com.digitalsanctuary.spring.user.dto.UserDto;
 import com.digitalsanctuary.spring.user.dto.UserProfileUpdateDto;
 import com.digitalsanctuary.spring.user.security.StepUpService;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
@@ -249,7 +250,7 @@ public class UserAPIUnitTest {
                     .andExpect(jsonPath("$.redirectUrl").value("/user/registration-complete.html"));
 
             // Verify auto-login was called
-            verify(userService).authWithoutPassword(newUser);
+            verify(userService).authWithoutPassword(newUser, AuthWithoutPasswordFactor.REGISTRATION);
         }
 
         @Test

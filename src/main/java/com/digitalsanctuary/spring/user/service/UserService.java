@@ -1127,6 +1127,23 @@ public class UserService {
 	 * @param user The user to authenticate without password verification
 	 */
 	public void authWithoutPassword(User user) {
+		// Stamps nothing, preserving the behavior of callers written before the factor overload existed.
+		authWithoutPassword(user, AuthWithoutPasswordFactor.DEV_LOGIN);
+	}
+
+	/**
+	 * Authenticates a user without a password, stamping the authentication factor the calling path represents.
+	 *
+	 * <p>
+	 * This path builds its own {@code Authentication} rather than running an {@code AuthenticationProvider}, so
+	 * nothing stamps a {@code FactorGrantedAuthority} unless it is done here. A session with no factor cannot satisfy
+	 * any freshness check, which would leave a just-registered user unable to enroll their first passkey.
+	 * </p>
+	 *
+	 * @param user the user to authenticate
+	 * @param factor the factor this login path genuinely represents; see {@link AuthWithoutPasswordFactor}
+	 */
+	public void authWithoutPassword(User user, AuthWithoutPasswordFactor factor) {
 		log.debug("UserService.authWithoutPassword: authenticating user: {}", user != null ? user.getEmail() : null);
 		if (user == null || user.getEmail() == null) {
 			log.error("Invalid user or user email");
@@ -1144,7 +1161,7 @@ public class UserService {
 		// Reuse the authorities already resolved by loadUserByUsername (which loads roles and privileges via the
 		// entity-graph finder). The incoming `user` may be detached, so deriving authorities from it directly could
 		// trigger a LazyInitializationException now that roles/privileges are lazily fetched.
-		Collection<? extends GrantedAuthority> authorities = userDetails.getAuthorities();
+		Collection<? extends GrantedAuthority> authorities = factor.withFactor(userDetails.getAuthorities());
 
 		// Authenticate user
 		authenticateUser(userDetails, authorities);

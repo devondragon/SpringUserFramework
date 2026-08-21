@@ -34,6 +34,7 @@ import com.digitalsanctuary.spring.user.persistence.model.User;
 import com.digitalsanctuary.spring.user.registration.RegistrationDeniedException;
 import com.digitalsanctuary.spring.user.registration.RegistrationGuard;
 import com.digitalsanctuary.spring.user.security.StepUpService;
+import com.digitalsanctuary.spring.user.service.AuthWithoutPasswordFactor;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import com.digitalsanctuary.spring.user.service.DSUserDetails;
 import com.digitalsanctuary.spring.user.service.LoginAttemptService;
@@ -642,7 +643,8 @@ public class UserAPI {
 	 * @return the URI to redirect to after registration
 	 */
 	private String handleAutoLogin(User user) {
-		userService.authWithoutPassword(user);
+		// The password was submitted in the very request that produced this registration.
+		userService.authWithoutPassword(user, AuthWithoutPasswordFactor.REGISTRATION);
 		return userSecurityConfig.getRegistrationSuccessUri();
 	}
 

@@ -1,8 +1,17 @@
 package com.digitalsanctuary.spring.user.service;
 
 import java.io.IOException;
+import java.util.List;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.authority.FactorGrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.stereotype.Service;
@@ -33,6 +42,9 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 
 	/** The event publisher. */
 	private final ApplicationEventPublisher eventPublisher;
+
+	/** Writes the replaced context back; the filter already saved the original before this handler runs. */
+	private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
 	/** The user security configuration properties. */
 	private final UserSecurityConfigProperties userSecurityConfig;
@@ -87,6 +99,8 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 		log.debug("Saved request in session: {}", savedRequest);
 
 		log.debug("LoginSuccessService.onAuthenticationSuccess: targetUrl: {}", super.determineTargetUrl(request, response));
+
+		stampFactorIfMissing(request, response, authentication);
 
 		User user = null;
 		if (authentication != null && authentication.getPrincipal() != null) {
@@ -147,6 +161,52 @@ public class LoginSuccessService extends SavedRequestAwareAuthenticationSuccessH
 
 		// This won't execute if the super method redirects, but might help with debugging
 		log.debug("After super.onAuthenticationSuccess - if you see this, no redirect happened");
+	}
+
+
+	/**
+	 * Guarantees the session carries an authentication factor, so a freshness check has something to read.
+	 *
+	 * <p>
+	 * {@code OidcAuthorizationCodeAuthenticationProvider} stamps no {@link FactorGrantedAuthority}, unlike the
+	 * password and plain-OAuth2 providers, so an OIDC login would otherwise leave a session that can never satisfy
+	 * step-up or the passkey-enrollment gate. Only an entirely unstamped authentication is touched, so the flows that
+	 * already stamp are left exactly as they were.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code AbstractAuthenticationProcessingFilter} saves the context before invoking this handler, so a replacement
+	 * has to be written back to the repository explicitly, the same way {@code WebAuthnAuthenticationSuccessHandler}
+	 * does after its principal swap.
+	 * </p>
+	 */
+	private void stampFactorIfMissing(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+		if (authentication == null || !authentication.isAuthenticated()) {
+			return;
+		}
+		List<GrantedAuthority> withFactor = LoginFactorStamper.ensureFactor(authentication.getAuthorities());
+		if (withFactor.size() == authentication.getAuthorities().size()) {
+			return;
+		}
+
+		// Only OAuth2AuthenticationToken is rebuilt: OIDC login is the unstamped flow this exists for, and it
+		// produces that type. Guessing how to reconstruct an unknown token type risks losing state that matters more
+		// than the factor, so anything else is left alone and logged.
+		if (!(authentication instanceof OAuth2AuthenticationToken oauthToken)
+				|| !(authentication.getPrincipal() instanceof OAuth2User oauth2User)) {
+			log.warn("LoginSuccessService: {} carries no authentication factor and cannot be re-stamped; "
+					+ "step-up and passkey enrollment will not be available to this session",
+					authentication.getClass().getSimpleName());
+			return;
+		}
+		Authentication stamped = new OAuth2AuthenticationToken(oauth2User, withFactor,
+				oauthToken.getAuthorizedClientRegistrationId());
+		SecurityContext context = SecurityContextHolder.getContext();
+		context.setAuthentication(stamped);
+		SecurityContextHolder.setContext(context);
+		securityContextRepository.saveContext(context, request, response);
+		log.debug("LoginSuccessService: stamped an authorization-code factor on an otherwise unstamped login for {}",
+				authentication.getName());
 	}
 
 }

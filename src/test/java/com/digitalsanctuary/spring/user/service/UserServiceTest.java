@@ -771,6 +771,40 @@ public class UserServiceTest {
         }
 
         @Test
+        @DisplayName("authWithoutPassword - stamps the factor the calling path represents")
+        void authWithoutPassword_stampsFactorForPath() {
+            // Without a stamp the session carries no factor at all, so it can never satisfy a freshness check and a
+            // just-verified user could not enroll their first passkey until they logged out and back in.
+            Collection<? extends GrantedAuthority> authorities = Arrays.asList(new SimpleGrantedAuthority("ROLE_USER"));
+            DSUserDetails userDetails = new DSUserDetails(testUser, authorities);
+            when(dsUserDetailsService.loadUserByUsername(testUser.getEmail())).thenReturn(userDetails);
+
+            HttpServletRequest mockRequest = mock(HttpServletRequest.class);
+            HttpSession mockSession = mock(HttpSession.class);
+            ServletRequestAttributes attrs = mock(ServletRequestAttributes.class);
+            when(attrs.getRequest()).thenReturn(mockRequest);
+            when(mockRequest.getSession(true)).thenReturn(mockSession);
+
+            try (MockedStatic<RequestContextHolder> mockedHolder = mockStatic(RequestContextHolder.class);
+                    MockedStatic<SecurityContextHolder> mockedSecurityHolder = mockStatic(SecurityContextHolder.class)) {
+                mockedHolder.when(RequestContextHolder::getRequestAttributes).thenReturn(attrs);
+                SecurityContext securityContext = mock(SecurityContext.class);
+                mockedSecurityHolder.when(SecurityContextHolder::getContext).thenReturn(securityContext);
+                final Authentication[] storedAuth = new Authentication[1];
+                org.mockito.Mockito.doAnswer(invocation -> {
+                    storedAuth[0] = invocation.getArgument(0);
+                    return null;
+                }).when(securityContext).setAuthentication(any());
+                when(securityContext.getAuthentication()).thenAnswer(invocation -> storedAuth[0]);
+
+                userService.authWithoutPassword(testUser, AuthWithoutPasswordFactor.EMAIL_VERIFICATION);
+
+                assertThat(storedAuth[0].getAuthorities()).extracting(GrantedAuthority::getAuthority)
+                        .contains("ROLE_USER", org.springframework.security.core.authority.FactorGrantedAuthority.OTT_AUTHORITY);
+            }
+        }
+
+        @Test
         @DisplayName("authWithoutPassword - publishes InteractiveAuthenticationSuccessEvent")
         void shouldPublishInteractiveAuthenticationSuccessEventWhenAuthSucceeds() {
             // Given
