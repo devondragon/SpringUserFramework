@@ -1,8 +1,9 @@
 package com.digitalsanctuary.spring.user.listener;
 
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import com.digitalsanctuary.spring.user.audit.AuditEvent;
 import com.digitalsanctuary.spring.user.event.WebAuthnCredentialRegisteredEvent;
 import com.digitalsanctuary.spring.user.security.WebAuthnConfigProperties;
@@ -24,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class WebAuthnCredentialRegistrationListener implements ApplicationListener<WebAuthnCredentialRegisteredEvent> {
+public class WebAuthnCredentialRegistrationListener {
 
     private final UserEmailService userEmailService;
     private final ApplicationEventPublisher eventPublisher;
@@ -33,10 +34,18 @@ public class WebAuthnCredentialRegistrationListener implements ApplicationListen
     /**
      * Audits the enrollment and, unless disabled, emails the account owner.
      *
+     * <p>
+     * Runs after the enrollment transaction commits. The credential is written through a {@code @Transactional}
+     * {@code save()} that publishes this event before the commit, so a commit failure (for example a label longer
+     * than the column) would otherwise send a notification and record an audit entry for a registration that never
+     * persisted. {@code fallbackExecution = true} keeps the listener firing if the event is ever published outside a
+     * transaction.
+     * </p>
+     *
      * @param event the registration event
      */
-    @Override
-    public void onApplicationEvent(WebAuthnCredentialRegisteredEvent event) {
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onCredentialRegistered(WebAuthnCredentialRegisteredEvent event) {
         // Audit first and unconditionally: the notification is a courtesy the operator can switch off, and a mail
         // outage must not cost us the security-relevant record of the enrollment.
         eventPublisher.publishEvent(AuditEvent.builder().source(this).user(event.getUser())

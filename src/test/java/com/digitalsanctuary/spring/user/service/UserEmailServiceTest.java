@@ -751,6 +751,49 @@ class UserEmailServiceTest {
     }
 
     @Nested
+    @DisplayName("Passkey Registration Notification Tests")
+    class PasskeyRegistrationNotificationTests {
+
+        @Test
+        @DisplayName("sendPasskeyRegisteredNotification - HTML-escapes a crafted label before it reaches the template")
+        void sendPasskeyRegisteredNotification_escapesLabel() {
+            // The label is client-supplied at enrollment and the template renders it with th:utext. An unescaped
+            // label would inject live HTML into the very email that warns the owner of an unrecognized passkey.
+            userEmailService.sendPasskeyRegisteredNotification(testUser, "<a href=\"//evil.tld\">remove</a>");
+
+            ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(mailService).sendTemplateMessage(
+                    eq(testUser.getEmail()),
+                    eq("New passkey added to your account"),
+                    variablesCaptor.capture(),
+                    eq("mail/webauthn-credential-registered.html"));
+
+            String label = (String) variablesCaptor.getValue().get("label");
+            assertThat(label).doesNotContain("<a").contains("&lt;a").contains("&gt;");
+        }
+
+        @Test
+        @DisplayName("sendPasskeyRegisteredNotification - falls back to 'Passkey' when no label was given")
+        void sendPasskeyRegisteredNotification_nullLabelFallsBack() {
+            userEmailService.sendPasskeyRegisteredNotification(testUser, null);
+
+            ArgumentCaptor<Map<String, Object>> variablesCaptor = ArgumentCaptor.forClass(Map.class);
+            verify(mailService).sendTemplateMessage(any(), any(), variablesCaptor.capture(), any());
+            assertThat(variablesCaptor.getValue().get("label")).isEqualTo("Passkey");
+        }
+
+        @Test
+        @DisplayName("sendPasskeyRegisteredNotification - is a no-op when the user has no email")
+        void sendPasskeyRegisteredNotification_noRecipientNoOp() {
+            User noEmail = UserTestDataBuilder.aUser().withEmail(null).build();
+
+            userEmailService.sendPasskeyRegisteredNotification(noEmail, "Work Laptop");
+
+            verify(mailService, never()).sendTemplateMessage(anyString(), anyString(), any(Map.class), anyString());
+        }
+    }
+
+    @Nested
     @DisplayName("Deprecated Method Tests")
     class DeprecatedMethodTests {
 
