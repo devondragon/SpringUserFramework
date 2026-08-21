@@ -60,6 +60,22 @@ public class StepUpConfigProperties {
     private int ttlSeconds = 120;
 
     /**
+     * How recently the user must have authenticated, by any means, to register a new passkey. Separate from
+     * {@link #ttlSeconds} and deliberately longer: the step-up ceremony immediately precedes the operation, whereas
+     * enrollment usually follows a login, a look around the settings page, and a decision.
+     *
+     * <p>
+     * The gate applies only while step-up is {@link #enabled}. It exists because enrolling a passkey is what turns a
+     * stolen session into durable access: the credential outlives a password change, and asserting with it refreshes
+     * {@code FACTOR_WEBAUTHN}, which would otherwise let an attacker satisfy step-up with an authenticator they
+     * enrolled seconds earlier. Note the residual: within this window of a genuine login, a concurrent attacker on
+     * the same session can still enroll.
+     * </p>
+     */
+    @Min(1)
+    private int enrollmentTtlSeconds = 600;
+
+    /**
      * Factors that satisfy step-up, any one of which is sufficient. Values are the keys of
      * {@link #FACTOR_AUTHORITIES}; unknown values fail startup. Defaults to {@code WEBAUTHN} alone, which is the only
      * factor whose refresh reliably proves user presence: re-running an OAuth2 login, for instance, typically completes

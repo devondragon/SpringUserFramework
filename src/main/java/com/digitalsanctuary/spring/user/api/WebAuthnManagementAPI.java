@@ -64,7 +64,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>
  * <strong>Residual risk (passwordless accounts):</strong> For passwordless (passkey-only) accounts there is no current
- * password to verify, and this library does not yet implement a WebAuthn step-up assertion. Passkey delete/rename on such
+ * password to verify, and step-up is available but off by default (see {@code user.security.stepUp.enabled}). Passkey delete/rename on such
  * accounts therefore remain session-only operations. Last-credential protection still prevents lockout, and ownership
  * (IDOR) checks remain enforced in the service layer. See MIGRATION.md for details and guidance.
  * </p>

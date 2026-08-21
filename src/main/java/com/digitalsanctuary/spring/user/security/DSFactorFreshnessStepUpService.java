@@ -39,9 +39,15 @@ import lombok.extern.slf4j.Slf4j;
  * The proof is bound to the user (the factor lives on their authentication), to the session (authentication is
  * session-scoped), and to time (the TTL). It is <strong>not</strong> single-use and <strong>not</strong> bound to a
  * particular operation: within the window, one ceremony authorizes any credential-altering operation on that session,
- * and {@code action} is used only for logging. This closes the case the feature exists for, an attacker holding a
- * session cookie but no authenticator, who can never produce a recent factor. It leaves a narrower one open: an
- * attacker sharing the session concurrently can piggyback inside the window. Keep the TTL short.
+ * and {@code action} is used only for logging.
+ *
+ * <p>
+ * This closes the case the feature exists for, an attacker holding a session cookie but no authenticator. That
+ * depends on passkey <em>enrollment</em> being gated too, which {@code user.security.stepUp.enrollmentTtlSeconds}
+ * does: otherwise such an attacker would simply register their own authenticator and assert with it, producing a
+ * genuinely fresh factor. Two narrower cases stay open: an attacker sharing the session concurrently can piggyback
+ * inside either window, and a session stolen within {@code enrollmentTtlSeconds} of a real login can still enroll.
+ * Keep both TTLs short.
  * </p>
  *
  * <p>

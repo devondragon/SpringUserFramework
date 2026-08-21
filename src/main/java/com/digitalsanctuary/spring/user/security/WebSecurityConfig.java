@@ -1,5 +1,7 @@
 package com.digitalsanctuary.spring.user.security;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +14,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -65,6 +68,7 @@ public class WebSecurityConfig {
 	private final DSOAuth2UserService dsOAuth2UserService;
 	private final DSOidcUserService dsOidcUserService;
 	private final WebAuthnConfigProperties webAuthnConfigProperties;
+	private final StepUpConfigProperties stepUpConfigProperties;
 	private final MfaConfigProperties mfaConfigProperties;
 	private final Environment environment;
 	private final ApplicationEventPublisher applicationEventPublisher;
@@ -179,6 +183,19 @@ public class WebSecurityConfig {
 		if (webAuthnConfigProperties.isEnabled()) {
 			http.authorizeHttpRequests(
 					(authorize) -> authorize.requestMatchers(HttpMethod.DELETE, "/webauthn/register/**").denyAll());
+
+			// Gate passkey enrollment on a recent authentication of any kind, the way GitHub asks for a password
+			// before adding a security key. Enrolling is what turns a stolen session into durable access: the new
+			// credential outlives a password change, and asserting with it refreshes FACTOR_WEBAUTHN, which would
+			// otherwise let an attacker satisfy step-up with an authenticator they enrolled seconds earlier. Only
+			// active with step-up, so the opt-in contract holds. Registered before anyRequest() below.
+			if (stepUpConfigProperties.isEnabled()) {
+				FreshFactorAuthorizationManager<RequestAuthorizationContext> enrollmentGate =
+						new FreshFactorAuthorizationManager<>(
+								Duration.ofSeconds(stepUpConfigProperties.getEnrollmentTtlSeconds()), Clock.systemUTC());
+				http.authorizeHttpRequests((authorize) -> authorize
+						.requestMatchers(HttpMethod.POST, "/webauthn/register").access(enrollmentGate));
+			}
 		}
 
 		// Configure authorization rules based on the default action

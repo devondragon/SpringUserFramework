@@ -146,6 +146,14 @@ user:
 
 **Client contract.** A gated operation with no sufficiently recent factor returns `HTTP 401`: `setPassword` with `JSONResponse` code `6`, passkey delete/rename with error code `step-up-required`. The client re-runs its passkey login ceremony and retries the original call.
 
+- **Enrollment window (`user.security.stepUp.enrollmentTtlSeconds`)**: How recently the user must have authenticated, by *any* means, to register a new passkey at `POST /webauthn/register`. Default: `600`. Applies only while step-up is enabled.
+
+  Enrolling a passkey is what turns a stolen session into durable access: the credential outlives a password change, since session invalidation ends sessions rather than credentials, and asserting with it refreshes `FACTOR_WEBAUTHN`. Without this gate an attacker holding only a session cookie could enroll their own authenticator and use it to satisfy step-up, so the rest of the feature would protect nothing. This mirrors GitHub's sudo mode, which asks for a password before adding a security key.
+
+  Any authentication factor counts, deliberately not the `factors` list above: with the default `[WEBAUTHN]`, requiring a configured factor would demand a passkey in order to register a first passkey. The window is longer than `ttlSeconds` because enrollment normally follows a login, a look around the settings page, and a decision, whereas a step-up ceremony immediately precedes its operation.
+
+  **Residual risk:** within this window of a genuine login, an attacker sharing the session can still enroll. The window bounds the exposure rather than eliminating it, which is the same trade-off sudo mode makes. A `PasskeyRegistration` audit event is recorded for every enrollment.
+
 **Enabling step-up also enables factor merging** (`setMfaEnabled(true)` on authentication processing filters), without which re-authenticating replaces the session's authorities instead of merging them. If your application registers its own `AbstractAuthenticationProcessingFilter`, see the warning in `MfaFilterMergingConfiguration`.
 
 **Accounts with no passkey** (OAuth-only, for example) cannot satisfy `WEBAUTHN` step-up. For them `setPassword` remains governed by `allowInitialPasswordSetWithoutStepUp` below, exactly as before.
