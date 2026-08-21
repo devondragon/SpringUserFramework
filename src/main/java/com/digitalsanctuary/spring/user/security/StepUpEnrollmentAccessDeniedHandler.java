@@ -10,6 +10,7 @@ import com.digitalsanctuary.spring.user.exceptions.WebAuthnStepUpRequiredExcepti
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -23,11 +24,20 @@ import lombok.RequiredArgsConstructor;
  * {@link AuthorizationDeniedException}) is treated as step-up; anything else that can deny the endpoint, such as a
  * CSRF failure, is passed to the delegate so it keeps its normal 403.
  * </p>
+ *
+ * <p>
+ * The step-up classification is by exception type, and it is sound only because the freshness gate is the sole
+ * authorization rule on {@code POST /webauthn/register}. If another {@code authorizeHttpRequests} rule (a role or
+ * scope check) is ever added to that path, its denial is also an {@link AuthorizationDeniedException} and would be
+ * mislabeled as step-up, telling the client to re-authenticate when re-authentication cannot help. Keep this handler
+ * scoped to a path whose only authorization rule is the freshness gate.
+ * </p>
  */
 @RequiredArgsConstructor
 public class StepUpEnrollmentAccessDeniedHandler implements AccessDeniedHandler {
 
-    /** Handles denials on the endpoint that are not the freshness gate (for example, CSRF). */
+    /** Handles denials on the endpoint that are not the freshness gate (for example, CSRF). Required (non-null). */
+    @NonNull
     private final AccessDeniedHandler delegate;
 
     @Override
@@ -35,6 +45,11 @@ public class StepUpEnrollmentAccessDeniedHandler implements AccessDeniedHandler 
             throws IOException, ServletException {
         if (!(accessDeniedException instanceof AuthorizationDeniedException)) {
             delegate.handle(request, response, accessDeniedException);
+            return;
+        }
+        // A prior filter having already committed the response would make setStatus/setContentType silently no-ops and
+        // append the JSON to whatever was flushed, so bail rather than emit a malformed body.
+        if (response.isCommitted()) {
             return;
         }
         response.setStatus(HttpStatus.UNAUTHORIZED.value());

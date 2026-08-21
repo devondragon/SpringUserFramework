@@ -47,10 +47,16 @@ public class WebAuthnCredentialRegistrationListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onCredentialRegistered(WebAuthnCredentialRegisteredEvent event) {
         // Audit first and unconditionally: the notification is a courtesy the operator can switch off, and a mail
-        // outage must not cost us the security-relevant record of the enrollment.
-        eventPublisher.publishEvent(AuditEvent.builder().source(this).user(event.getUser())
-                .action("PasskeyRegistration").actionStatus("Success")
-                .message("Passkey registered: " + event.getLabel()).build());
+        // outage must not cost us the security-relevant record of the enrollment. Because this runs after commit, an
+        // exception here would be swallowed by Spring's transactional-listener adapter with no trace, so log it in this
+        // class rather than lose the record silently.
+        try {
+            eventPublisher.publishEvent(AuditEvent.builder().source(this).user(event.getUser())
+                    .action("PasskeyRegistration").actionStatus("Success")
+                    .message("Passkey registered: " + event.getLabel()).build());
+        } catch (RuntimeException e) {
+            log.error("Failed to record passkey registration audit event for user {}", event.getUser().getId(), e);
+        }
 
         if (!webAuthnConfigProperties.isNotifyOnRegistration()) {
             return;
