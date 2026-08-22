@@ -4,6 +4,48 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+## [5.3.4] - 2026-08-21
+
+This release hardens passkey enrollment/notification, aligns the enrollment denial response with the rest of the step‑up‑gated endpoints, and fixes SERIALIZABLE deadlocks during passwordless registration. It also documents step‑up’s CSRF/session behavior so clients can successfully retry after re‑authentication.
+
+SemVer classification: patch — security hardening and behavioral fixes with no new public configuration keys or SPI surface.
+
+### Security
+- Escapes the client‑supplied passkey label in the notification email before it reaches the Thymeleaf template (UserEmailService now HTML‑escapes the label). Prevents HTML injection in the owner notification email when labels are rendered unescaped by the template engine (CWE‑79).
+- Defers passkey‑registration side effects until after the database commit. WebAuthnCredentialRegistrationListener is now @TransactionalEventListener(AFTER_COMMIT, fallbackExecution=true) so a failed commit (for example, a too‑long label) no longer emails the owner or records an audit entry for a registration that never persisted.
+
+### Behavior changes (client impact)
+- With user.webauthn.enabled=true and user.security.stepUp.enabled=true:
+  - POST /webauthn/register now returns HTTP 401 with a JSON body carrying error "step-up-required" when the enrollment freshness gate denies a request (previously a bare HTTP 403 from the filter chain). This matches the passkey delete/rename endpoints and lets clients reliably detect “re‑run your login ceremony and retry.” The body shape is {"message": "...", "error": "step-up-required"}.
+  - Only the freshness denial is remapped; other denials on the enrollment path (for example, CSRF) remain HTTP 403.
+- Concurrent passwordless registrations no longer surface as generic HTTP 500 “System Error” on POST /user/registration/passwordless:
+  - A race on the same email now deterministically returns HTTP 409 (UserAlreadyExistException).
+  - Deadlocks between different emails are retried in fresh SERIALIZABLE transactions and should succeed; if all attempts fail, the error propagates as a retriable 5xx rather than being misreported as “already exists.”
+- Step‑up re‑assertion preserves the servlet session id (JSESSIONID) while rotating the CSRF token. Clients that stay on the page and retry a gated operation after step‑up must refresh their CSRF token before retrying.
+
+### Fixes
+- Fixes concurrent passwordless registration deadlocks by mirroring the password path:
+  - registerPasswordlessAccount now runs with Propagation.NOT_SUPPORTED and delegates each attempt to a short @Transactional(SERIALIZABLE) persist, retried on ConcurrencyFailureException with jittered backoff.
+  - New persistNewPasswordlessAccount(@Transactional(SERIALIZABLE)) translates DataIntegrityViolationException to 409 and records no password history.
+- Returns 401 with step‑up‑required JSON on enrollment freshness denials raised in the filter chain:
+  - Adds StepUpEnrollmentAccessDeniedHandler, scoped to POST /webauthn/register, that maps AuthorizationDeniedException to the 401 + {"error":"step-up-required"} contract and delegates every other denial (e.g., CSRF) to the default handler.
+  - Correctly composes access‑denied handling so only the enrollment POST is remapped; existing MFA missing‑authority handling remains in place for all other paths.
+
+### Documentation
+- CONFIG.md: clarifies that a custom StepUpService bean replaces the built‑in one, and where it is consulted per endpoint:
+  - POST /user/setPassword uses the bean whenever present.
+  - Passkey delete/rename/remove‑password endpoints consult it only when user.security.stepUp.enabled=true (no surprise enforcement for 5.3.1 SPI adopters).
+- CONFIG.md: documents that step‑up re‑assertion preserves the session id while rotating the CSRF token, and that clients must refresh the CSRF token before retrying a gated operation.
+- MIGRATION.md: adds a 5.3.3 → 5.3.4 callout noting the enrollment denial change from HTTP 403 to HTTP 401 + {"error":"step-up-required"} and directing clients that branched on 403 to also handle the new 401 contract.
+- README.md: aligns install snippets to 5.3.3.
+
+### Testing
+- Adds mock‑based unit tests covering passwordless registration retries (retry‑then‑succeed, DataIntegrityViolationException→409, exhausted‑retries propagate, unrelated exception not swallowed).
+- Adds database‑backed concurrency tests (MariaDB/PostgreSQL via Testcontainers) for same‑email and different‑email passwordless registration races.
+- Adds StepUpEnrollmentAccessDeniedHandlerTest to verify 401 step‑up JSON is returned only for freshness denials and that non‑freshness denials delegate.
+- Strengthens WebAuthnEnrollmentGateIntegrationTest to pin the 401 + step‑up‑required contract for enrollment freshness denials and ensure non‑freshness denials (e.g., CSRF, denied DELETE) remain 403.
+- Adds tests ensuring AFTER_COMMIT listener behavior and HTML escaping of the passkey label in notification emails.
+
 ## [5.3.3] - 2026-08-20
 
 This release adds an opt‑in, built‑in step‑up re‑authentication gate for credential‑altering operations and records/announces every passkey enrollment. It also hardens MFA/step‑up enforcement against counterfeit “FACTOR_*” authorities and extends login flows to stamp a factor so first‑passkey setups can proceed under step‑up.
