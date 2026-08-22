@@ -37,7 +37,7 @@ SemVer classification: patch — security hardening and behavioral fixes with no
   - Passkey delete/rename/remove‑password endpoints consult it only when user.security.stepUp.enabled=true (no surprise enforcement for 5.3.1 SPI adopters).
 - CONFIG.md: documents that step‑up re‑assertion preserves the session id while rotating the CSRF token, and that clients must refresh the CSRF token before retrying a gated operation.
 - MIGRATION.md: adds a 5.3.3 → 5.3.4 callout noting the enrollment denial change from HTTP 403 to HTTP 401 + {"error":"step-up-required"} and directing clients that branched on 403 to also handle the new 401 contract.
-- README.md: aligns install snippets to 5.3.3.
+- README.md: aligns install snippets to 5.3.4.
 
 ### Testing
 - Adds mock‑based unit tests covering passwordless registration retries (retry‑then‑succeed, DataIntegrityViolationException→409, exhausted‑retries propagate, unrelated exception not swallowed).
