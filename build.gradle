@@ -16,7 +16,7 @@ group = 'com.digitalsanctuary'
 description = 'Spring User Framework'
 
 ext {
-    lombokVersion = '1.18.46'
+    lombokVersion = '1.18.48'
 }
 
 java {
