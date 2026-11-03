@@ -11,6 +11,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -26,12 +27,15 @@ import org.slf4j.LoggerFactory;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.javamail.MimeMessagePreparator;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.backoff.ExponentialBackOff;
 import org.thymeleaf.context.Context;
 
 /**
@@ -64,7 +68,10 @@ class MailServiceTest {
     void setUp() {
         // Provider returns the mock mailSender by default.
         lenient().when(mailSenderProvider.getIfAvailable()).thenReturn(mailSender);
-        mailService = new MailService(mailSenderProvider, mailContentBuilder);
+        // Same retry policy as production, without backoff delays, so retry tests run instantly.
+        RetryTemplate noDelayRetryTemplate = new RetryTemplate(RetryPolicy.builder()
+            .includes(MailException.class).maxRetries(2).delay(Duration.ZERO).build());
+        mailService = new MailService(mailSenderProvider, mailContentBuilder, noDelayRetryTemplate);
         mailService.init(); // simulate @PostConstruct — caches the resolved sender
         ReflectionTestUtils.setField(mailService, "fromAddress", FROM_ADDRESS);
 
@@ -301,74 +308,107 @@ class MailServiceTest {
     @DisplayName("Retry and Recovery Tests")
     class RetryAndRecoveryTests {
 
-        @Test
-        @DisplayName("Should attempt to send despite MailException (retry handled by Spring)")
-        void shouldAttemptToSendDespiteMailException() {
-            // Given
-            MailSendException exception = new MailSendException("Connection failed");
-            
-            // Note: @Retryable doesn't work in unit tests without Spring context
-            // In production, this would retry 3 times with backoff
-            doThrow(exception).when(mailSender).send(any(MimeMessagePreparator.class));
+        private Logger mailServiceLogger;
+        private ListAppender<ILoggingEvent> listAppender;
 
-            // When/Then - Exception is thrown but @Async would handle it
-            try {
-                mailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test message");
-            } catch (MailSendException e) {
-                // Expected in unit test context
-                assertThat(e.getMessage()).isEqualTo("Connection failed");
-            }
+        @BeforeEach
+        void attachAppender() {
+            mailServiceLogger = (Logger) LoggerFactory.getLogger(MailService.class);
+            listAppender = new ListAppender<>();
+            listAppender.start();
+            mailServiceLogger.addAppender(listAppender);
+        }
 
-            // Verify send was attempted
-            verify(mailSender).send(any(MimeMessagePreparator.class));
+        @AfterEach
+        void detachAppender() {
+            mailServiceLogger.detachAppender(listAppender);
         }
 
         @Test
-        @DisplayName("Recovery method should log error for simple message")
-        void recoveryMethodShouldLogErrorForSimpleMessage() {
-            // Given
-            MailSendException exception = new MailSendException("SMTP server down");
-            String text = "Important message";
+        @DisplayName("Should retry a simple message and succeed when the failure is transient")
+        void shouldRetrySimpleMessageAndSucceedWhenFailureIsTransient() {
+            // Given - first attempt fails, second succeeds
+            doThrow(new MailSendException("Connection reset")).doNothing()
+                .when(mailSender).send(any(MimeMessagePreparator.class));
 
-            // When - Call recovery method directly since we can't trigger retry in unit test
-            mailService.recoverSendSimpleMessage(exception, TO_ADDRESS, SUBJECT, text);
+            // When
+            mailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test message");
 
-            // Then - Method completes without throwing exception (logs error)
-            // In a real test with logging verification, we'd check the log output
+            // Then
+            verify(mailSender, times(2)).send(any(MimeMessagePreparator.class));
+            assertThat(errorMessages()).isEmpty();
         }
 
         @Test
-        @DisplayName("Recovery method should log error for template message")
-        void recoveryMethodShouldLogErrorForTemplateMessage() {
+        @DisplayName("Should make 3 attempts, then log and suppress the failure for a simple message")
+        void shouldLogAndSuppressWhenAllSimpleMessageAttemptsFail() {
             // Given
-            MailSendException exception = new MailSendException("Template processing failed");
+            doThrow(new MailSendException("SMTP server down")).when(mailSender).send(any(MimeMessagePreparator.class));
+
+            // When - no exception escapes once retries are exhausted
+            mailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Important message");
+
+            // Then
+            verify(mailSender, times(3)).send(any(MimeMessagePreparator.class));
+            assertThat(errorMessages()).singleElement().asString()
+                .contains("Failed to send simple email to " + TO_ADDRESS)
+                .contains("after all retry attempts")
+                .contains("SMTP server down");
+        }
+
+        @Test
+        @DisplayName("Should make 3 attempts, then log and suppress the failure for a template message")
+        void shouldLogAndSuppressWhenAllTemplateMessageAttemptsFail() {
+            // Given
+            doThrow(new MailSendException("SMTP server down")).when(mailSender).send(any(MimeMessagePreparator.class));
             Map<String, Object> variables = new HashMap<>();
             variables.put("key", "value");
-            String templatePath = "email/test";
 
-            // When - Call recovery method directly
-            mailService.recoverSendTemplateMessage(exception, TO_ADDRESS, SUBJECT, variables, templatePath);
+            // When
+            mailService.sendTemplateMessage(TO_ADDRESS, SUBJECT, variables, "email/test");
 
-            // Then - Method completes without throwing exception (logs error)
+            // Then
+            verify(mailSender, times(3)).send(any(MimeMessagePreparator.class));
+            assertThat(errorMessages()).singleElement().asString()
+                .contains("Failed to send template email to " + TO_ADDRESS)
+                .contains("Template: 'email/test'")
+                .contains("SMTP server down");
         }
 
         @Test
-        @DisplayName("Should handle permanent MailException gracefully")
-        void shouldHandlePermanentMailException() {
+        @DisplayName("Should not retry and should propagate a failure that is not a MailException")
+        void shouldPropagateWithoutRetryWhenFailureIsNotMailException() {
             // Given
-            MailSendException permanentException = new MailSendException("Invalid recipient");
-            doThrow(permanentException).when(mailSender).send(any(MimeMessagePreparator.class));
+            IllegalStateException failure = new IllegalStateException("Unexpected bug");
+            doThrow(failure).when(mailSender).send(any(MimeMessagePreparator.class));
 
-            // When/Then
-            try {
-                mailService.sendSimpleMessage("invalid-email", SUBJECT, "Test");
-            } catch (MailSendException e) {
-                // Expected in unit test - in production @Async would handle this
-                assertThat(e.getMessage()).isEqualTo("Invalid recipient");
-            }
-            
-            // Verify send was attempted
-            verify(mailSender).send(any(MimeMessagePreparator.class));
+            // When/Then - the original exception propagates unchanged, as it did with spring-retry's retryFor
+            assertThatThrownBy(() -> mailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test")).isSameAs(failure);
+            verify(mailSender, times(1)).send(any(MimeMessagePreparator.class));
+            assertThat(errorMessages()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Default retry template retries MailException only, with 1s exponential backoff doubling")
+        void shouldConfigureDefaultRetryTemplateWithExpectedPolicy() {
+            // When
+            RetryPolicy policy = MailService.defaultRetryTemplate().getRetryPolicy();
+
+            // Then
+            assertThat(policy.shouldRetry(new MailSendException("fail"))).isTrue();
+            assertThat(policy.shouldRetry(new IllegalStateException("fail"))).isFalse();
+            assertThat(policy.getBackOff()).isInstanceOfSatisfying(ExponentialBackOff.class, backOff -> {
+                assertThat(backOff.getInitialInterval()).isEqualTo(1000L);
+                assertThat(backOff.getMultiplier()).isEqualTo(2.0);
+                assertThat(backOff.getMaxAttempts()).isEqualTo(2L);
+            });
+        }
+
+        private java.util.List<String> errorMessages() {
+            return listAppender.list.stream()
+                .filter(event -> event.getLevel() == Level.ERROR)
+                .map(ILoggingEvent::getFormattedMessage)
+                .toList();
         }
     }
 

@@ -10,7 +10,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * Provides the dedicated, bounded {@code dsMailExecutor} used to run the library's mail-sending {@code @Async} work.
  *
  * <p>
- * {@link MailService}'s send methods combine {@code @Async} with {@code @Retryable} (3 attempts with exponential backoff). If those methods shared
+ * {@link MailService}'s send methods run under {@code @Async} and retry failed sends in-thread (3 attempts with exponential backoff). If those methods shared
  * Spring Boot's default application task executor, an SMTP outage could occupy that shared pool for seconds at a time per message and starve every
  * other {@code @Async} feature in the library (event publishing, listeners, etc.). To prevent that, mail runs on its own small, bounded pool with a
  * bounded queue and a {@link CallerRunsPolicy} rejection handler &mdash; so when the mail pool and queue are both saturated, the calling thread runs

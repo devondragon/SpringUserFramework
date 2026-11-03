@@ -125,8 +125,11 @@
     {
       "name": "user.retry.enabled",
       "type": "java.lang.Boolean",
-      "description": "Enable the library's Spring Retry support (@EnableRetry). Set to false if the consuming application already enables retry globally to avoid double-activation.",
-      "defaultValue": true
+      "description": "Deprecated and has no effect. The library no longer enables Spring Retry (@EnableRetry); mail sending retries through Spring Framework's RetryTemplate internally.",
+      "deprecation": {
+        "level": "warning",
+        "reason": "The library no longer uses spring-retry or applies @EnableRetry. Applications that use spring-retry's @Retryable must add @EnableRetry themselves."
+      }
     },
     {
       "name": "user.scheduling.enabled",

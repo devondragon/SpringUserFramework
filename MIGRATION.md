@@ -6,6 +6,8 @@ This guide covers migrating applications using the Spring User Framework between
 
 - [Migration Guide](#migration-guide)
   - [Table of Contents](#table-of-contents)
+  - [Migrating to 5.4.x](#migrating-to-54x)
+    - [spring-retry is no longer required; the library no longer enables `@EnableRetry`](#spring-retry-is-no-longer-required-the-library-no-longer-enables-enableretry)
   - [Migrating to 5.3.x](#migrating-to-53x)
     - [Spring Security's built-in WebAuthn delete endpoint is now denied (GHSA-3cv9-vgqh-jwpm)](#spring-securitys-built-in-webauthn-delete-endpoint-is-now-denied-ghsa-3cv9-vgqh-jwpm)
   - [Migrating to 5.2.x](#migrating-to-52x)
@@ -46,6 +48,21 @@ This guide covers migrating applications using the Spring User Framework between
   - [Troubleshooting](#troubleshooting)
     - [Common Issues](#common-issues)
   - [Version Compatibility Matrix](#version-compatibility-matrix)
+
+## Migrating to 5.4.x
+
+### spring-retry is no longer required; the library no longer enables `@EnableRetry`
+
+Spring Boot 4 dropped dependency management for `spring-retry`, and Spring Retry is superseded by the retry support in Spring Framework 7 core. `MailService` now retries failed sends with Spring Framework's `org.springframework.core.retry.RetryTemplate`. The policy is unchanged: 3 attempts in total for `MailException`, with exponential backoff starting at 1 second and doubling. After the last attempt fails, the error is logged and suppressed, as before.
+
+The library no longer uses spring-retry and no longer applies `@EnableRetry`.
+
+**Action required:**
+
+- **Remove the `spring-retry` dependency** from your build, unless your application uses spring-retry itself. The library no longer needs it on the classpath.
+- **If your application uses spring-retry's `@Retryable`/`@Recover`** and relied on the library's `@EnableRetry` to activate them, add `@EnableRetry` to one of your own `@Configuration` classes and keep the `spring-retry` dependency. Without it, those annotations are silently ignored and your methods run once without retrying.
+- **`user.retry.enabled` is deprecated and has no effect.** Remove it from your configuration. The library logs a warning at startup while it is set. `MailService` retries regardless of this property, because the retry no longer depends on an `@Enable*` annotation.
+- **If you subclass `MailService`**, overrides of `recoverSendSimpleMessage` and `recoverSendTemplateMessage` still work: they are now called directly when retries are exhausted, rather than through `@Recover`. The `@Retryable` annotations are gone from `sendSimpleMessage` and `sendTemplateMessage`, so an override of those methods no longer inherits retry from annotations; call `super` to keep it.
 
 ## Migrating to 5.3.x
 
@@ -418,7 +435,7 @@ The library's entry point, `UserConfiguration`, is now a proper Spring Boot `@Au
 | Property (default `true`) | Enables |
 |---|---|
 | `user.async.enabled` | `@EnableAsync` |
-| `user.retry.enabled` | `@EnableRetry` |
+| `user.retry.enabled` | `@EnableRetry` (removed in 5.4.0; see [Migrating to 5.4.x](#migrating-to-54x)) |
 | `user.scheduling.enabled` | `@EnableScheduling` |
 | `user.method-security.enabled` | `@EnableMethodSecurity` |
 

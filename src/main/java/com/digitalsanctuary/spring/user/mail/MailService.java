@@ -1,16 +1,17 @@
 package com.digitalsanctuary.spring.user.mail;
 
+import java.time.Duration;
 import java.util.Map;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.retry.RetryException;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.javamail.MimeMessagePreparator;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.thymeleaf.context.Context;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,9 @@ public class MailService {
 
 	private final MailContentBuilder mailContentBuilder;
 
+	/** Retries each send on {@link MailException}; see {@link #defaultRetryTemplate()}. */
+	private final RetryTemplate retryTemplate;
+
 	/** Resolved once at startup; null when JavaMailSender is not configured. */
 	private JavaMailSender resolvedSender;
 
@@ -48,8 +52,22 @@ public class MailService {
 	 * @param mailContentBuilder the mail content builder
 	 */
 	public MailService(ObjectProvider<JavaMailSender> mailSenderProvider, MailContentBuilder mailContentBuilder) {
+		this(mailSenderProvider, mailContentBuilder, defaultRetryTemplate());
+	}
+
+	/**
+	 * Instantiates a new mail service with a specific retry template. Package-private so tests can use a template without
+	 * backoff delays.
+	 *
+	 * @param mailSenderProvider provider for the mail sender; may resolve to null when mail is not configured
+	 * @param mailContentBuilder the mail content builder
+	 * @param retryTemplate the retry template used for each send
+	 */
+	MailService(ObjectProvider<JavaMailSender> mailSenderProvider, MailContentBuilder mailContentBuilder,
+			RetryTemplate retryTemplate) {
 		this.mailSenderProvider = mailSenderProvider;
 		this.mailContentBuilder = mailContentBuilder;
+		this.retryTemplate = retryTemplate;
 	}
 
 	/**
@@ -75,8 +93,6 @@ public class MailService {
 	 * @param text the text to include as the email message body
 	 */
 	@Async("dsMailExecutor")
-	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
-			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendSimpleMessage(String to, String subject, String text) {
 		if (resolvedSender == null) {
 			return;
@@ -91,8 +107,12 @@ public class MailService {
 			messageHelper.setText(text, true);
 		};
 
-		resolvedSender.send(messagePreparator);
-		log.debug("Successfully sent simple email to: {}", to);
+		try {
+			sendWithRetry(messagePreparator);
+			log.debug("Successfully sent simple email to: {}", to);
+		} catch (MailException ex) {
+			recoverSendSimpleMessage(ex, to, subject, text);
+		}
 	}
 
 	/**
@@ -104,8 +124,6 @@ public class MailService {
 	 * @param templatePath the file name, or path and name, for the Thymeleaf template to use to build the dynamic email
 	 */
 	@Async("dsMailExecutor")
-	@Retryable(retryFor = {MailException.class}, maxAttempts = 3,
-			   backoff = @Backoff(delay = 1000, multiplier = 2))
 	public void sendTemplateMessage(String to, String subject, Map<String, Object> variables, String templatePath) {
 		if (resolvedSender == null) {
 			return;
@@ -123,26 +141,72 @@ public class MailService {
 			messageHelper.setText(content, true);
 		};
 
-		resolvedSender.send(messagePreparator);
-		log.debug("Successfully sent template email to: {}", to);
+		try {
+			sendWithRetry(messagePreparator);
+			log.debug("Successfully sent template email to: {}", to);
+		} catch (MailException ex) {
+			recoverSendTemplateMessage(ex, to, subject, variables, templatePath);
+		}
 	}
 
 	/**
-	 * Recovery method for sendSimpleMessage when all retry attempts are exhausted.
+	 * Sends the message through the resolved sender, retrying on {@link MailException} according to the retry template.
+	 *
+	 * @param messagePreparator the preparator for the message to send
+	 * @throws MailException the last mail failure, once every attempt has failed
+	 */
+	private void sendWithRetry(MimeMessagePreparator messagePreparator) {
+		try {
+			retryTemplate.execute(() -> {
+				resolvedSender.send(messagePreparator);
+				return null;
+			});
+		} catch (RetryException ex) {
+			// The policy only retries MailException, so any other failure stops the template on the first attempt.
+			// Rethrow the original exception unchanged so it propagates exactly as it would without retry.
+			Throwable cause = ex.getCause();
+			if (cause instanceof RuntimeException runtimeException) {
+				throw runtimeException;
+			}
+			if (cause instanceof Error error) {
+				throw error;
+			}
+			throw new IllegalStateException("Unexpected checked exception while sending mail", cause);
+		}
+	}
+
+	/**
+	 * Builds the default retry template: 3 attempts in total (the first send plus 2 retries) for {@link MailException}, with
+	 * exponential backoff starting at 1 second and doubling.
+	 *
+	 * @return the default mail retry template
+	 */
+	static RetryTemplate defaultRetryTemplate() {
+		return new RetryTemplate(RetryPolicy.builder()
+				.includes(MailException.class)
+				.maxRetries(2)
+				.delay(Duration.ofSeconds(1))
+				.multiplier(2)
+				.build());
+	}
+
+	/**
+	 * Recovery method for sendSimpleMessage when all retry attempts are exhausted. Logs the failure and suppresses the
+	 * exception. Subclasses may override this to change how an undeliverable message is handled.
 	 *
 	 * @param ex the exception that caused the failure
 	 * @param to the to email address
 	 * @param subject the subject
 	 * @param text the text
 	 */
-	@Recover
 	public void recoverSendSimpleMessage(MailException ex, String to, String subject, String text) {
 		log.error("Failed to send simple email to {} after all retry attempts. Subject: '{}'. Error: {}",
 				  to, subject, ex.getMessage());
 	}
 
 	/**
-	 * Recovery method for sendTemplateMessage when all retry attempts are exhausted.
+	 * Recovery method for sendTemplateMessage when all retry attempts are exhausted. Logs the failure and suppresses the
+	 * exception. Subclasses may override this to change how an undeliverable message is handled.
 	 *
 	 * @param ex the exception that caused the failure
 	 * @param to the to email address
@@ -150,7 +214,6 @@ public class MailService {
 	 * @param variables the template variables
 	 * @param templatePath the template path
 	 */
-	@Recover
 	public void recoverSendTemplateMessage(MailException ex, String to, String subject,
 										   Map<String, Object> variables, String templatePath) {
 		log.error("Failed to send template email to {} after all retry attempts. Subject: '{}', Template: '{}'. Error: {}",

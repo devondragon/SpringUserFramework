@@ -33,7 +33,7 @@ import com.digitalsanctuary.spring.user.mail.MailService;
  * <p>
  * Bean-method-produced instances retain full Spring lifecycle support: {@link FileAuditLogWriter}'s {@code @PostConstruct setup()} /
  * {@code @PreDestroy cleanup()} and {@link MailService}'s {@code @PostConstruct init()}, {@code @Value} {@code fromAddress} field injection, and
- * {@code @Async}/{@code @Retryable} AOP proxying all still apply to {@code @Bean}-produced objects.
+ * {@code @Async} AOP proxying all still apply to {@code @Bean}-produced objects.
  * </p>
  */
 @AutoConfiguration(after = UserConfiguration.class)
