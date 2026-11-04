@@ -55,7 +55,14 @@ class UserConfigurationRetryDeprecationTest {
     }
 
     private List<String> warnings() {
-        return listAppender.list.stream().filter(event -> event.getLevel() == Level.WARN).map(ILoggingEvent::getFormattedMessage)
+        // UserConfiguration's logger is JVM-global and this suite runs tests in parallel (see junit-platform.properties), so a
+        // Spring context booting in another test can log into this appender. onStartup() runs synchronously here, so keep only
+        // events from the current test thread. Snapshot first (List.copyOf) so a concurrent append cannot break iteration.
+        String testThread = Thread.currentThread().getName();
+        return List.copyOf(listAppender.list).stream()
+                .filter(event -> event.getLevel() == Level.WARN)
+                .filter(event -> testThread.equals(event.getThreadName()))
+                .map(ILoggingEvent::getFormattedMessage)
                 .toList();
     }
 }

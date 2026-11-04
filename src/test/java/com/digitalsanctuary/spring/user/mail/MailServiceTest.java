@@ -13,6 +13,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import jakarta.mail.internet.MimeMessage;
@@ -404,9 +405,14 @@ class MailServiceTest {
             });
         }
 
-        private java.util.List<String> errorMessages() {
-            return listAppender.list.stream()
+        private List<String> errorMessages() {
+            // MailService's logger is JVM-global and this suite runs tests in parallel (see junit-platform.properties), so
+            // other tests' events land in this appender too. These tests call MailService synchronously, so keep only events
+            // from the current test thread. Snapshot first (List.copyOf) so a concurrent append cannot break iteration.
+            String testThread = Thread.currentThread().getName();
+            return List.copyOf(listAppender.list).stream()
                 .filter(event -> event.getLevel() == Level.ERROR)
+                .filter(event -> testThread.equals(event.getThreadName()))
                 .map(ILoggingEvent::getFormattedMessage)
                 .toList();
         }

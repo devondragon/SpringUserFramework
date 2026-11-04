@@ -451,7 +451,9 @@ user:
 
 Leave them unset (or `true`) to keep the library managing these for you, exactly as before.
 
-> **Note on async/retry interaction:** These toggles are independent. If you disable `user.async.enabled=false` while retry remains enabled (the default), any `@Retryable` methods in the library will still be registered for retry — but if those methods were previously executing on an async thread pool, they will now run synchronously on the caller's thread. In practice the library's `@Retryable` methods are not themselves `@Async`, so the common case is unaffected; however, consumers that wrap library calls in their own async boundaries should verify the combined behavior when selectively disabling these features.
+> **Note on async/retry interaction (5.0.x through 5.3.x):** These toggles are independent. If you disable `user.async.enabled=false` while retry remains enabled (the default), any `@Retryable` methods in the library will still be registered for retry — but if those methods were previously executing on an async thread pool, they will now run synchronously on the caller's thread. In practice the library's `@Retryable` methods are not themselves `@Async`, so the common case is unaffected; however, consumers that wrap library calls in their own async boundaries should verify the combined behavior when selectively disabling these features.
+>
+> As of 5.4.0 this note no longer applies: `user.retry.enabled` has no effect, and `MailService` retries in-thread with `RetryTemplate` regardless of `user.async.enabled`. With async disabled, the retries and their backoff (up to about 3 seconds per failed message) run on the caller's thread. See [Migrating to 5.4.x](#migrating-to-54x).
 
 <!-- Additional 5.0.x migration notes are appended below as tasks land. -->
 
