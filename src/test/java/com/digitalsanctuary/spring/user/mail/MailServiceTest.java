@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.mockito.Mock;
@@ -45,6 +46,9 @@ import org.thymeleaf.context.Context;
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MailService Tests")
+// Isolated from other test classes: when a Spring Boot context starts, LogbackLoggingSystem calls LoggerContext.reset(),
+// which detaches every appender, including this class's ListAppender. Within the class, assertions also filter by thread.
+@Isolated
 class MailServiceTest {
 
     @Mock

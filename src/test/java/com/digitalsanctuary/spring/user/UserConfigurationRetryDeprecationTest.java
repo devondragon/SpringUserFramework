@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.slf4j.LoggerFactory;
 import org.springframework.mock.env.MockEnvironment;
 
@@ -18,6 +19,9 @@ import org.springframework.mock.env.MockEnvironment;
  * Verifies that {@link UserConfiguration} warns at startup when the deprecated {@code user.retry.enabled} property is still set.
  */
 @DisplayName("UserConfiguration user.retry.enabled Deprecation Tests")
+// Isolated from other test classes: when a Spring Boot context starts, LogbackLoggingSystem calls LoggerContext.reset(),
+// which detaches every appender, including this class's ListAppender. Within the class, assertions also filter by thread.
+@Isolated
 class UserConfigurationRetryDeprecationTest {
 
     private Logger logger;
