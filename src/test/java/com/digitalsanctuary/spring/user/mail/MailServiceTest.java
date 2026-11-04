@@ -390,6 +390,33 @@ class MailServiceTest {
         }
 
         @Test
+        @DisplayName("Should stop retrying, keep the interrupt flag, and recover with the MailException when interrupted during backoff")
+        void shouldRecoverAndKeepInterruptFlagWhenInterruptedDuringBackoff() {
+            // Given - a non-zero backoff, so RetryTemplate calls Thread.sleep, which throws at once because the flag is set
+            MailService service = new MailService(mailSenderProvider, mailContentBuilder, new RetryTemplate(RetryPolicy.builder()
+                .includes(MailException.class).maxRetries(2).delay(Duration.ofMillis(50)).build()));
+            service.init();
+            ReflectionTestUtils.setField(service, "fromAddress", FROM_ADDRESS);
+            doThrow(new MailSendException("Connection reset")).when(mailSender).send(any(MimeMessagePreparator.class));
+
+            // When
+            Thread.currentThread().interrupt();
+            boolean interruptedAfterSend;
+            try {
+                service.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test message");
+            } finally {
+                interruptedAfterSend = Thread.interrupted(); // read and clear, so the flag cannot leak into other tests
+            }
+
+            // Then - one attempt only, the recover path logged the MailException, and the interrupt was preserved
+            assertThat(interruptedAfterSend).isTrue();
+            verify(mailSender, times(1)).send(any(MimeMessagePreparator.class));
+            assertThat(errorMessages()).singleElement().asString()
+                .contains("Failed to send simple email to " + TO_ADDRESS)
+                .contains("Connection reset");
+        }
+
+        @Test
         @DisplayName("Default retry template retries MailException only, with 1s exponential backoff doubling")
         void shouldConfigureDefaultRetryTemplateWithExpectedPolicy() {
             // When
