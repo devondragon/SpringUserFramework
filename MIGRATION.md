@@ -940,7 +940,7 @@ The Spring Boot column is the version each line's latest release was built and t
 
 | Framework Version | Spring Boot | Spring Security | Java | Status |
 |-------------------|-------------|-----------------|------|--------|
-| 5.4.x | 4.1.1 (also runs on 4.0.1 and later; see note) | 7.0.x, 7.1.x | 21+ | Current |
+| 5.4.x | 4.1.1 (also runs on 4.0.x; see note for 5.4.0) | 7.0.x, 7.1.x | 21+ | Current |
 | 5.0.x – 5.3.x | 4.1.0 (also runs on 4.0.x) | 7.0.x, 7.1.x | 21+ | Superseded: upgrade to 5.4.x |
 | 4.0.x – 4.4.x | 4.0.1 – 4.0.6 | 7.0.x | 21+ | End of life: upgrade to 5.x (see [Migrating to 5.0.x](#migrating-to-50x)) |
 | 3.6.x | 3.5.6 | 6.5.x | 17+ | Security fixes only (`release/3.x` branch) |
@@ -948,7 +948,7 @@ The Spring Boot column is the version each line's latest release was built and t
 | 2.x | 2.7.2 | 5.7.x | 17+ | End of life |
 | 1.x | 2.4.2 | 5.4.x | 11+ | End of life |
 
-> **Note on 5.4.x and Spring Boot 4.0.0:** Spring Boot 4.0.0 ships Spring Framework 7.0.1. On Framework 7.0.0 and 7.0.1, if a mail send is interrupted during retry backoff (for example during executor shutdown), `RetryTemplate` reports the `InterruptedException` as the cause, and `MailService` throws `IllegalStateException` instead of logging the failure through its recover method. Framework 7.0.2 and later (Spring Boot 4.0.1 and later) report the last `MailException`, and the send is recovered normally. Use Spring Boot 4.0.1 or later with 5.4.x.
+> **Note on 5.4.0 and Spring Boot 4.0.0:** Spring Boot 4.0.0 ships Spring Framework 7.0.1. On Framework 7.0.0 and 7.0.1, if a mail send is interrupted during retry backoff (for example during executor shutdown), `RetryTemplate` reports the `InterruptedException` as the cause, and 5.4.0's `MailService` throws `IllegalStateException` instead of logging the failure through its recover method. 5.4.1 handles both forms, so use 5.4.1 or later on Spring Boot 4.0.0.
 
 ---
 

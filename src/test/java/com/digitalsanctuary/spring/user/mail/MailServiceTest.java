@@ -29,8 +29,10 @@ import org.slf4j.LoggerFactory;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryPolicy;
 import org.springframework.core.retry.RetryTemplate;
+import org.springframework.core.retry.Retryable;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -391,6 +393,68 @@ class MailServiceTest {
             assertThatThrownBy(() -> mailService.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test")).isSameAs(failure);
             verify(mailSender, times(1)).send(any(MimeMessagePreparator.class));
             assertThat(errorMessages()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should recover with the last MailException when RetryTemplate reports the interrupt as the cause (Framework 7.0.0-7.0.1)")
+        void shouldRecoverWithLastMailExceptionWhenInterruptIsTheCause() {
+            // Given - reproduce how Spring Framework 7.0.0 and 7.0.1 report an interrupt during backoff: the cause is the
+            // InterruptedException, the earlier MailException failures are suppressed, and the template has set the flag
+            MailSendException firstFailure = new MailSendException("Connection reset");
+            MailService service = new MailService(mailSenderProvider, mailContentBuilder, new RetryTemplate() {
+                @Override
+                public <R> R execute(Retryable<R> retryable) throws RetryException {
+                    Thread.currentThread().interrupt();
+                    RetryException ex = new RetryException("Unable to back off", new InterruptedException("sleep interrupted"));
+                    ex.addSuppressed(firstFailure);
+                    throw ex;
+                }
+            });
+            service.init();
+            ReflectionTestUtils.setField(service, "fromAddress", FROM_ADDRESS);
+
+            // When
+            boolean interruptedAfterSend;
+            try {
+                service.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test message");
+            } finally {
+                interruptedAfterSend = Thread.interrupted(); // read and clear, so the flag cannot leak into other tests
+            }
+
+            // Then - the recover path logged the suppressed MailException, and the interrupt was preserved
+            assertThat(interruptedAfterSend).isTrue();
+            assertThat(errorMessages()).singleElement().asString()
+                .contains("Failed to send simple email to " + TO_ADDRESS)
+                .contains("Connection reset");
+        }
+
+        @Test
+        @DisplayName("Should recover with a MailSendException wrapping the interrupt when no MailException was recorded")
+        void shouldRecoverWithWrappedInterruptWhenNoMailExceptionWasRecorded() {
+            // Given - an interrupt reported as the cause with no recorded MailException
+            MailService service = new MailService(mailSenderProvider, mailContentBuilder, new RetryTemplate() {
+                @Override
+                public <R> R execute(Retryable<R> retryable) throws RetryException {
+                    Thread.currentThread().interrupt();
+                    throw new RetryException("Unable to back off", new InterruptedException("sleep interrupted"));
+                }
+            });
+            service.init();
+            ReflectionTestUtils.setField(service, "fromAddress", FROM_ADDRESS);
+
+            // When
+            boolean interruptedAfterSend;
+            try {
+                service.sendSimpleMessage(TO_ADDRESS, SUBJECT, "Test message");
+            } finally {
+                interruptedAfterSend = Thread.interrupted();
+            }
+
+            // Then
+            assertThat(interruptedAfterSend).isTrue();
+            assertThat(errorMessages()).singleElement().asString()
+                .contains("Failed to send simple email to " + TO_ADDRESS)
+                .contains("interrupted");
         }
 
         @Test
