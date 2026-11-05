@@ -60,7 +60,7 @@ src/test/java/com/digitalsanctuary/spring/user/
 
 ## Entry Points
 - `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`: registers 4 auto-configuration classes consumers get automatically via Spring Boot's auto-config discovery (no `@ComponentScan` needed in the consuming app):
-  - `com.digitalsanctuary.spring.user.UserConfiguration` — root config, component-scans `com.digitalsanctuary.spring.user`, conditionally enables `@EnableAsync`/`@EnableRetry`/`@EnableScheduling`/`@EnableMethodSecurity` (each gated by its own `user.*.enabled` property).
+  - `com.digitalsanctuary.spring.user.UserConfiguration` — root config, component-scans `com.digitalsanctuary.spring.user`, conditionally enables `@EnableAsync`/`@EnableScheduling`/`@EnableMethodSecurity` (each gated by its own `user.*.enabled` property). `@EnableRetry` was removed in 5.4.0; `user.retry.enabled` is deprecated and only triggers a startup warning.
   - `com.digitalsanctuary.spring.user.audit.AuditMailAutoConfiguration`
   - `com.digitalsanctuary.spring.user.security.UserSecurityBeansAutoConfiguration`
   - `com.digitalsanctuary.spring.user.security.WebSecurityFilterChainAutoConfiguration` — exposes the `SecurityFilterChain` bean at low precedence, backing off if the consumer defines its own.
@@ -132,7 +132,7 @@ Spring Security's form-login/OAuth2/OIDC filters authenticate against `DSUserDet
 
 ## Key Patterns
 - **Auto-configuration + conditional back-off**: `@AutoConfiguration` classes registered via `AutoConfiguration.imports`; security filter chain and other beans use `@ConditionalOnMissingBean` so a consuming app's own beans always win (see comments in `WebSecurityConfig`/`WebSecurityFilterChainAutoConfiguration`).
-- **Property-gated cross-cutting concerns**: every `@Enable*` (`Async`, `Retry`, `Scheduling`, `MethodSecurity`) and every optional feature (GDPR, MFA, WebAuthn, dev auto-login, rememberMe) is behind its own `user.*.enabled` property, defaulting to preserve existing behavior.
+- **Property-gated cross-cutting concerns**: every `@Enable*` (`Async`, `Scheduling`, `MethodSecurity`) and every optional feature (GDPR, MFA, WebAuthn, dev auto-login, rememberMe) is behind its own `user.*.enabled` property, defaulting to preserve existing behavior.
 - **Event-driven decoupling**: registration, authentication, deletion, consent, and data-export flows all communicate via Spring `ApplicationEvent`s (`OnRegistrationCompleteEvent`, `UserPreDeleteEvent`, `UserDeletedEvent`, `UserDisabledEvent`, `ConsentChangedEvent`, `UserDataExportedEvent`) rather than direct service calls, letting consumers hook in via plain `@EventListener` beans without modifying library code.
 - **Immutable/scalar event payloads over live entities**: `UserPreDeleteEvent` and the async registration-email path deliberately carry only `userId`/`userEmail` scalars (not the JPA `User`), because listeners run on separate threads/transactions where a detached entity would throw `LazyInitializationException`.
 - **Anti-enumeration responses**: `UserAPI` registration/resend-verification endpoints always return an identical generic success response regardless of whether the email exists, is already verified, or is new — true outcome is recorded only via `AuditEventListener`.

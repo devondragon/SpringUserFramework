@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
  * individually toggleable and defaults to on (backward compatible).
  *
  * <p>
- * The four nested gating configurations are registered directly (rather than the full scanning
+ * The three nested gating configurations are registered directly (rather than the full scanning
  * {@link UserConfiguration} entry point) so their {@code @ConditionalOnProperty(matchIfMissing = true)}
  * gates can be exercised in isolation. Registering the full {@code UserConfiguration} here would trigger
  * its broad {@code @ComponentScan("com.digitalsanctuary.spring.user")}, which in the test classpath also
@@ -24,7 +24,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class UserConfigurationToggleTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(
-            UserConfiguration.AsyncConfiguration.class, UserConfiguration.RetryConfiguration.class,
+            UserConfiguration.AsyncConfiguration.class,
             UserConfiguration.SchedulingConfiguration.class, UserConfiguration.MethodSecurityConfiguration.class);
 
     @Test
@@ -32,7 +32,6 @@ class UserConfigurationToggleTest {
     void defaultsActivateAllCrossCuttingConfigs() {
         runner.run(ctx -> {
             assertThat(ctx).hasSingleBean(UserConfiguration.AsyncConfiguration.class);
-            assertThat(ctx).hasSingleBean(UserConfiguration.RetryConfiguration.class);
             assertThat(ctx).hasSingleBean(UserConfiguration.SchedulingConfiguration.class);
             assertThat(ctx).hasSingleBean(UserConfiguration.MethodSecurityConfiguration.class);
         });
@@ -45,7 +44,6 @@ class UserConfigurationToggleTest {
             assertThat(ctx).doesNotHaveBean(UserConfiguration.MethodSecurityConfiguration.class);
             // Other cross-cutting configs remain active and independent.
             assertThat(ctx).hasSingleBean(UserConfiguration.AsyncConfiguration.class);
-            assertThat(ctx).hasSingleBean(UserConfiguration.RetryConfiguration.class);
             assertThat(ctx).hasSingleBean(UserConfiguration.SchedulingConfiguration.class);
         });
     }
@@ -71,17 +69,7 @@ class UserConfigurationToggleTest {
     void asyncToggleOff() {
         runner.withPropertyValues("user.async.enabled=false").run(ctx -> {
             assertThat(ctx).doesNotHaveBean(UserConfiguration.AsyncConfiguration.class);
-            assertThat(ctx).hasSingleBean(UserConfiguration.RetryConfiguration.class);
-        });
-    }
-
-    @Test
-    @DisplayName("user.retry.enabled=false: retry nested config does not activate")
-    void retryToggleOff() {
-        runner.withPropertyValues("user.retry.enabled=false").run(ctx -> {
-            assertThat(ctx).doesNotHaveBean(UserConfiguration.RetryConfiguration.class);
-            // Other cross-cutting configs remain active and independent.
-            assertThat(ctx).hasSingleBean(UserConfiguration.AsyncConfiguration.class);
+            assertThat(ctx).hasSingleBean(UserConfiguration.SchedulingConfiguration.class);
         });
     }
 }

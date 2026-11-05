@@ -4,6 +4,7 @@ import com.digitalsanctuary.spring.user.security.PasswordPolicyConfigProperties;
 import com.digitalsanctuary.spring.user.security.RememberMeConfigProperties;
 import com.digitalsanctuary.spring.user.security.UserSecurityConfigProperties;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
@@ -14,7 +15,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
-import org.springframework.retry.annotation.EnableRetry;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -22,7 +23,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 /**
  * Main auto-configuration class for the DigitalSanctuary Spring Boot User Framework Library.
  * Provides component scanning for the user framework package and enables, by default, asynchronous
- * processing, retry support, scheduling, and method-level security.
+ * processing, scheduling, and method-level security.
  *
  * <p>
  * Each cross-cutting enabler is gated behind its own opt-out property (all default {@code true}, so
@@ -30,10 +31,13 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
  * of these concerns globally can disable the library's copy to avoid double-activation conflicts:
  * <ul>
  * <li>{@code user.async.enabled} &rarr; {@code @EnableAsync}</li>
- * <li>{@code user.retry.enabled} &rarr; {@code @EnableRetry}</li>
  * <li>{@code user.scheduling.enabled} &rarr; {@code @EnableScheduling}</li>
  * <li>{@code user.method-security.enabled} &rarr; {@code @EnableMethodSecurity}</li>
  * </ul>
+ *
+ * <p>
+ * The library no longer enables Spring Retry. Mail sending retries through Spring Framework's
+ * {@code RetryTemplate} internally, so {@code user.retry.enabled} is deprecated and has no effect.
  *
  * @see UserAutoConfigurationRegistrar
  */
@@ -49,8 +53,13 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 @EnableConfigurationProperties({UserSecurityConfigProperties.class, PasswordPolicyConfigProperties.class,
         RememberMeConfigProperties.class})
 @Import(UserAutoConfigurationRegistrar.class)
+@RequiredArgsConstructor
 public class UserConfiguration {
 
+    /** Deprecated property that used to gate {@code @EnableRetry}; read only to warn when it is still set. */
+    static final String DEPRECATED_RETRY_PROPERTY = "user.retry.enabled";
+
+    private final Environment environment;
 
     /**
      * Logs a message when the UserConfiguration class is loaded to indicate that the DigitalSanctuary Spring Boot User Framework Library has been
@@ -59,6 +68,11 @@ public class UserConfiguration {
     @PostConstruct
     public void onStartup() {
         log.info("DigitalSanctuary SpringBoot User Framework Library loaded.");
+        if (environment.containsProperty(DEPRECATED_RETRY_PROPERTY)) {
+            log.warn("'{}' is deprecated and has no effect: the library no longer enables Spring Retry (@EnableRetry). "
+                    + "If your application uses spring-retry's @Retryable, add @EnableRetry to your own configuration.",
+                    DEPRECATED_RETRY_PROPERTY);
+        }
     }
 
     /**
@@ -70,17 +84,6 @@ public class UserConfiguration {
     @ConditionalOnProperty(name = "user.async.enabled", havingValue = "true", matchIfMissing = true)
     @EnableAsync
     static class AsyncConfiguration {
-    }
-
-    /**
-     * Enables Spring Retry support for the library. Gated behind {@code user.retry.enabled}
-     * (default {@code true}). Disable if the consuming application already enables retry globally to
-     * avoid double-activation.
-     */
-    @Configuration(proxyBeanMethods = false)
-    @ConditionalOnProperty(name = "user.retry.enabled", havingValue = "true", matchIfMissing = true)
-    @EnableRetry
-    static class RetryConfiguration {
     }
 
     /**

@@ -97,7 +97,7 @@ com.digitalsanctuary.spring.user
 ### Key Components
 
 **Entry Points:**
-- `UserConfiguration` - Main auto-configuration class, enables async/retry/scheduling/method security
+- `UserConfiguration` - Main auto-configuration class, enables async/scheduling/method security (mail retry uses Spring Framework's `RetryTemplate` inside `MailService`; spring-retry is not used)
 - `WebSecurityConfig` - Spring Security filter chain configuration
 - `UserAPI` - REST endpoints at `/user/*` (registration, password reset, profile update)
 

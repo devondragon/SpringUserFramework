@@ -24,7 +24,7 @@
 - Passay 2.0.0 (`org.passay:passay`) — password strength/validation rules (`implementation`).
 - Apache Commons Text 1.15.0 (`implementation`) — text utilities.
 - Jakarta Validation API 3.1.1 (`compileOnly`) — bean validation annotations.
-- Spring Retry 2.0.13 (`compileOnly`) — retry logic (e.g., for mail sending or DB ops).
+- Retry: Spring Framework 7 core `RetryTemplate` (`org.springframework.core.retry`), used by `MailService`. spring-retry was removed in 5.4.0.
 - Spring Boot Configuration Processor (`annotationProcessor`) — generates metadata for `@ConfigurationProperties`.
 
 ## Build & Dev Tools

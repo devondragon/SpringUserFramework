@@ -248,11 +248,6 @@ Follow these steps to get up and running with the Spring User Framework in your 
        <groupId>org.springframework.boot</groupId>
        <artifactId>spring-boot-starter-oauth2-client</artifactId>
    </dependency>
-   <dependency>
-       <groupId>org.springframework.retry</groupId>
-       <artifactId>spring-retry</artifactId>
-       <version>2.0.13</version>
-   </dependency>
    ```
 
    Gradle:
@@ -262,12 +257,10 @@ Follow these steps to get up and running with the Spring User Framework in your 
    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
    implementation 'org.springframework.boot:spring-boot-starter-security'
    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-   implementation 'org.springframework.retry:spring-retry:2.0.13'
    ```
 
    **Notes:**
    - `spring-boot-starter-oauth2-client` is required even if you don't plan to use social login. The framework's security chain wires OAuth2 user services at startup; the dependency must be on the classpath so the classes resolve. The OAuth2 login flow itself is disabled by default and opt-in — set `spring.security.oauth2.enabled=true` in your application properties only when you configure OAuth2 provider credentials (this is a framework property, not a standard Spring Security key).
-   - `spring-retry` needs an explicit version because Spring Boot's BOM may not manage this artifact. The version shown matches what the framework is built against.
 
 ### Step 2: Database Configuration
 
