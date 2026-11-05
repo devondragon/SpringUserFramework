@@ -4,6 +4,51 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-11-04
+
+This release replaces spring-retry with Spring Framework core RetryTemplate for mail sending, removes the library-provided @EnableRetry, and deprecates user.retry.enabled. Mail retries now work out of the box without spring-retry; applications that use spring-retry’s @Retryable must explicitly enable it themselves.
+
+SemVer classification: minor — deprecates a configuration property and removes library-provided @EnableRetry, which can change behavior in consuming apps that relied on it.
+
+### Breaking Changes
+- The library no longer applies @EnableRetry. If your application relied on the framework to enable spring-retry for your own @Retryable methods, you must add @EnableRetry to one of your @Configuration classes; otherwise your methods will execute once with no retry.
+- user.retry.enabled is deprecated and has no effect. It previously gated the library’s @EnableRetry; the key now triggers a startup warning and should be removed from application configuration.
+
+### Behavior changes (client impact)
+- Mail retry is always active inside MailService and no longer depends on spring-retry being on the classpath. Apps that previously did not include spring-retry (and therefore observed no mail retry) now get retry automatically.
+- If your app uses spring-retry’s @Retryable/@Recover for your own beans and depended on the library’s @EnableRetry, add @EnableRetry to your configuration and keep your spring-retry dependency. Without it, your @Retryable methods won’t retry.
+- With user.async.enabled=false, MailService retries (including backoff up to ~3s per failed message) run on the caller’s thread since retry is now in-thread via RetryTemplate.
+
+### Features
+- MailService now uses Spring Framework 7’s org.springframework.core.retry.RetryTemplate with the same policy as before: 3 attempts total on MailException only, with exponential backoff starting at 1s and doubling. On exhaustion, it calls recoverSendSimpleMessage and recoverSendTemplateMessage, which log and suppress the failure.
+  - Non-MailException failures propagate immediately on the first attempt, matching the prior behavior.
+  - recoverSendSimpleMessage and recoverSendTemplateMessage remain public so subclass overrides continue to work.
+- UserConfiguration removes the nested @EnableRetry configuration; on startup it logs a deprecation warning if user.retry.enabled is present.
+- The library no longer declares a spring-retry dependency; consumers no longer need to add spring-retry unless their own code uses it.
+
+### Documentation
+- MIGRATION.md: new “Migrating to 5.4.x” section:
+  - Notes that spring-retry is no longer required and the library no longer enables @EnableRetry.
+  - Action items for applications that use spring-retry’s @Retryable/@Recover (add @EnableRetry in your app) and to remove user.retry.enabled from configuration.
+  - Clarifies async/retry interaction now that MailService retries in-thread via RetryTemplate.
+- README.md: removes the spring-retry install pin from the dependency snippets.
+- ARCHITECTURE.md and STACK.md: updated to reflect that retry is handled via Spring Framework core RetryTemplate and that user.retry.enabled was removed in 5.4.0.
+
+### Testing
+- MailServiceTest now exercises real retry behavior:
+  - Transient failure then success (retries once and succeeds).
+  - Exhausted retries (3 sends, logs one ERROR, exception suppressed).
+  - Template variant coverage.
+  - Non-MailException propagates without retry.
+  - Interrupt during backoff preserves the thread interrupt flag and follows the recover path.
+- UserConfigurationRetryDeprecationTest verifies the startup warning when user.retry.enabled is set.
+- Stabilizes log-capture tests by isolating affected classes and filtering log events by the current test thread.
+
+### Other Changes
+- Bumps org.springframework.boot to 4.1.1.
+- Test dependency bumps: com.h2database:h2 to 2.5.252, org.hibernate.validator:hibernate-validator to 9.1.6.Final, com.tngtech.archunit:archunit-junit5 to 1.5.1, org.projectlombok:lombok to 1.18.48.
+- Gradle wrapper updates to 9.8.0 (and 9.7.1 interim); versions plugin to 0.64.0.
+
 ## [5.3.4] - 2026-08-21
 
 This release hardens passkey enrollment/notification, aligns the enrollment denial response with the rest of the step‑up‑gated endpoints, and fixes SERIALIZABLE deadlocks during passwordless registration. It also documents step‑up’s CSRF/session behavior so clients can successfully retry after re‑authentication.
