@@ -936,12 +936,19 @@ Spring Boot 4.0 requires Java 21.
 
 ## Version Compatibility Matrix
 
+The Spring Boot column is the version each line's latest release was built and tested against, taken from its release tag. Spring Boot starters are `compileOnly`, so your application supplies the exact Spring Boot patch version.
+
 | Framework Version | Spring Boot | Spring Security | Java | Status |
 |-------------------|-------------|-----------------|------|--------|
-| 4.0.x | 4.0.x | 7.x | 21+ | Current |
-| 3.5.x | 3.5.x | 6.x | 17+ | Maintained |
-| 3.4.x | 3.4.x | 6.x | 17+ | Security fixes only |
-| < 3.4 | < 3.4 | < 6 | 17+ | End of life |
+| 5.4.x | 4.1.1 (also runs on 4.0.1 and later; see note) | 7.0.x, 7.1.x | 21+ | Current |
+| 5.0.x – 5.3.x | 4.1.0 (also runs on 4.0.x) | 7.0.x, 7.1.x | 21+ | Superseded: upgrade to 5.4.x |
+| 4.0.x – 4.4.x | 4.0.1 – 4.0.6 | 7.0.x | 21+ | End of life: upgrade to 5.x (see [Migrating to 5.0.x](#migrating-to-50x)) |
+| 3.6.x | 3.5.6 | 6.5.x | 17+ | Security fixes only (`release/3.x` branch) |
+| 3.0.x – 3.5.x | 3.4.1 – 3.5.6 | 6.4.x – 6.5.x | 17+ | End of life: upgrade to 3.6.x or 5.x |
+| 2.x | 2.7.2 | 5.7.x | 17+ | End of life |
+| 1.x | 2.4.2 | 5.4.x | 11+ | End of life |
+
+> **Note on 5.4.x and Spring Boot 4.0.0:** Spring Boot 4.0.0 ships Spring Framework 7.0.1. On Framework 7.0.0 and 7.0.1, if a mail send is interrupted during retry backoff (for example during executor shutdown), `RetryTemplate` reports the `InterruptedException` as the cause, and `MailService` throws `IllegalStateException` instead of logging the failure through its recover method. Framework 7.0.2 and later (Spring Boot 4.0.1 and later) report the last `MailException`, and the send is recovered normally. Use Spring Boot 4.0.1 or later with 5.4.x.
 
 ---
 
