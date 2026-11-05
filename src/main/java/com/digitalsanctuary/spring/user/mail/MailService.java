@@ -9,6 +9,7 @@ import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryPolicy;
 import org.springframework.core.retry.RetryTemplate;
 import org.springframework.mail.MailException;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.javamail.MimeMessagePreparator;
@@ -162,9 +163,16 @@ public class MailService {
 				return null;
 			});
 		} catch (RetryException ex) {
+			Throwable cause = ex.getCause();
+			if (cause instanceof InterruptedException interrupted) {
+				// Spring Framework 7.0.0 and 7.0.1 report an interrupt during backoff with the InterruptedException as the
+				// cause and the earlier MailException failures suppressed (7.0.2 and later report the last MailException as
+				// the cause instead). Keep the interrupt flag and hand the last mail failure to the caller's recover path.
+				Thread.currentThread().interrupt();
+				throw lastMailException(ex, interrupted);
+			}
 			// The policy only retries MailException, so any other failure stops the template on the first attempt.
 			// Rethrow the original exception unchanged so it propagates exactly as it would without retry.
-			Throwable cause = ex.getCause();
 			if (cause instanceof RuntimeException runtimeException) {
 				throw runtimeException;
 			}
@@ -173,6 +181,24 @@ public class MailService {
 			}
 			throw new IllegalStateException("Unexpected checked exception while sending mail", cause);
 		}
+	}
+
+	/**
+	 * Returns the most recent {@link MailException} recorded on an interrupted retry, or a {@link MailSendException} wrapping the
+	 * interrupt when none was recorded.
+	 *
+	 * @param ex the retry exception thrown when the backoff was interrupted
+	 * @param interrupted the interrupt that stopped the backoff
+	 * @return the mail failure to pass to the recover method
+	 */
+	private static MailException lastMailException(RetryException ex, InterruptedException interrupted) {
+		Throwable[] suppressed = ex.getSuppressed();
+		for (int i = suppressed.length - 1; i >= 0; i--) {
+			if (suppressed[i] instanceof MailException mailException) {
+				return mailException;
+			}
+		}
+		return new MailSendException("Mail send interrupted during retry backoff", interrupted);
 	}
 
 	/**

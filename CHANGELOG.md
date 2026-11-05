@@ -4,6 +4,9 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+### Fixed
+- MailService no longer throws IllegalStateException when a send is interrupted during retry backoff on Spring Framework 7.0.0 or 7.0.1 (the versions in Spring Boot 4.0.0). Those versions report the InterruptedException as the RetryException cause instead of the last MailException; MailService now keeps the interrupt flag and passes the last recorded MailException (or a MailSendException wrapping the interrupt) to the recover methods, matching the behavior on 7.0.2 and later.
+
 ## [5.4.0] - 2026-11-04
 
 This release replaces spring-retry with Spring Framework core RetryTemplate for mail sending, removes the library-provided @EnableRetry, and deprecates user.retry.enabled. Mail retries now work out of the box without spring-retry; applications that use spring-retry’s @Retryable must explicitly enable it themselves.
