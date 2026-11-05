@@ -6,20 +6,20 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [5.4.1] - 2026-11-04
 
-This patch release fixes MailService’s behavior on Spring Framework 7.0.0–7.0.1 (Spring Boot 4.0.0) so an interrupt during retry backoff is recovered and logged instead of surfacing as IllegalStateException. Documentation clarifies version compatibility and notes that 5.4.1 works on Spring Boot 4.0.0.
+This patch release fixes MailService's behavior on Spring Framework 7.0.0 and 7.0.1 (Spring Boot 4.0.0) so an interrupt during retry backoff is recovered and logged instead of surfacing as IllegalStateException. Documentation clarifies version compatibility and notes that 5.4.1 works on Spring Boot 4.0.0.
 
-SemVer classification: patch — bug fix only; no new public API, configuration properties, HTTP status, or response code changes.
+SemVer classification: patch. Bug fix only; no new public API, configuration properties, HTTP status, or response code changes.
 
 ### Fixes
 - MailService no longer throws IllegalStateException when a send is interrupted during retry backoff on Spring Framework 7.0.0 or 7.0.1 (the versions in Spring Boot 4.0.0). Those Framework versions report the InterruptedException as the RetryException cause instead of the last MailException; MailService now keeps the interrupt flag and rethrows the last recorded MailException (or a MailSendException wrapping the interrupt) so the normal recover path (recoverSendSimpleMessage / recoverSendTemplateMessage) runs, matching behavior on 7.0.2 and later.
 
 ### Documentation
-- MIGRATION.md: rebuilt the Version Compatibility Matrix from release tags and clarified line statuses; updated the Spring Boot 4.0.0 caveat to “Note on 5.4.0 and Spring Boot 4.0.0” and documented that 5.4.1 handles both interrupt shapes — use 5.4.1 or later on Spring Boot 4.0.0.
+- MIGRATION.md: rebuilt the Version Compatibility Matrix from release tags and clarified line statuses; updated the Spring Boot 4.0.0 caveat to "Note on 5.4.0 and Spring Boot 4.0.0" and documented that 5.4.1 handles both interrupt shapes. Use 5.4.1 or later on Spring Boot 4.0.0.
 - README.md: versioning note now states that 5.4.x runs on Spring Boot 4.0.x and explicitly calls out that on Spring Boot 4.0.0 you should use 5.4.1 or later. Earlier post-release cleanup aligned the install table/snippets to 5.4.x / 5.4.0 and Spring Boot 4.1.1.
 - CHANGELOG.md (for 5.4.0): tidied the previous entry to categorize removals under Removed/Deprecated, remove duplications, and correct version ranges and wording.
 
 ### Testing
-- MailServiceTest adds coverage for both Spring Framework 7.0.0/7.0.1 and 7.0.2+ exception shapes: preserves the thread’s interrupt flag, recovers with the last MailException when present, and recovers with a MailSendException wrapping the interrupt when none was recorded. Tests run clean across 7.0.0, 7.0.1, 7.0.2, and the managed 7.0.9.
+- MailServiceTest adds coverage for both Spring Framework 7.0.0/7.0.1 and 7.0.2+ exception shapes: preserves the thread's interrupt flag, recovers with the last MailException when present, and recovers with a MailSendException wrapping the interrupt when none was recorded. Tests run clean across 7.0.0, 7.0.1, 7.0.2, and the managed 7.0.9.
 
 ### Other Changes
 - CI: skip the claude-review workflow on Dependabot PRs to avoid a failed check from bot-initiated runs. No effect on consuming applications.
