@@ -124,11 +124,11 @@ Choose the version that matches your Spring Boot version:
 | 4.0.x – 4.1.x       | 5.4.x             | 21+          | 7.x             |
 | 3.5.x               | 3.6.x             | 17+          | 6.x             |
 
-> **Versioning note:** This library follows Semantic Versioning for its **own** API; its major version is intentionally **not** aligned with Spring Boot's major version. The 5.4.x line is built and verified against **Spring Boot 4.1.1** and also runs on 4.0.x (on Spring Boot 4.0.0, use 5.4.1 or later; see the [compatibility matrix](MIGRATION.md#version-compatibility-matrix)). All Spring Boot starters are `compileOnly`, so your application picks the exact Spring Boot patch version. The `5.0.x` line is a **breaking release** over `4.4.x`; read the **[Migration Guide](MIGRATION.md)** ("Migrating to 5.0.x") before upgrading — note especially the reverse-proxy `user.security.appUrl` requirement.
+> **Versioning note:** This library follows Semantic Versioning for its **own** API; its major version is intentionally **not** aligned with Spring Boot's major version. The 5.4.x line is built and verified against **Spring Boot 4.1.x** (5.4.0 and 5.4.1 against 4.1.1; `main` against 4.1.2) and also runs on 4.0.x (on Spring Boot 4.0.0, use 5.4.1 or later; see the [compatibility matrix](MIGRATION.md#version-compatibility-matrix)). All Spring Boot starters are `compileOnly`, so your application picks the exact Spring Boot patch version. The `5.0.x` line is a **breaking release** over `4.4.x`; read the **[Migration Guide](MIGRATION.md)** ("Migrating to 5.0.x") before upgrading. Note especially the reverse-proxy `user.security.appUrl` requirement.
 
 ### Spring Boot 4.x (Latest)
 
-Spring Boot 4.x brings significant changes including Spring Security 7 and requires Java 21. The 5.x line is built and verified against Spring Boot 4.1.1 and is compatible with 4.0.x.
+Spring Boot 4.x brings significant changes including Spring Security 7 and requires Java 21. The 5.x line is built and verified against Spring Boot 4.1.x (currently 4.1.2) and is compatible with 4.0.x.
 
 **Maven:**
 ```xml

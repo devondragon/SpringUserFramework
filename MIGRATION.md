@@ -940,7 +940,7 @@ The Spring Boot column is the version each line's latest release was built and t
 
 | Framework Version | Spring Boot | Spring Security | Java | Status |
 |-------------------|-------------|-----------------|------|--------|
-| 5.4.x | 4.1.1 (also runs on 4.0.x; see note for 5.4.0) | 7.0.x, 7.1.x | 21+ | Current |
+| 5.4.x | 4.1.1 for 5.4.0 and 5.4.1, 4.1.2 for later 5.4.x (also runs on 4.0.x; see note for 5.4.0) | 7.0.x, 7.1.x | 21+ | Current |
 | 5.0.x – 5.3.x | 4.1.0 (also runs on 4.0.x) | 7.0.x, 7.1.x | 21+ | Superseded: upgrade to 5.4.x |
 | 4.0.x – 4.4.x | 4.0.1 – 4.0.6 | 7.0.x | 21+ | End of life: upgrade to 5.x (see [Migrating to 5.0.x](#migrating-to-50x)) |
 | 3.6.x | 3.5.6 | 6.5.x | 17+ | Security fixes only (`release/3.x` branch) |
