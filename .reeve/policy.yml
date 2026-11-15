@@ -1,0 +1,54 @@
+# Reeve merge gate policy (https://github.com/devondragon/reeve). Read from main, never from a PR's head.
+# A PR's tier is the highest tier any changed file or dependency change matches; unmatched files are `reviewed`.
+# A published library: no auto tier, so every merge needs at least a clean review. Build, publishing, and
+# security code need an approval.
+version: 1
+tiers:
+  reviewed:
+    default: true
+  human:
+    paths:
+      # Agent and gate configuration
+      - "CLAUDE.md"
+      - ".claude/**"
+      - ".reeve/**"
+      - ".github/**"
+      # Build and publishing
+      - "build.gradle"
+      - "settings.gradle"
+      - "gradle.properties"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - "lombok.config"
+      - "src/main/resources/META-INF/**"
+      # Security: authentication, authorization, and the library's default configuration
+      - "src/main/java/com/digitalsanctuary/spring/user/security/**"
+      - "src/main/java/com/digitalsanctuary/spring/user/roles/**"
+      - "src/main/java/com/digitalsanctuary/spring/user/captcha/**"
+      - "src/main/resources/config/**"
+      - "src/main/resources/common_passwords.txt"
+      - "db-scripts/**"
+    dependencies: [new, major]
+gates:
+  reviewed: [ci, review_verdict]
+  human: [ci, approval]
+test_weakening:
+  # A PR that deletes or renames a test file, adds a skip or focus marker in one, or changes a test runner config is
+  # raised to reviewed (Reeve RV-144).
+  enabled: true
+merge:
+  method: merge
+  delete_branch: true
+  # A PR behind its base gets a branch update and a fresh CI run before it merges (Reeve RV-104).
+  require_up_to_date: true
+  resolve_conflicts:   # a merge-conflict park starts a Cyrus session that merges the base in (Reeve RV-108)
+    enabled: true
+    max_attempts: 1
+    max_files: 5
+ci:
+  required:
+    - { name: build, app: github-actions }
+    - { name: codeql, app: github-actions }
+  ignore:
+    - { name: copilot-pull-request-reviewer, app: github-actions }
